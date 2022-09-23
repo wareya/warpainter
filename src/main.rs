@@ -15,290 +15,12 @@ fn main()
     );
 }
 
-enum ImageData
-{
-    Float(Vec<f32>),
-    Int(Vec<u8>),
-}
+mod warimage;
+mod transform;
 
-fn to_float(x : u8) -> f32
-{
-    (x as f32)*255.0
-}
-fn to_int(x : f32) -> u8
-{
-    (x*255.0).round().clamp(0.0, 255.0) as u8
-}
+use warimage::*;
+use transform::*;
 
-impl ImageData
-{
-    fn new_int(w : usize, h : usize) -> Self
-    {
-        Self::Int(vec!(0; w*h*4))
-    }
-    fn to_int(&self) -> Vec<u8>
-    {
-        match self
-        {
-            Self::Int(data) => data.clone(),
-            Self::Float(data) =>
-            {
-                let mut out = vec!(0; data.len());
-                for i in 0..data.len()
-                {
-                    out[i] = to_int(data[i]);
-                }
-                out
-            }
-        }
-    }
-}
-
-// always RGBA
-struct Image
-{
-    width : usize,
-    height : usize,
-    data : ImageData,
-}
-
-impl Image
-{
-    fn from_rgbaimage(input : &image::RgbaImage) -> Self
-    {
-        let (w, h) = input.dimensions();
-        let data = ImageData::new_int(w as usize, h as usize);
-        let mut ret = Self { width : w as usize, height : h as usize, data };
-        for y in 0..ret.height
-        {
-            for x in 0..ret.width
-            {
-                use image::Pixel;
-                let px = input.get_pixel(x as u32, y as u32).0;
-                ret.set_pixel(x, y, px);
-            }
-        }
-        ret
-    }
-    fn to_egui(&self) -> egui::ColorImage
-    {
-        match &self.data
-        {
-            ImageData::Int(data) =>
-                egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &data),
-            _ =>
-                egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.to_int()),
-        }
-    }
-    fn set_pixel(&mut self, x : usize, y : usize, px : [u8; 4])
-    {
-        if x >= self.width || y >= self.height
-        {
-            return;
-        }
-        let index = y*self.width*4 + x*4;
-        match &mut self.data
-        {
-            ImageData::Int(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = px[i];
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = to_float(px[i]);
-                }
-            }
-        }
-    }
-    fn set_pixel_float(&mut self, x : usize, y : usize, px : [f32; 4])
-    {
-        if x >= self.width || y >= self.height
-        {
-            return;
-        }
-        let index = y*self.width*4 + x*4;
-        match &mut self.data
-        {
-            ImageData::Int(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = to_int(px[i]);
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = px[i];
-                }
-            }
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct Transform
-{
-    rows : [[f32; 3]; 3],
-}
-impl Default for Transform
-{
-    fn default() -> Self
-    {
-        Self::ident()
-    }
-}
-impl<'a, 'b> std::ops::Mul<&'b Transform> for &'a Transform
-{
-    type Output = Transform;
-    fn mul(self, other : &'b Transform) -> Transform
-    {
-        let mut out = Transform::zero();
-        for row in 0..3
-        {
-            for col in 0..3
-            {
-                out.rows[row][col] = 0.0;
-                for i in 0..3
-                {
-                    out.rows[row][col] += self.rows[row][i] * other.rows[i][col];
-                }
-            }
-        }
-        out
-    }
-}
-impl<'a, 'b> std::ops::Mul<&'b [f32; 2]> for &'a Transform
-{
-    type Output = [f32; 2];
-    fn mul(self, other : &'b [f32; 2]) -> [f32; 2]
-    {
-        let other = [other[0], other[1], 1.0];
-        let mut out = [0.0, 0.0, 0.0];
-        for row in 0..3
-        {
-            for col in 0..3
-            {
-                out[row] += self.rows[row][col] * other[col];
-            }
-        }
-        [out[0], out[1]]
-    }
-}
-
-fn length(vec : &[f32]) -> f32
-{
-    let mut r = 0.0;
-    for x in vec.iter()
-    {
-        r += x*x;
-    }
-    r.sqrt()
-}
-
-impl Transform {
-    fn zero() -> Self
-    {
-        Self { rows : [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]] }
-    }
-    fn ident() -> Self
-    {
-        Self { rows : [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] }
-    }
-    fn get_translation(&self) -> [f32; 2]
-    {
-        [self.rows[0][2], self.rows[1][2]]
-    }
-    // FIXME make a vector
-    fn get_scale(&self) -> f32
-    {
-        let a = self.rows[0][0];
-        let b = self.rows[0][1];
-        let c = self.rows[1][0];
-        let d = self.rows[1][1];
-        
-        let x = length(&[a, c]);
-        let y = length(&[b, d]);
-        x/2.0 + y/2.0
-    }
-    fn get_rotation(&self) -> f32
-    {
-        let mut d = self.clone();
-        d.rows[0][2] = 0.0;
-        d.rows[1][2] = 0.0;
-        d.set_scale(1.0);
-        
-        let r = &d * &[1.0, 0.0];
-        
-        let psi = (r[1]).atan2(r[0]);
-        
-        psi / std::f32::consts::PI * 180.0
-    }
-    fn translate(&mut self, translation : [f32; 2])
-    {
-        let mut other = Self::ident();
-        other.rows[0][2] = translation[0];
-        other.rows[1][2] = translation[1];
-        
-        let new = &other * &*self;
-        self.rows = new.rows;
-    }
-    // FIXME make a vector
-    fn scale(&mut self, scale : f32)
-    {
-        let mut other = Self::ident();
-        other.rows[0][0] = scale;
-        other.rows[1][1] = scale;
-        
-        let new = &other * &*self;
-        self.rows = new.rows;
-    }
-    fn set_scale(&mut self, scale : f32)
-    {
-        let old_scale = self.get_scale();
-        if old_scale > 0.0
-        {
-            self.scale(1.0 / old_scale);
-        }
-        self.scale(scale);
-    }
-    fn rotate(&mut self, angle : f32)
-    {
-        let mut other = Self::ident();
-        let _cos = (angle * std::f32::consts::PI / 180.0).cos();
-        let _sin = (angle * std::f32::consts::PI / 180.0).sin();
-        other.rows[0][0] =  _cos;
-        other.rows[0][1] = -_sin;
-        other.rows[1][0] =  _sin;
-        other.rows[1][1] =  _cos;
-        
-        let new = &other * &*self;
-        self.rows = new.rows;
-    }
-    fn make_uniform(&mut self)
-    {
-        let mut other = Self::ident();
-        // FIXME / TODO
-    }
-    fn inverse(&self) -> Self
-    {
-        let mut other = Self::ident();
-        
-        let trans = self.get_translation();
-        
-        other.translate([-trans[0], -trans[1]]);
-        other.scale(1.0/self.get_scale());
-        other.rotate(-self.get_rotation());
-        
-        other
-    }
-}
 
 struct MyApp
 {
@@ -306,7 +28,7 @@ struct MyApp
     image : Image,
     image_preview : Option<egui::TextureHandle>,
     xform : Transform,
-    debug_text : String,
+    debug_text : Vec<String>,
 }
 
 impl Default for MyApp
@@ -325,7 +47,7 @@ impl Default for MyApp
             image : img,
             image_preview : None,
             xform : Transform::ident(),
-            debug_text : "".to_string(),
+            debug_text : vec!(),
         }
     }
 }
@@ -348,8 +70,7 @@ impl MyApp
     }
     fn debug(&mut self, text : String)
     {
-        self.debug_text.push_str(&text);
-        self.debug_text.push_str("\n");
+        self.debug_text.push(text);
     }
 }
 
@@ -392,7 +113,11 @@ impl eframe::App for MyApp
         {
             egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui|
             {
-                ui.label(&self.debug_text);
+                if self.debug_text.len() > 500
+                {
+                    self.debug_text.drain(0..self.debug_text.len()-500);
+                }
+                ui.label(&self.debug_text.join("\n"));
             });
         });
         
@@ -406,7 +131,7 @@ impl eframe::App for MyApp
                 }
             });
         });
-        egui::SidePanel::left("ToolSettings").min_width(64.0).default_width(64.0).show(ctx, |ui|
+        egui::SidePanel::left("ToolPanel").min_width(64.0).default_width(64.0).show(ctx, |ui|
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
@@ -420,14 +145,88 @@ impl eframe::App for MyApp
                 }
             });
         });
-        egui::SidePanel::left("ToolPanel").show(ctx, |ui|
+        egui::SidePanel::left("ToolSettings").show(ctx, |ui|
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                for layer in &self.layers
+                let input = ui.input().clone();
+                let time = input.time as f32;
+                
+                ui.add(|ui: &mut egui::Ui| -> egui::Response
                 {
-                    ui.label(layer);
-                }
+                    let avail = ui.available_size();
+                    let least = avail.x.min(avail.y) as usize;
+                    let least_f = least as f32;
+                    
+                    let ring_size = 0.085*2.0;
+                    let box_diagonal = least_f * (1.0 - ring_size*1.5);
+                    let box_size = box_diagonal * 0.5f32.sqrt();
+                    let box_margin = (least_f - box_size)/2.0;
+                    
+                    let mut img = Image::blank(least, least);
+                    let h = (time*128.0) % 360.0;
+                    for y in 0..least
+                    {
+                        let y = y as f32;
+                        let y_mid = y/least_f*2.0 - 1.0;
+                        for x in 0..least
+                        {
+                            let x = x as f32;
+                            let x_mid = x/least_f*2.0 - 1.0;
+                            let mid_dist = length(&[y_mid, x_mid]);
+                            
+                            if mid_dist + ring_size > 1.0 && mid_dist < 1.0
+                            {
+                                let y_mid = y_mid / mid_dist;
+                                let x_mid = x_mid / mid_dist;
+                                let r = (y_mid.atan2(x_mid) / std::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
+                                let p = (1.0 - mid_dist).abs().min((1.0 - ring_size - mid_dist).abs())*2.0;
+                                let a = (p*least_f*ring_size/1.2).clamp(0.0, 1.0);
+                                let b = (p*least_f*ring_size/1.2 - 0.5).clamp(0.0, 1.0);
+                                img.set_pixel(x as isize, y as isize, px_to_int(hsv_to_rgb([r, 0.9, b, a])));
+                            }
+                            else if x > box_margin && x < box_margin+box_size
+                                 && y > box_margin && y < box_margin+box_size
+                            {
+                                let s = (x-box_margin) / box_size;
+                                let v = 1.0 - (y-box_margin) / box_size;
+                                img.set_pixel(x as isize, y as isize, px_to_int(hsv_to_rgb([h, s, v, 1.0])));
+                            }
+                            else if x > box_margin-1.0 && x < box_margin+box_size+1.0
+                                 && y > box_margin-1.0 && y < box_margin+box_size+1.0
+                            {
+                                img.set_pixel(x as isize, y as isize, [0, 0, 0, 192]);
+                            }
+                            else if x > box_margin-2.0 && x < box_margin+box_size+2.0
+                                 && y > box_margin-2.0 && y < box_margin+box_size+2.0
+                            {
+                                img.set_pixel(x as isize, y as isize, [0, 0, 0, 92]);
+                            }
+                        }
+                    }
+                    let tex = ctx.load_texture(
+                        "colorpalette",
+                        img.to_egui(),
+                        egui::TextureFilter::Nearest
+                    );
+                    
+                    let least_vec2 = [least as f32, least as f32].into();
+                    let mut response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());
+                    
+                    let mut mesh = egui::Mesh::with_texture(tex.id());
+                    let mut rect : egui::Rect = [[0.0, 0.0].into(), least_vec2.to_pos2()].into();
+                    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
+                    mesh.add_rect_with_uv (
+                        rect.translate(response.rect.min.to_vec2()),
+                        uv,
+                        egui::Color32::WHITE
+                    );
+                    
+                    let painter = ui.painter_at(response.rect);
+                    painter.add(egui::Shape::mesh(mesh));
+                    
+                    response
+                });
             });
         });
         egui::CentralPanel::default().show(ctx, |ui|
@@ -436,7 +235,7 @@ impl eframe::App for MyApp
             ui.label("todo");
             ui.add(|ui: &mut egui::Ui| -> egui::Response
             {
-                let input = ui.input();
+                let input = ui.input().clone();
                 
                 let time = input.time;
                 let delta = input.unstable_dt;
@@ -492,9 +291,6 @@ impl eframe::App for MyApp
                 // (idea: if center of screen is not inside of canvas, prevent center of canvas from going past edges)
                 
                 
-                
-                drop(input);
-                
                 // todo
                 let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
                 
@@ -521,7 +317,7 @@ impl eframe::App for MyApp
                     coord[1] += self.image.height as f32 / 2.0;
                     
                     self.debug(format!("{:?}", coord));
-                    self.image.set_pixel(coord[0] as usize, coord[1] as usize, [0,0,0,255]);
+                    self.image.set_pixel(coord[0] as isize, coord[1] as isize, [0,0,0,255]);
                 }
                 
                 let tex = self.image_preview.as_ref().unwrap();
