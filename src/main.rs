@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+//#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::egui;
 
@@ -12,6 +12,47 @@ use warimage::*;
 use transform::*;
 use widgets::*;
 use canvas::*;
+use gizmos::*;
+
+trait Tool
+{
+    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState);
+    fn is_brushlike(&self) -> bool;
+    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>;
+}
+
+struct Pencil
+{
+    size : f32,
+    prev_input : CanvasInputState,
+}
+
+impl Pencil
+{
+    fn new() -> Self
+    {
+        Pencil { size : 1.0, prev_input : CanvasInputState::default() }
+    }
+}
+
+impl Tool for Pencil
+{
+    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState)
+    {
+        self.prev_input = new_input.clone();
+    }
+    fn is_brushlike(&self) -> bool
+    {
+        true
+    }
+    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>
+    {
+        let pos = self.prev_input.canvas_mouse_coord;
+        let mut gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
+        Some(Box::new(gizmo))
+        //gizmo.draw(ui, app, &mut response, &painter);
+    }
+}
 
 struct Warpaint
 {
@@ -68,11 +109,43 @@ impl Warpaint
         log_zoom = log_zoom.clamp(-16.0, 16.0);
         self.xform.set_scale(2.0_f32.powf(log_zoom));
     }
+    fn update_canvas_preview(&mut self, ctx : &egui::Context)
+    {
+        match &mut self.image_preview
+        {
+            Some(texhandle) =>
+            {
+                let img2 = self.image.to_egui();
+                let img2 = egui::ImageData::Color(img2);
+                let filter = if self.xform.get_scale() >= 1.0
+                {
+                    egui::TextureFilter::Nearest
+                }
+                else
+                {
+                    egui::TextureFilter::Linear
+                };
+                texhandle.set(img2, filter);
+            }
+            _ => {}
+        }
+        if self.image_preview.is_none()
+        {
+            let img2 = self.image.to_egui();
+            let img2 = ctx.load_texture(
+                "my-image",
+                img2,
+                egui::TextureFilter::Nearest
+            );
+            
+            self.image_preview = Some(img2);
+        }
+    }
+    
     fn debug(&mut self, text : String)
     {
         self.debug_text.push(text);
     }
-    
     
     fn set_main_color_rgb8(&mut self, new : [u8; 4])
     {
@@ -117,36 +190,50 @@ impl eframe::App for Warpaint
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
     {
-        ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        match &mut self.image_preview
-        {
-            Some(texhandle) =>
+        egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui|
             {
-                let img2 = self.image.to_egui();
-                let img2 = egui::ImageData::Color(img2);
-                let filter = if self.xform.get_scale() >= 1.0
+                ui.menu_button("File", |ui|
                 {
-                    egui::TextureFilter::Nearest
-                }
-                else
+                    if ui.button("Open...").clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new().pick_file()
+                        {
+                            let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
+                            self.image = Image::from_rgbaimage(&img);
+                            let img2 = self.image.to_egui();
+                            let img2 = ctx.load_texture(
+                                "my-image",
+                                img2,
+                                egui::TextureFilter::Nearest
+                            );
+                            
+                            self.image_preview = Some(img2);
+                        }
+                    }
+                });
+                ui.menu_button("Edit", |ui|
                 {
-                    egui::TextureFilter::Linear
-                };
-                texhandle.set(img2, filter);
-            }
-            _ => {}
-        }
-        if self.image_preview.is_none()
-        {
-            let img2 = self.image.to_egui();
-            let img2 = ctx.load_texture(
-                "my-image",
-                img2,
-                egui::TextureFilter::Nearest
-            );
-            
-            self.image_preview = Some(img2);
-        }
+                    if ui.button("Undo").clicked()
+                    {
+                    }
+                    if ui.button("Redo").clicked()
+                    {
+                    }
+                });
+                ui.menu_button("View", |ui|
+                {
+                    if ui.button("Zoom In").clicked()
+                    {
+                    }
+                    if ui.button("Zoom Out").clicked()
+                    {
+                    }
+                });
+            });
+        });
+        
+        self.update_canvas_preview(&ctx);
         
         egui::Window::new("Debug Text").show(ctx, |ui|
         {
@@ -198,6 +285,9 @@ impl eframe::App for Warpaint
         {
             ui.add(|ui : &mut egui::Ui| canvas(ui, self));
         });
+        
+        // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui 0.19.0 at least)
+        //ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
 }
 

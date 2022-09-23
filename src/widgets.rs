@@ -4,6 +4,17 @@ use crate::warimage::*;
 use crate::transform::*;
 use crate::gizmos::draw_doubled;
 
+/*
+pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
+{
+    let input = ui.input().clone();
+    
+    let avail = ui.available_size();
+    let w = avail.x;
+    let h = 16.0;
+    let least_f = least as f32;
+*/
+    
 pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
 {
     let input = ui.input().clone();
@@ -26,7 +37,6 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     let mut v = app.main_color_hsv[2];
     let a = app.main_color_hsv[3];
     
-    
     let least_vec2 = [least as f32, least as f32].into();
     let mut response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());
     
@@ -38,23 +48,26 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     
     if response.dragged()
     {
-        let drag_origin = input.pointer.press_origin().unwrap();
-        let rel_origin = drag_origin - sv_box.center();
-        let rel_dist = length(&[rel_origin[0], rel_origin[1]]);
-        if sv_box.contains(drag_origin)
+        if let Some(drag_origin) = input.pointer.press_origin()
         {
-            let pos = response.interact_pointer_pos().unwrap() - box_start.to_vec2();
-            s = pos.x / box_size;
-            v = 1.0 - (pos.y / box_size);
-            s = s.clamp(0.0, 1.0);
-            v = v.clamp(0.0, 1.0);
-            app.set_main_color_hsv([h, s, v, a]);
-        }
-        else if rel_dist > ring_inner_radius && rel_dist < ring_outer_radius
-        {
-            let pos = response.interact_pointer_pos().unwrap() - sv_box.center();
-            h = (pos[1].atan2(pos[0]) / std::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
-            app.set_main_color_hsv([h, s, v, a]);
+            let rel_origin = drag_origin - sv_box.center();
+            let rel_dist = length(&[rel_origin[0], rel_origin[1]]);
+            if sv_box.contains(drag_origin)
+            {
+                // FIXME use input.pointer.interact_pos instead
+                let pos = response.interact_pointer_pos().unwrap() - box_start.to_vec2();
+                s = pos.x / box_size;
+                v = 1.0 - (pos.y / box_size);
+                s = s.clamp(0.0, 1.0);
+                v = v.clamp(0.0, 1.0);
+                app.set_main_color_hsv([h, s, v, a]);
+            }
+            else if rel_dist > ring_inner_radius && rel_dist < ring_outer_radius
+            {
+                let pos = response.interact_pointer_pos().unwrap() - sv_box.center();
+                h = (pos[1].atan2(pos[0]) / std::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
+                app.set_main_color_hsv([h, s, v, a]);
+            }
         }
     }
     
