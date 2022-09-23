@@ -1,6 +1,28 @@
-
 use eframe::egui;
 
+pub (crate) fn px_lerp_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+{
+    let mut r = [0.0; 4];
+    for i in 0..4
+    {
+        r[i] = a[i] * (1.0 - amount) + b[i] * amount;
+    }
+    r
+}
+pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
+{
+    px_to_int(px_lerp_float(px_to_float(a), px_to_float(b), amount))
+}
+pub (crate) fn px_mix_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+{
+    let mut r = px_lerp_float(a, b, amount);
+    r[3] = a[3] + b[3]*(1.0 - a[3]);
+    r
+}
+pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
+{
+    px_to_int(px_mix_float(px_to_float(a), px_to_float(b), amount))
+}
 
 #[derive(Debug, Clone)]
 pub (crate) enum ImageData
@@ -115,6 +137,122 @@ pub (crate) struct Image
 
 impl Image
 {
+    pub (crate) fn set_pixel_wrapped(&mut self, x : isize, y : isize, px : [u8; 4])
+    {
+        let x = (x % self.width as isize) as usize;
+        let y = (y % self.height as isize) as usize;
+        let index = y*self.width*4 + x*4;
+        match &mut self.data
+        {
+            ImageData::Int(data) =>
+            {
+                for i in 0..4
+                {
+                    data[index + i] = px[i];
+                }
+            }
+            ImageData::Float(data) =>
+            {
+                for i in 0..4
+                {
+                    data[index + i] = to_float(px[i]);
+                }
+            }
+        }
+    }
+    pub (crate) fn set_pixel(&mut self, x : isize, y : isize, px : [u8; 4])
+    {
+        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        {
+            return;
+        }
+        self.set_pixel_wrapped(x, y, px)
+    }
+    pub (crate) fn set_pixel_float_wrapped(&mut self, x : isize, y : isize, px : [f32; 4])
+    {
+        let x = (x % self.width as isize) as usize;
+        let y = (y % self.height as isize) as usize;
+        let index = y*self.width*4 + x*4;
+        match &mut self.data
+        {
+            ImageData::Int(data) =>
+            {
+                for i in 0..4
+                {
+                    data[index + i] = to_int(px[i]);
+                }
+            }
+            ImageData::Float(data) =>
+            {
+                for i in 0..4
+                {
+                    data[index + i] = px[i];
+                }
+            }
+        }
+    }
+    pub (crate) fn set_pixel_float(&mut self, x : isize, y : isize, px : [f32; 4])
+    {
+        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        {
+            return;
+        }
+        self.set_pixel_float_wrapped(x, y, px)
+    }
+    pub (crate) fn get_pixel_wrapped(&self, x : isize, y : isize) -> [u8; 4]
+    {
+        let x = (x % self.width as isize) as usize;
+        let y = (y % self.height as isize) as usize;
+        let index = y*self.width*4 + x*4;
+        match &self.data
+        {
+            ImageData::Int(data) =>
+            {
+                [data[index], data[index+ 1], data[index+ 2], data[index+ 3]]
+            }
+            ImageData::Float(data) =>
+            {
+                px_to_int([data[index], data[index+ 1], data[index+ 2], data[index+ 3]])
+            }
+        }
+    }
+    pub (crate) fn get_pixel(&self, x : isize, y : isize) -> [u8; 4]
+    {
+        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        {
+            return [0; 4];
+        }
+        self.get_pixel_wrapped(x, y)
+    }
+    pub (crate) fn get_pixel_float_wrapped(&self, x : isize, y : isize) -> [f32; 4]
+    {
+        let x = (x % self.width as isize) as usize;
+        let y = (y % self.height as isize) as usize;
+        let index = y*self.width*4 + x*4;
+        match &self.data
+        {
+            ImageData::Int(data) =>
+            {
+                px_to_float([data[index], data[index+ 1], data[index+ 2], data[index+ 3]])
+            }
+            ImageData::Float(data) =>
+            {
+                [data[index], data[index+ 1], data[index+ 2], data[index+ 3]]
+            }
+        }
+    }
+    pub (crate) fn get_pixel_float(&self, x : isize, y : isize) -> [f32; 4]
+    {
+        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        {
+            return [0.0; 4];
+        }
+        self.get_pixel_float_wrapped(x, y)
+    }
+}
+
+impl Image
+{
     pub (crate) fn blank(w : usize, h : usize) -> Self
     {
         let data = ImageData::new_int(w as usize, h as usize);
@@ -137,6 +275,10 @@ impl Image
         }
         ret
     }
+    pub (crate) fn blank_with_same_size(&self) -> Self
+    {
+        Self::blank(self.width, self.height)
+    }
     pub (crate) fn to_egui(&self) -> egui::ColorImage
     {
         match &self.data
@@ -147,57 +289,16 @@ impl Image
                 egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.to_int()),
         }
     }
-    pub (crate) fn set_pixel(&mut self, x : isize, y : isize, px : [u8; 4])
+    pub (crate) fn blend_from(&mut self, other : &Image)
     {
-        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        for y in 0..self.height as isize
         {
-            return;
-        }
-        let x = x as usize;
-        let y = y as usize;
-        let index = y*self.width*4 + x*4;
-        match &mut self.data
-        {
-            ImageData::Int(data) =>
+            for x in 0..self.width as isize
             {
-                for i in 0..4
-                {
-                    data[index + i] = px[i];
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = to_float(px[i]);
-                }
-            }
-        }
-    }
-    pub (crate) fn set_pixel_float(&mut self, x : isize, y : isize, px : [f32; 4])
-    {
-        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
-        {
-            return;
-        }
-        let x = x as usize;
-        let y = y as usize;
-        let index = y*self.width*4 + x*4;
-        match &mut self.data
-        {
-            ImageData::Int(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = to_int(px[i]);
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                for i in 0..4
-                {
-                    data[index + i] = px[i];
-                }
+                let a = self.get_pixel_float(x, y);
+                let b = other.get_pixel_float(x, y);
+                let c = px_mix_float(a, b, b[3]);
+                self.set_pixel_float_wrapped(x, y, c);
             }
         }
     }

@@ -1,5 +1,7 @@
 //#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+#![windows_subsystem = "console"]
+
 use eframe::egui;
 
 mod warimage;
@@ -17,7 +19,8 @@ use gizmos::*;
 trait Tool
 {
     fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState);
-    fn is_brushlike(&self) -> bool;
+    fn edits_inplace(&self) -> bool; // whether the layer gets a full layer copy or a blank layer that gets composited on top
+    fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
     fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>;
 }
 
@@ -35,11 +38,67 @@ impl Pencil
     }
 }
 
+fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4])
+{
+    from[0] = from[0].floor();
+    from[1] = from[1].floor();
+    to[0] = to[0].floor();
+    to[1] = to[1].floor();
+    let diff = vec_sub(&from, &to);
+    let max = diff[0].abs().max(diff[1].abs());
+    for i in 1..=max as usize
+    {
+        let amount = i as f32 / max;
+        let coord = vec_lerp(&from, &to, amount);
+        image.set_pixel_float(coord[0].round() as isize, coord[1].round() as isize, color);
+    }
+}
+fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4])
+{
+    draw_line_no_start_float(image, from, to, px_to_float(color))
+}
+
 impl Tool for Pencil
 {
     fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState)
     {
+        if new_input.held[0] && !self.prev_input.held[0]
+        {
+            app.begin_edit(self.edits_inplace());
+        }
+        if new_input.held[0]
+        {
+            let prev_coord = self.prev_input.canvas_mouse_coord;
+            let coord = new_input.canvas_mouse_coord;
+            
+            app.debug(format!("{:?}", coord));
+            let color = app.main_color_rgb;
+            if let Some(mut image) = app.get_editing_layer()
+            {
+                if !self.prev_input.held[0]
+                {
+                    image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
+                }
+                else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
+                {
+                    draw_line_no_start_float(image, prev_coord, coord, color);
+                }
+            }
+        }
+        else if self.prev_input.held[0]
+        {
+            app.commit_edit();
+        }
+        if new_input.held[1] && !self.prev_input.held[1]
+        {
+            app.cancel_edit();
+        }
+        
         self.prev_input = new_input.clone();
+    }
+    fn edits_inplace(&self) -> bool
+    {
+        true
     }
     fn is_brushlike(&self) -> bool
     {
@@ -47,10 +106,11 @@ impl Tool for Pencil
     }
     fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>
     {
-        let pos = self.prev_input.canvas_mouse_coord;
+        let mut pos = self.prev_input.canvas_mouse_coord;
+        pos[0] -= app.image.width as f32 / 2.0;
+        pos[1] -= app.image.height as f32 / 2.0;
         let mut gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
-        //gizmo.draw(ui, app, &mut response, &painter);
     }
 }
 
@@ -58,6 +118,10 @@ struct Warpaint
 {
     layers : Vec<String>,
     image : Image,
+    
+    edit_is_direct : bool,
+    editing_image : Option<Image>,
+    
     image_preview : Option<egui::TextureHandle>,
     xform : Transform,
     debug_text : Vec<String>,
@@ -66,6 +130,9 @@ struct Warpaint
     main_color_hsv : [f32; 4],
     sub_color_rgb : [f32; 4],
     sub_color_hsv : [f32; 4],
+    
+    tools : Vec<Box<dyn Tool>>,
+    curr_tool : usize,
 }
 
 impl Default for Warpaint
@@ -82,16 +149,103 @@ impl Default for Warpaint
                 "New Layer 1".to_string()
             ),
             image : img,
+            
+            edit_is_direct : false,
+            editing_image : None,
+            
             image_preview : None,
             xform : Transform::ident(),
             debug_text : vec!(),
+            
             main_color_rgb : [0.0, 0.0, 0.0, 1.0],
             main_color_hsv : [0.0, 0.0, 0.0, 1.0],
             sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
             sub_color_hsv : [1.0, 1.0, 1.0, 1.0],
+            
+            tools : vec!(Box::new(crate::Pencil::new())),
+            curr_tool : 0,
         }
     }
 }
+
+impl Warpaint
+{
+    fn tool_think(&mut self, inputstate : &CanvasInputState)
+    {
+        if self.curr_tool < self.tools.len()
+        {
+            let mut tool = self.tools.remove(self.curr_tool);
+            tool.think(self, inputstate);
+            self.tools.insert(self.curr_tool, tool);
+        }
+    }
+    fn get_tool(&self) -> Option<&Box<dyn Tool>>
+    {
+        self.tools.get(self.curr_tool)
+    }
+}
+
+impl Warpaint
+{
+    fn begin_edit(&mut self, inplace : bool)
+    {
+        self.edit_is_direct = inplace;
+        if inplace
+        {
+            self.editing_image = Some(self.image.clone());
+        }
+        else
+        {
+            self.editing_image = Some(self.image.blank_with_same_size());
+        }
+    }
+    
+    fn get_editing_layer<'a>(&'a mut self) -> Option<&'a mut Image>
+    {
+        (&mut self.editing_image).as_mut()
+    }
+    fn get_temp_edit_image(&mut self) -> Image
+    {
+        if self.edit_is_direct
+        {
+            if let Some(image) = &self.editing_image
+            {
+                image.clone()
+            }
+            else
+            {
+                self.image.clone()
+            }
+        }
+        else
+        {
+            if let Some(image) = &self.editing_image
+            {
+                let mut r = self.image.clone();
+                r.blend_from(image);
+                r
+            }
+            else
+            {
+                self.image.clone()
+            }
+        }
+    }
+    fn commit_edit(&mut self)
+    {
+        self.debug("Committing edit");
+        self.image = self.get_temp_edit_image();
+        self.editing_image = None;
+        self.edit_is_direct = false;
+    }
+    fn cancel_edit(&mut self)
+    {
+        self.editing_image = None;
+        self.edit_is_direct = false;
+    }
+}
+
+
 impl Warpaint
 {
     fn zoom(&mut self, amount : f32)
@@ -111,13 +265,13 @@ impl Warpaint
     }
     fn update_canvas_preview(&mut self, ctx : &egui::Context)
     {
+        let img = self.get_temp_edit_image().to_egui();
         match &mut self.image_preview
         {
             Some(texhandle) =>
             {
-                let img2 = self.image.to_egui();
-                let img2 = egui::ImageData::Color(img2);
-                let filter = if self.xform.get_scale() >= 1.0
+                let img = egui::ImageData::Color(img);
+                let filter = if self.xform.get_scale() >= 0.97
                 {
                     egui::TextureFilter::Nearest
                 }
@@ -125,28 +279,28 @@ impl Warpaint
                 {
                     egui::TextureFilter::Linear
                 };
-                texhandle.set(img2, filter);
+                texhandle.set(img, filter);
             }
-            _ => {}
-        }
-        if self.image_preview.is_none()
-        {
-            let img2 = self.image.to_egui();
-            let img2 = ctx.load_texture(
-                "my-image",
-                img2,
-                egui::TextureFilter::Nearest
-            );
-            
-            self.image_preview = Some(img2);
+            None =>
+            {
+                let img = ctx.load_texture(
+                    "my-image",
+                    img,
+                    egui::TextureFilter::Nearest
+                );
+                
+                self.image_preview = Some(img);
+            }
         }
     }
     
-    fn debug(&mut self, text : String)
+    fn debug<T : ToString>(&mut self, text : T)
     {
-        self.debug_text.push(text);
+        self.debug_text.push(text.to_string());
     }
-    
+}
+impl Warpaint
+{
     fn set_main_color_rgb8(&mut self, new : [u8; 4])
     {
         self.set_main_color_rgb(px_to_float(new));

@@ -176,6 +176,7 @@ impl Transform {
         let mut other = Self::ident();
         // FIXME / TODO
     }
+    // FIXME replace with actual matrix inversion
     pub (crate) fn inverse(&self) -> Self
     {
         let mut other = Self::ident();

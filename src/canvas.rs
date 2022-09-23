@@ -3,15 +3,14 @@ use eframe::egui;
 use crate::warimage::*;
 use crate::transform::*;
 use crate::gizmos::*;
+use crate::Tool;
 
 #[derive(Clone, Debug, Default)]
 pub (crate) struct CanvasInputState
 {
     pub (crate) time : f32,
     pub (crate) delta : f32,
-    pub (crate) pressed : [bool; 5],
     pub (crate) held : [bool; 5],
-    pub (crate) released : [bool; 5],
     pub (crate) canvas_mouse_coord : [f32; 2],
     pub (crate) window_mouse_coord : [f32; 2],
     pub (crate) view_mouse_coord : [f32; 2],
@@ -35,13 +34,6 @@ impl CanvasInputState
         self.view_mouse_coord = vec_sub(&self.window_mouse_coord, &to_array(response.rect.min));
         self.mouse_scroll = input.scroll_delta.y;
         
-        self.pressed = [
-            input.pointer.button_clicked(egui::PointerButton::Primary),
-            input.pointer.button_clicked(egui::PointerButton::Secondary),
-            input.pointer.button_clicked(egui::PointerButton::Middle),
-            input.pointer.button_clicked(egui::PointerButton::Extra1),
-            input.pointer.button_clicked(egui::PointerButton::Extra2),
-        ];
         self.held = [
             input.pointer.button_down(egui::PointerButton::Primary),
             input.pointer.button_down(egui::PointerButton::Secondary),
@@ -49,25 +41,10 @@ impl CanvasInputState
             input.pointer.button_down(egui::PointerButton::Extra1),
             input.pointer.button_down(egui::PointerButton::Extra2),
         ];
-        self.released = [
-            input.pointer.button_released(egui::PointerButton::Primary),
-            input.pointer.button_released(egui::PointerButton::Secondary),
-            input.pointer.button_released(egui::PointerButton::Middle),
-            input.pointer.button_released(egui::PointerButton::Extra1),
-            input.pointer.button_released(egui::PointerButton::Extra2),
-        ];
         
-        if !response.dragged()
+        if !response.hovered() && !response.dragged() && !response.drag_released()
         {
-            for e in self.pressed.iter_mut()
-            {
-                *e = false;
-            }
             for e in self.held.iter_mut()
-            {
-                *e = false;
-            }
-            for e in self.released.iter_mut()
             {
                 *e = false;
             }
@@ -85,6 +62,10 @@ impl CanvasInputState
             xform = xform.inverse();
             
             coord = &xform * &coord;
+            
+            coord[0] += app.image.width as f32 / 2.0;
+            coord[1] += app.image.height as f32 / 2.0;
+            
             coord
         };
     }
@@ -136,18 +117,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         app.xform.translate(offset);
     }
     
-    //let tool = crate::Pencil::new();
-    
-    if inputstate.held[0]
-    {
-        let mut coord = inputstate.canvas_mouse_coord;
-        coord[0] += app.image.width as f32 / 2.0;
-        coord[1] += app.image.height as f32 / 2.0;
-        app.debug(format!("{:?}", coord));
-        let color = px_to_int(app.main_color_rgb);
-        app.debug(format!("{:?}", color));
-        app.image.set_pixel(coord[0] as isize, coord[1] as isize, color);
-    }
+    app.tool_think(&inputstate);
     
     // render canvas
     
@@ -175,6 +145,14 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
     
     let painter = ui.painter_at(response.rect);
     painter.add(egui::Shape::mesh(mesh));
+    
+    if let Some(tool) = app.get_tool()
+    {
+        if let Some(mut gizmo) = tool.get_gizmo(app, true)
+        {
+            gizmo.draw(ui, app, &mut response, &painter);
+        }
+    }
     
     response
 }
