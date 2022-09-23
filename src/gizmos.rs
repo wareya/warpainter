@@ -41,6 +41,8 @@ pub (crate) fn draw_doubled(painter : &egui::Painter, points : &[[[f32; 2]; 2]])
     for pair in points.iter()
     {
         painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
+        // counteract bad linear AA by drawing twice
+        painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
     }
 }
 
@@ -54,7 +56,7 @@ pub (crate) struct BoxGizmo
 
 impl Gizmo for BoxGizmo
 {
-   fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;
@@ -89,7 +91,7 @@ pub (crate) struct BrushGizmo
 
 impl Gizmo for BrushGizmo
 {
-   fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;

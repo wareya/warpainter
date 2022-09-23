@@ -59,12 +59,17 @@ pub (crate) fn length(vec : &[f32]) -> f32
     r.sqrt()
 }
 
+pub (crate) fn lerp(from : f32, to : f32, amount : f32) -> f32
+{
+    from * (1.0-amount) + to * amount
+}
+
 pub (crate) fn vec_lerp<const N: usize>(from : &[f32; N], to : &[f32; N], amount : f32) -> [f32; N]
 {
     let mut out = [0.0; N];
     for i in 0..N
     {
-        out[i] = from[i] * (1.0-amount) + to[i] * amount;
+        out[i] = lerp(from[i], to[i], amount);
     }
     out
 }
@@ -77,6 +82,14 @@ pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32
         out[i] = from[i] - to[i];
     }
     out
+}
+
+pub (crate) fn xform_points(xform : &Transform, points : &mut [[f32; 2]])
+{
+    for point in points.iter_mut()
+    {
+        *point = xform * &*point;
+    }
 }
 
 impl Transform {

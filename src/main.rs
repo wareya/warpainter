@@ -20,6 +20,11 @@ struct Warpaint
     image_preview : Option<egui::TextureHandle>,
     xform : Transform,
     debug_text : Vec<String>,
+    
+    main_color_rgb : [f32; 4],
+    main_color_hsv : [f32; 4],
+    sub_color_rgb : [f32; 4],
+    sub_color_hsv : [f32; 4],
 }
 
 impl Default for Warpaint
@@ -39,6 +44,10 @@ impl Default for Warpaint
             image_preview : None,
             xform : Transform::ident(),
             debug_text : vec!(),
+            main_color_rgb : [0.0, 0.0, 0.0, 1.0],
+            main_color_hsv : [0.0, 0.0, 0.0, 1.0],
+            sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
+            sub_color_hsv : [1.0, 1.0, 1.0, 1.0],
         }
     }
 }
@@ -62,6 +71,45 @@ impl Warpaint
     fn debug(&mut self, text : String)
     {
         self.debug_text.push(text);
+    }
+    
+    
+    fn set_main_color_rgb8(&mut self, new : [u8; 4])
+    {
+        self.set_main_color_rgb(px_to_float(new));
+    }
+    fn set_main_color_rgb(&mut self, new : [f32; 4])
+    {
+        self.main_color_rgb = new.clone();
+        self.main_color_hsv = rgb_to_hsv(new);
+    }
+    fn set_main_color_hsv8(&mut self, new : [u8; 4])
+    {
+        self.set_main_color_hsv(px_to_float(new));
+    }
+    fn set_main_color_hsv(&mut self, new : [f32; 4])
+    {
+        self.main_color_rgb = hsv_to_rgb(new);
+        self.main_color_hsv = new;
+    }
+    
+    fn set_sub_color_rgb8(&mut self, new : [u8; 4])
+    {
+        self.set_sub_color_rgb(px_to_float(new));
+    }
+    fn set_sub_color_rgb(&mut self, new : [f32; 4])
+    {
+        self.sub_color_rgb = new.clone();
+        self.sub_color_hsv = rgb_to_hsv(new);
+    }
+    fn set_sub_color_hsv8(&mut self, new : [u8; 4])
+    {
+        self.set_sub_color_hsv(px_to_float(new));
+    }
+    fn set_sub_color_hsv(&mut self, new : [f32; 4])
+    {
+        self.sub_color_rgb = hsv_to_rgb(new);
+        self.sub_color_hsv = new;
     }
 }
 

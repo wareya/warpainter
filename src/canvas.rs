@@ -113,7 +113,9 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         coord[0] += app.image.width as f32 / 2.0;
         coord[1] += app.image.height as f32 / 2.0;
         app.debug(format!("{:?}", coord));
-        app.image.set_pixel(coord[0] as isize, coord[1] as isize, [0,0,0,255]);
+        let color = px_to_int(app.main_color_rgb);
+        app.debug(format!("{:?}", color));
+        app.image.set_pixel(coord[0] as isize, coord[1] as isize, color);
     }
     
     // render canvas
