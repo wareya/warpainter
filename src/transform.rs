@@ -59,6 +59,26 @@ pub (crate) fn length(vec : &[f32]) -> f32
     r.sqrt()
 }
 
+pub (crate) fn vec_lerp<const N: usize>(from : &[f32; N], to : &[f32; N], amount : f32) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = from[i] * (1.0-amount) + to[i] * amount;
+    }
+    out
+}
+
+pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = from[i] - to[i];
+    }
+    out
+}
+
 impl Transform {
     pub (crate) fn zero() -> Self
     {

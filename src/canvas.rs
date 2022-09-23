@@ -2,11 +2,14 @@
 use eframe::egui;
 use crate::warimage::*;
 use crate::transform::*;
+use crate::gizmos::*;
 
 pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
 {
     let input = ui.input().clone();
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
+    
+    // collect input
     
     let time = input.time;
     let delta = input.unstable_dt;
@@ -35,7 +38,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         input.pointer.button_released(egui::PointerButton::Extra1),
         input.pointer.button_released(egui::PointerButton::Extra2),
     ];
-    if !response.hovered()
+    if !response.dragged()
     {
         for e in pressed.iter_mut()
         {
@@ -49,8 +52,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         {
             *e = false;
         }
+    }
+    if !response.hovered()
+    {
         mouse_scroll = 0.0;
     }
+    
+    // handle input
     
     if input.key_pressed(egui::Key::Num0)
     {
@@ -70,6 +78,9 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         app.debug(format!("{}", app.xform.get_rotation()));
         app.debug(format!("{:?}", app.xform.get_translation()));
     }
+    
+    // FIXME: enforce that the canvas does not go offscreen
+    // (idea: if center of screen is not inside of canvas, prevent center of canvas from going past edges)
     if held[2]
     {
         app.xform.translate([mouse_motion.x, mouse_motion.y]);
@@ -83,10 +94,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         app.xform.translate([ offset.x,  offset.y]);
     }
     
-    // FIXME: enforce that the canvas does not go offscreen
-    // (idea: if center of screen is not inside of canvas, prevent center of canvas from going past edges)
-    if held[0]
-    {
+    let canvas_mouse_coord = {
         let offset = mouse_position;
         let mut coord = [offset.x, offset.y];
         
@@ -96,12 +104,19 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         xform = xform.inverse();
         
         coord = &xform * &coord;
+        coord
+    };
+    
+    if held[0]
+    {
+        let mut coord = canvas_mouse_coord;
         coord[0] += app.image.width as f32 / 2.0;
         coord[1] += app.image.height as f32 / 2.0;
-        
         app.debug(format!("{:?}", coord));
         app.image.set_pixel(coord[0] as isize, coord[1] as isize, [0,0,0,255]);
     }
+    
+    // render canvas
     
     let tex = app.image_preview.as_ref().unwrap();
     let size = tex.size();
@@ -115,11 +130,11 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         uv,
         egui::Color32::WHITE
     );
+    let mut xform = app.xform.clone();
+    let center = response.rect.center();
+    xform.translate([center.x, center.y]);
     for vert in mesh.vertices.iter_mut()
     {
-        let mut xform = app.xform.clone();
-        let center = response.rect.center();
-        xform.translate([center.x, center.y]);
         let new = &xform * &[vert.pos[0], vert.pos[1]];
         vert.pos.x = new[0];
         vert.pos.y = new[1];
@@ -127,6 +142,10 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
     
     let painter = ui.painter_at(response.rect);
     painter.add(egui::Shape::mesh(mesh));
+    
+    
+    let mut gizmo = BrushGizmo { x : canvas_mouse_coord[0].floor() + 0.5, y : canvas_mouse_coord[1].floor() + 0.5, r : 0.5 };
+    gizmo.draw(ui, app, &mut response, &painter);
     
     
     response
