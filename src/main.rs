@@ -9,272 +9,16 @@ mod transform;
 mod widgets;
 mod canvas;
 mod gizmos;
+mod tools;
+mod layers;
 
 use warimage::*;
 use transform::*;
 use widgets::*;
 use canvas::*;
 use gizmos::*;
-
-trait Tool
-{
-    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState);
-    fn edits_inplace(&self) -> bool; // whether the layer gets a full layer copy or a blank layer that gets composited on top
-    fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
-    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>;
-}
-
-struct Pencil
-{
-    size : f32,
-    prev_input : CanvasInputState,
-}
-
-impl Pencil
-{
-    fn new() -> Self
-    {
-        Pencil { size : 1.0, prev_input : CanvasInputState::default() }
-    }
-}
-
-fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4])
-{
-    from[0] = from[0].floor();
-    from[1] = from[1].floor();
-    to[0] = to[0].floor();
-    to[1] = to[1].floor();
-    let diff = vec_sub(&from, &to);
-    let max = diff[0].abs().max(diff[1].abs());
-    for i in 1..=max as usize
-    {
-        let amount = i as f32 / max;
-        let coord = vec_lerp(&from, &to, amount);
-        image.set_pixel_float(coord[0].round() as isize, coord[1].round() as isize, color);
-    }
-}
-fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4])
-{
-    draw_line_no_start_float(image, from, to, px_to_float(color))
-}
-
-impl Tool for Pencil
-{
-    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState)
-    {
-        if new_input.held[0] && !self.prev_input.held[0]
-        {
-            app.begin_edit(self.edits_inplace());
-        }
-        if new_input.held[0]
-        {
-            let prev_coord = self.prev_input.canvas_mouse_coord;
-            let coord = new_input.canvas_mouse_coord;
-            
-            app.debug(format!("{:?}", coord));
-            let color = app.main_color_rgb;
-            if let Some(mut image) = app.get_editing_image()
-            {
-                if !self.prev_input.held[0]
-                {
-                    image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
-                }
-                else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
-                {
-                    draw_line_no_start_float(image, prev_coord, coord, color);
-                }
-            }
-        }
-        else if self.prev_input.held[0]
-        {
-            app.commit_edit();
-        }
-        if new_input.held[1] && !self.prev_input.held[1]
-        {
-            app.cancel_edit();
-        }
-        
-        self.prev_input = new_input.clone();
-    }
-    fn edits_inplace(&self) -> bool
-    {
-        true
-    }
-    fn is_brushlike(&self) -> bool
-    {
-        true
-    }
-    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>
-    {
-        let mut pos = self.prev_input.canvas_mouse_coord;
-        pos[0] -= app.canvas_width as f32 / 2.0;
-        pos[1] -= app.canvas_height as f32 / 2.0;
-        let mut gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
-        Some(Box::new(gizmo))
-    }
-}
-
-struct Layer
-{
-    name : String,
-    blend_mode : String,
-    
-    data : Option<Image>,
-    children : Vec<Layer>,
-    
-    uuid : u128,
-    
-    offset : [f32; 2],
-    
-    opacity : f32,
-    visible : bool,
-    locked : bool,
-    clipped : bool,
-}
-
-use uuid::Uuid;
-
-impl Layer
-{
-    fn new_layer_from_image<T : ToString>(name : T, image : Image) -> Self
-    {
-        Layer {
-            name : name.to_string(),
-            blend_mode : "Normal".to_string(),
-            
-            data : Some(image),
-            children : vec!(),
-            
-            uuid : Uuid::new_v4().as_u128(),
-            
-            offset : [0.0, 0.0],
-            
-            opacity : 1.0,
-            visible : true,
-            locked : false,
-            clipped : false,
-        }
-    }
-    fn new_layer<T : ToString>(name : T, w : usize, h : usize) -> Self
-    {
-        Self::new_layer_from_image(name, Image::blank(w, h))
-    }
-    fn new_group<T : ToString>(name : T) -> Self
-    {
-        Layer {
-            name : name.to_string(),
-            blend_mode : "Normal".to_string(),
-            
-            data : None,
-            children : vec!(),
-            
-            uuid : Uuid::new_v4().as_u128(),
-            
-            offset : [0.0, 0.0],
-            
-            opacity : 1.0,
-            visible : true,
-            locked : false,
-            clipped : false,
-        }
-    }
-    fn is_layer(&self) -> bool
-    {
-        self.data.is_some()
-    }
-    fn is_group(&self) -> bool
-    {
-        self.data.is_none()
-    }
-    fn find_layer(&self, uuid : u128) -> Option<&Layer>
-    {
-        if self.uuid == uuid
-        {
-            Some(self)
-        }
-        else
-        {
-            for child in self.children.iter()
-            {
-                let r = child.find_layer(uuid);
-                if r.is_some()
-                {
-                    return r;
-                }
-            }
-            None
-        }
-    }
-    fn find_layer_mut(&mut self, uuid : u128) -> Option<&mut Layer>
-    {
-        if self.uuid == uuid
-        {
-            Some(self)
-        }
-        else
-        {
-            for child in self.children.iter_mut()
-            {
-                let r = child.find_layer_mut(uuid);
-                if r.is_some()
-                {
-                    return r;
-                }
-            }
-            None
-        }
-    }
-    fn find_layer_parent_mut(&mut self, uuid : u128) -> Option<&mut Layer>
-    {
-        if self.uuid == uuid
-        {
-            None
-        }
-        else
-        {
-            for child in self.children.iter_mut()
-            {
-                let is_some = child.find_layer_mut(uuid).is_some();
-                if is_some
-                {
-                    return Some(self);
-                }
-            }
-            None
-        }
-    }
-    fn flatten(&self, canvas_width : usize, canvas_height : usize, override_uuid : u128, override_data : Option<&Image>) -> Image
-    {
-        if self.uuid == override_uuid
-        {
-            if let Some(data) = override_data
-            {
-                return data.clone();
-            }
-        }
-        if let Some(image) = &self.data
-        {
-            image.clone()
-        }
-        else
-        {
-            let mut image = Image::blank(canvas_width, canvas_height);
-            for child in self.children.iter().rev()
-            {
-                image.blend_from(&child.flatten(canvas_width, canvas_height, override_uuid, override_data));
-            }
-            image
-        }
-    }
-    fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer))
-    {
-        f(self);
-        for child in self.children.iter()
-        {
-            child.visit_layers(depth+1, f);
-        }
-    }
-}
+use tools::*;
+use layers::*;
 
 struct Warpaint
 {
@@ -576,6 +320,7 @@ impl Warpaint
                     break;
                 }
             }
+            self.current_layer = layer.uuid;
             parent.children.insert(i, layer);
         }
         else
@@ -650,6 +395,38 @@ impl eframe::App for Warpaint
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
+                ui.horizontal(|ui|
+                {
+                    if ui.button("+").clicked()
+                    {
+                        self.new_layer();
+                    }
+                    if ui.button("x").clicked()
+                    {
+                        
+                    }
+                    if ui.button("g").clicked()
+                    {
+                        
+                    }
+                    if ui.button("*").clicked()
+                    {
+                        
+                    }
+                    if ui.button("↑").clicked()
+                    {
+                        
+                    }
+                    if ui.button("↓").clicked()
+                    {
+                        
+                    }
+                    if ui.button("?").clicked()
+                    {
+                        
+                    }
+                });
+                
                 let mut layer_info = vec!();
                 for layer in self.layers.children.iter()
                 {
@@ -673,37 +450,6 @@ impl eframe::App for Warpaint
                         }
                     });
                 }
-                ui.horizontal(|ui|
-                {
-                    if ui.button("+").clicked()
-                    {
-                        self.new_layer();
-                    }
-                    if ui.button("x").clicked()
-                    {
-                        ;
-                    }
-                    if ui.button("g").clicked()
-                    {
-                        ;
-                    }
-                    if ui.button("*").clicked()
-                    {
-                        ;
-                    }
-                    if ui.button("↑").clicked()
-                    {
-                        ;
-                    }
-                    if ui.button("↓").clicked()
-                    {
-                        ;
-                    }
-                    if ui.button("?").clicked()
-                    {
-                        ;
-                    }
-                });
             });
         });
         egui::SidePanel::left("ToolPanel").min_width(64.0).default_width(64.0).show(ctx, |ui|
