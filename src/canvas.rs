@@ -63,8 +63,8 @@ impl CanvasInputState
             
             coord = &xform * &coord;
             
-            coord[0] += app.image.width as f32 / 2.0;
-            coord[1] += app.image.height as f32 / 2.0;
+            coord[0] += app.canvas_width as f32 / 2.0;
+            coord[1] += app.canvas_height as f32 / 2.0;
             
             coord
         };

@@ -33,7 +33,7 @@ pub (crate) enum ImageData
 
 pub (crate) fn to_float(x : u8) -> f32
 {
-    (x as f32)*255.0
+    (x as f32)/255.0
 }
 pub (crate) fn to_int(x : f32) -> u8
 {
@@ -42,21 +42,21 @@ pub (crate) fn to_int(x : f32) -> u8
 
 pub (crate) fn px_to_float(x : [u8; 4]) -> [f32; 4]
 {
-    let mut r = [0.0; 4];
-    for i in 0..4
-    {
-        r[i] = to_float(x[i]);
-    }
-    r
+    [
+        to_float(x[0]),
+        to_float(x[1]),
+        to_float(x[2]),
+        to_float(x[3]),
+    ]
 }
 pub (crate) fn px_to_int(x : [f32; 4]) -> [u8; 4]
 {
-    let mut r = [0; 4];
-    for i in 0..4
-    {
-        r[i] = to_int(x[i]);
-    }
-    r
+    [
+        to_int(x[0]),
+        to_int(x[1]),
+        to_int(x[2]),
+        to_int(x[3]),
+    ]
 }
 
 pub (crate) fn rgb_to_hsv(rgba : [f32; 4]) -> [f32; 4]
@@ -199,6 +199,8 @@ impl Image
         }
         self.set_pixel_float_wrapped(x, y, px)
     }
+    
+    
     pub (crate) fn get_pixel_wrapped(&self, x : isize, y : isize) -> [u8; 4]
     {
         let x = (x % self.width as isize) as usize;
@@ -208,11 +210,11 @@ impl Image
         {
             ImageData::Int(data) =>
             {
-                [data[index], data[index+ 1], data[index+ 2], data[index+ 3]]
+                [data[index], data[index+1], data[index+2], data[index+3]]
             }
             ImageData::Float(data) =>
             {
-                px_to_int([data[index], data[index+ 1], data[index+ 2], data[index+ 3]])
+                px_to_int([data[index], data[index+1], data[index+2], data[index+3]])
             }
         }
     }
@@ -233,11 +235,11 @@ impl Image
         {
             ImageData::Int(data) =>
             {
-                px_to_float([data[index], data[index+ 1], data[index+ 2], data[index+ 3]])
+                px_to_float([data[index], data[index+1], data[index+2], data[index+3]])
             }
             ImageData::Float(data) =>
             {
-                [data[index], data[index+ 1], data[index+ 2], data[index+ 3]]
+                [data[index], data[index+1], data[index+2], data[index+3]]
             }
         }
     }
