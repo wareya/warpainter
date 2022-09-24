@@ -224,6 +224,25 @@ impl Layer
             None
         }
     }
+    fn find_layer_parent_mut(&mut self, uuid : u128) -> Option<&mut Layer>
+    {
+        if self.uuid == uuid
+        {
+            None
+        }
+        else
+        {
+            for child in self.children.iter_mut()
+            {
+                let is_some = child.find_layer_mut(uuid).is_some();
+                if is_some
+                {
+                    return Some(self);
+                }
+            }
+            None
+        }
+    }
     fn flatten(&self, canvas_width : usize, canvas_height : usize, override_uuid : u128, override_data : Option<&Image>) -> Image
     {
         if self.uuid == override_uuid
@@ -247,12 +266,12 @@ impl Layer
             image
         }
     }
-    fn visit_layers(&self, f : &mut dyn FnMut(&Layer))
+    fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer))
     {
         f(self);
         for child in self.children.iter()
         {
-            child.visit_layers(f);
+            child.visit_layers(depth+1, f);
         }
     }
 }
@@ -541,6 +560,33 @@ impl Warpaint
     }
 }
 
+impl Warpaint
+{
+    fn new_layer(&mut self)
+    {
+        let layer = Layer::new_layer("New Layer", self.canvas_width, self.canvas_height);
+        if let Some(parent) = self.layers.find_layer_parent_mut(self.current_layer)
+        {
+            let mut i = 0;
+            for (j, check_layer) in parent.children.iter().enumerate()
+            {
+                if check_layer.uuid == self.current_layer
+                {
+                    i = j;
+                    break;
+                }
+            }
+            parent.children.insert(i, layer);
+        }
+        else
+        {
+            self.current_layer = layer.uuid;
+            self.layers.children.push(layer);
+        }
+    }
+    
+}
+
 impl eframe::App for Warpaint
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
@@ -604,13 +650,60 @@ impl eframe::App for Warpaint
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                for layer in &self.layers.children
+                let mut layer_info = vec!();
+                for layer in self.layers.children.iter()
                 {
-                    layer.visit_layers(&mut |layer : &Layer|
+                    layer.visit_layers(0, &mut |layer : &Layer|
                     {
-                        ui.label(layer.name.clone());
+                        layer_info.push((layer.name.clone(), layer.uuid));
                     });
                 }
+                for info in layer_info
+                {
+                    ui.horizontal(|ui|
+                    {
+                        let mut button = egui::Button::new(info.0);
+                        if info.1 == self.current_layer
+                        {
+                            button = button.stroke(egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255)));
+                        }
+                        if ui.add(button).clicked()
+                        {
+                            self.current_layer = info.1;
+                        }
+                    });
+                }
+                ui.horizontal(|ui|
+                {
+                    if ui.button("+").clicked()
+                    {
+                        self.new_layer();
+                    }
+                    if ui.button("x").clicked()
+                    {
+                        ;
+                    }
+                    if ui.button("g").clicked()
+                    {
+                        ;
+                    }
+                    if ui.button("*").clicked()
+                    {
+                        ;
+                    }
+                    if ui.button("↑").clicked()
+                    {
+                        ;
+                    }
+                    if ui.button("↓").clicked()
+                    {
+                        ;
+                    }
+                    if ui.button("?").clicked()
+                    {
+                        ;
+                    }
+                });
             });
         });
         egui::SidePanel::left("ToolPanel").min_width(64.0).default_width(64.0).show(ctx, |ui|
