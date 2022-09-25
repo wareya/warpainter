@@ -2,7 +2,12 @@
 
 #![windows_subsystem = "console"]
 
+extern crate alloc;
+
 use eframe::egui;
+use alloc::sync::Arc;
+use egui::mutex::Mutex;
+use eframe::egui_glow::glow;
 
 mod warimage;
 mod transform;
@@ -11,6 +16,8 @@ mod canvas;
 mod gizmos;
 mod tools;
 mod layers;
+mod quadrender;
+mod vecmap;
 
 use warimage::*;
 use transform::*;
@@ -19,6 +26,8 @@ use canvas::*;
 use gizmos::*;
 use tools::*;
 use layers::*;
+use quadrender::*;
+use vecmap::*;
 
 struct Warpaint
 {
@@ -42,6 +51,9 @@ struct Warpaint
     
     tools : Vec<Box<dyn Tool>>,
     curr_tool : usize,
+    
+    loaded_shaders : bool,
+    shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
 }
 
 impl Default for Warpaint
@@ -58,7 +70,7 @@ impl Default for Warpaint
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
-        Self {
+        let mut ret = Self {
             layers : root_layer,
             current_layer : image_layer_uuid,
             
@@ -79,7 +91,27 @@ impl Default for Warpaint
             
             tools : vec!(Box::new(crate::Pencil::new())),
             curr_tool : 0,
+            
+            loaded_shaders : false,
+            shaders : VecMap::new(),
+        };
+        
+        ret
+    }
+}
+
+impl Warpaint
+{
+    fn load_shaders(&mut self, frame : &mut eframe::Frame)
+    {
+        if self.loaded_shaders
+        {
+            return;
         }
+        self.loaded_shaders = true;
+        
+        let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("color_picker.glsl"))).unwrap();
+        self.shaders.insert("colorpicker", Arc::new(Mutex::new(colorpicker_shader)));
     }
 }
 
@@ -329,13 +361,41 @@ impl Warpaint
             self.layers.children.push(layer);
         }
     }
-    
+    fn delete_current_layer(&mut self)
+    {
+        let total_count = self.layers.count_drawable();
+        if let Some(layer) = self.layers.find_layer(self.current_layer)
+        {
+            if total_count == layer.count_drawable()
+            {
+                return;
+            }
+        }
+        else
+        {
+            return;
+        }
+        let mut new_uuid = self.layers.uuid_of_next(self.current_layer);
+        self.debug(format!("{} then {:?}", self.current_layer, new_uuid));
+        if new_uuid.is_none()
+        {
+            self.debug("fallback...");
+            new_uuid = self.layers.uuid_of_prev(self.current_layer);
+        }
+        if let Some(new_uuid) = new_uuid
+        {
+            self.layers.delete_layer(self.current_layer);
+            self.current_layer = new_uuid;
+        }
+    }
 }
 
 impl eframe::App for Warpaint
 {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame)
+    fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
+        self.load_shaders(frame);
+        
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui|
             {
@@ -395,37 +455,91 @@ impl eframe::App for Warpaint
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                ui.horizontal(|ui|
+                let focused_outline = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255));
+                if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                 {
-                    if ui.button("+").clicked()
+                    egui::ComboBox::from_id_source("blend_mode_dropdown")
+                        .selected_text(&layer.blend_mode)
+                        .show_ui(ui, |ui|
+                    {
+                        ui.selectable_value(&mut layer.blend_mode, "Normal".to_string(), "Normal");
+                        ui.selectable_value(&mut layer.blend_mode, "Multiply".to_string(), "Multiply");
+                    });
+                }
+                else
+                {
+                    
+                }
+                if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                {
+                    let mut opacity = layer.opacity * 100.0;
+                    ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
+                    layer.opacity = opacity/100.0;
+                }
+                else
+                {
+                    
+                }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
+                {
+                    if ui.button("c").on_hover_text("Toggle Clipping Mask").clicked()
+                    {
+                        // FIXME/TODO
+                    }
+                    if ui.button("l").on_hover_text("Toggle Layer Lock").clicked()
+                    {
+                        // FIXME/TODO
+                    }
+                    if ui.button("a").on_hover_text("Toggle Alpha Lock").clicked()
+                    {
+                        // FIXME/TODO
+                    }
+                    if ui.button("o").on_hover_text("Toggle Onion Skin Color").clicked()
+                    {
+                        // FIXME/TODO
+                    }
+                });
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
+                {
+                    if ui.button("+").on_hover_text("New Layer").clicked()
                     {
                         self.new_layer();
                     }
-                    if ui.button("x").clicked()
+                    if ui.button("g").on_hover_text("New Group").clicked()
                     {
-                        
+                        // FIXME/TODO
                     }
-                    if ui.button("g").clicked()
+                    if ui.button("G").on_hover_text("Into New Group").clicked()
                     {
-                        
+                        // FIXME/TODO
                     }
-                    if ui.button("*").clicked()
+                    if ui.button("d").on_hover_text("Duplicate").clicked()
                     {
-                        
+                        // FIXME/TODO
                     }
-                    if ui.button("↑").clicked()
+                    if ui.button("^").on_hover_text("Move Up").clicked()
                     {
-                        
+                        // FIXME/TODO
                     }
-                    if ui.button("↓").clicked()
+                    if ui.button("v").on_hover_text("Move Down").clicked()
                     {
-                        
+                        // FIXME/TODO
                     }
-                    if ui.button("?").clicked()
+                    if ui.button("t").on_hover_text("Transfer Down").clicked()
                     {
-                        
+                        // FIXME/TODO
+                    }
+                    if ui.button("m").on_hover_text("Merge Down").clicked()
+                    {
+                        // FIXME/TODO
+                    }
+                    if ui.button("-").on_hover_text("Delete Layer").clicked()
+                    {
+                        self.delete_current_layer();
                     }
                 });
+                
+                ui.separator();
                 
                 let mut layer_info = vec!();
                 for layer in self.layers.children.iter()
@@ -433,6 +547,7 @@ impl eframe::App for Warpaint
                     layer.visit_layers(0, &mut |layer : &Layer|
                     {
                         layer_info.push((layer.name.clone(), layer.uuid));
+                        Some(())
                     });
                 }
                 for info in layer_info
@@ -442,7 +557,7 @@ impl eframe::App for Warpaint
                         let mut button = egui::Button::new(info.0);
                         if info.1 == self.current_layer
                         {
-                            button = button.stroke(egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255)));
+                            button = button.stroke(focused_outline);
                         }
                         if ui.add(button).clicked()
                         {
@@ -473,7 +588,7 @@ impl eframe::App for Warpaint
                 let input = ui.input().clone();
                 let time = input.time as f32;
                 
-                ui.add(|ui : &mut egui::Ui| color_picker(ui, self));
+                ui.add(|ui : &mut egui::Ui| color_picker(ui, self, frame));
             });
         });
         egui::CentralPanel::default().show(ctx, |ui|
@@ -484,6 +599,16 @@ impl eframe::App for Warpaint
         // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui 0.19.0 at least)
         //ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
+    fn on_exit(&mut self, gl : Option<&glow::Context>)
+    {
+        if let Some(gl) = gl
+        {
+            for shader in self.shaders.values()
+            {
+                shader.lock().delete_data(gl);
+            }
+        }
+    }
 }
 
 fn main()
@@ -492,9 +617,8 @@ fn main()
     options.follow_system_theme = false;
     options.default_theme = eframe::Theme::Light;
     options.initial_window_size = Some([1280.0, 720.0].into());
-    eframe::run_native
-    (
-        "My egui App",
+    eframe::run_native (
+        "Warpaint",
         options,
         Box::new(|_| Box::new(Warpaint::default())),
     );

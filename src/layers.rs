@@ -153,12 +153,122 @@ impl Layer
             image
         }
     }
-    pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer))
+    pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer) -> Option<()>) -> Option<()>
     {
-        f(self);
+        if f(self).is_none()
+        {
+            return None;
+        }
         for child in self.children.iter()
         {
-            child.visit_layers(depth+1, f);
+            if child.visit_layers(depth+1, f).is_none()
+            {
+                return None;
+            }
         }
+        Some(())
+    }
+    pub(crate) fn visit_layers_mut(&mut self, depth : usize, f : &mut dyn FnMut(&mut Layer) -> Option<()>) -> Option<()>
+    {
+        if f(self).is_none()
+        {
+            return None;
+        }
+        for child in self.children.iter_mut()
+        {
+            if child.visit_layers_mut(depth+1, f).is_none()
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
+    pub (crate) fn count(&self) -> usize
+    {
+        let mut n = 0;
+        self.visit_layers(0, &mut |layer|
+        {
+            n += 1;
+            n += layer.count();
+            Some(())
+        });
+        n
+    }
+    pub (crate) fn count_drawable(&self) -> usize
+    {
+        let mut n = 0;
+        self.visit_layers(0, &mut |layer|
+        {
+            if self.data.is_some()
+            {
+                n += 1;
+            }
+            Some(())
+        });
+        n
+    }
+    // finds the uuid of the layer or group before the given layer in the hierarchy, excluding self
+    // parents are considered to be before their children
+    pub (crate) fn uuid_of_prev(&self, find_uuid : u128) -> Option<u128>
+    {
+        let mut prev_uuid = 0;
+        let mut found = false;
+        self.visit_layers(0, &mut |layer|
+        {
+            if layer.uuid == find_uuid
+            {
+                found = true;
+                return None;
+            }
+            prev_uuid = layer.uuid;
+            Some(())
+        });
+        if found && prev_uuid != self.uuid
+        {
+            return Some(prev_uuid);
+        }
+        None
+    }
+    // finds the uuid of the layer or group after the given layer in the hierarchy, including children
+    // parents are considered to be before their children
+    pub (crate) fn uuid_of_next(&self, find_uuid : u128) -> Option<u128>
+    {
+        let mut prev_uuid = 0;
+        let mut next_uuid = 0;
+        let mut found = false;
+        self.visit_layers(0, &mut |layer|
+        {
+            if prev_uuid == find_uuid
+            {
+                next_uuid = layer.uuid;
+                found = true;
+                return None;
+            }
+            prev_uuid = layer.uuid;
+            Some(())
+        });
+        if found
+        {
+            return Some(next_uuid);
+        }
+        None
+    }
+    // deletes the given layer if it exists
+    pub (crate) fn delete_layer(&mut self, find_uuid : u128)
+    {
+        self.visit_layers_mut(0, &mut |layer|
+        {
+            let old_len = layer.children.len();
+            layer.children.retain(|layer| layer.uuid != find_uuid);
+            let new_len = layer.children.len();
+            if new_len != old_len
+            {
+                None
+            }
+            else
+            {
+                Some(())
+            }
+        });
     }
 }

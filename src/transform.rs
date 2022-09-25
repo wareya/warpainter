@@ -11,7 +11,7 @@ impl Default for Transform
         Self::ident()
     }
 }
-impl<'a, 'b> std::ops::Mul<&'b Transform> for &'a Transform
+impl<'a, 'b> core::ops::Mul<&'b Transform> for &'a Transform
 {
     type Output = Transform;
     fn mul(self, other : &'b Transform) -> Transform
@@ -31,7 +31,7 @@ impl<'a, 'b> std::ops::Mul<&'b Transform> for &'a Transform
         out
     }
 }
-impl<'a, 'b> std::ops::Mul<&'b [f32; 2]> for &'a Transform
+impl<'a, 'b> core::ops::Mul<&'b [f32; 2]> for &'a Transform
 {
     type Output = [f32; 2];
     fn mul(self, other : &'b [f32; 2]) -> [f32; 2]
@@ -128,7 +128,7 @@ impl Transform {
         
         let psi = (r[1]).atan2(r[0]);
         
-        psi / std::f32::consts::PI * 180.0
+        psi / core::f32::consts::PI * 180.0
     }
     pub (crate) fn translate(&mut self, translation : [f32; 2])
     {
@@ -161,8 +161,8 @@ impl Transform {
     pub (crate) fn rotate(&mut self, angle : f32)
     {
         let mut other = Self::ident();
-        let _cos = (angle * std::f32::consts::PI / 180.0).cos();
-        let _sin = (angle * std::f32::consts::PI / 180.0).sin();
+        let _cos = (angle * core::f32::consts::PI / 180.0).cos();
+        let _sin = (angle * core::f32::consts::PI / 180.0).sin();
         other.rows[0][0] =  _cos;
         other.rows[0][1] = -_sin;
         other.rows[1][0] =  _sin;

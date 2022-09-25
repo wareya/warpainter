@@ -297,11 +297,28 @@ impl Image
         {
             for x in 0..self.width as isize
             {
-                let a = self.get_pixel_float(x, y);
+                let a = self.get_pixel_float_wrapped(x, y);
                 let b = other.get_pixel_float(x, y);
                 let c = px_mix_float(a, b, b[3]);
                 self.set_pixel_float_wrapped(x, y, c);
             }
         }
+    }
+    
+    pub (crate) fn resized(&mut self, new_w : usize, new_h : usize) -> Image
+    {
+        let mut ret = Self::blank(new_w, new_h);
+        
+        for y in 0..new_h as isize
+        {
+            for x in 0..new_w as isize
+            {
+                let s_x = (x as f32*self.width as f32/new_w as f32) as isize;
+                let s_y = (y as f32*self.height as f32/new_h as f32) as isize;
+                let c = self.get_pixel_float_wrapped(s_x, s_y);
+                ret.set_pixel_float_wrapped(x, y, c);
+            }
+        }
+        ret
     }
 }

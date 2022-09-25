@@ -1,7 +1,11 @@
 
+use alloc::sync::Arc;
+
 use eframe::egui;
+use eframe::egui_glow;
 use crate::warimage::*;
 use crate::transform::*;
+use crate::layers::*;
 use crate::gizmos::draw_doubled;
 
 /*
@@ -15,7 +19,7 @@ pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     let least_f = least as f32;
 */
     
-pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
+pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame : &mut eframe::Frame) -> egui::Response
 {
     let input = ui.input().clone();
     let time = input.time as f32;
@@ -65,7 +69,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
             else if rel_dist > ring_inner_radius && rel_dist < ring_outer_radius
             {
                 let pos = response.interact_pointer_pos().unwrap() - sv_box.center();
-                h = (pos[1].atan2(pos[0]) / std::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
+                h = (pos[1].atan2(pos[0]) / core::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
                 app.set_main_color_hsv([h, s, v, a]);
             }
         }
@@ -73,6 +77,13 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     
     // do rendering
     
+    
+    let painter = ui.painter_at(response.rect);
+    
+    let mut rect : egui::Rect = [[0.0, 0.0].into(), least_vec2.to_pos2()].into();
+    rect = rect.translate(response.rect.min.to_vec2());
+    
+    /*
     let mut img = Image::blank(least, least);
     for y in 0..least
     {
@@ -90,7 +101,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
                 let x_mid = x_mid / mid_dist;
                 
                 // angle
-                let h = (y_mid.atan2(x_mid) / std::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
+                let h = (y_mid.atan2(x_mid) / core::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
                 
                 //distance, outline-rendering stuff
                 let p = (1.0 - mid_dist).abs().min((1.0 - ring_size - mid_dist).abs())*2.0;
@@ -124,18 +135,31 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
         img.to_egui(),
         egui::TextureFilter::Nearest
     );
+    */
     
+    /*
     let mut mesh = egui::Mesh::with_texture(tex.id());
-    let mut rect : egui::Rect = [[0.0, 0.0].into(), least_vec2.to_pos2()].into();
     let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
-    mesh.add_rect_with_uv (
-        rect.translate(response.rect.min.to_vec2()),
-        uv,
-        egui::Color32::WHITE
-    );
-    
-    let painter = ui.painter_at(response.rect);
+    mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE);
     painter.add(egui::Shape::mesh(mesh));
+    */
+    
+    //// !!!! evil vile code
+    let uniforms = [
+        ("width", rect.width()),
+        ("height", rect.height()),
+        ("hue", h),
+        ("ring_size", ring_size),
+        ("box_size", box_size),
+    ];
+    let colorpicker_shader = Arc::clone(app.shaders.get("colorpicker").unwrap());
+    let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
+    {
+        colorpicker_shader.lock().render(glow_painter.gl(), &uniforms);
+    });
+    let callback = egui::PaintCallback { rect, callback : Arc::new(cb) };
+    painter.add(callback);
+    //// !!!! evil vile code (end)
     
     let x = lerp(box_start.x, box_end.x, s);
     let y = lerp(box_start.y, box_end.y, 1.0 - v);
@@ -164,3 +188,11 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     
     response
 }
+
+/*
+// TODO: layer list widget
+pub (crate) fn layer(ui: &mut egui::Ui, layer : &Layer)
+{
+    let input = ui.input().clone();
+}
+*/

@@ -2015,6 +2015,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "image",
+ "lazy_static",
  "rfd",
  "uuid",
 ]
