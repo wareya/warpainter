@@ -1,5 +1,8 @@
 
+use alloc::sync::Arc;
+
 use eframe::egui;
+use eframe::egui_glow;
 use crate::warimage::*;
 use crate::transform::*;
 use crate::gizmos::*;
@@ -76,6 +79,8 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
     let input = ui.input().clone();
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
     
+    let painter = ui.painter_at(response.rect);
+    
     // collect input
     
     let mut inputstate = CanvasInputState::default();
@@ -143,7 +148,28 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
         vert.pos.y = new[1];
     }
     
-    let painter = ui.painter_at(response.rect);
+    //// !!!! evil vile code
+    let uniforms = [
+        ("width", response.rect.width()),
+        ("height", response.rect.height()),
+        ("point_0_x", mesh.vertices[0].pos.x - response.rect.min.x),
+        ("point_0_y", mesh.vertices[0].pos.y - response.rect.min.y),
+        ("point_1_x", mesh.vertices[1].pos.x - response.rect.min.x),
+        ("point_1_y", mesh.vertices[1].pos.y - response.rect.min.y),
+        ("point_2_x", mesh.vertices[2].pos.x - response.rect.min.x),
+        ("point_2_y", mesh.vertices[2].pos.y - response.rect.min.y),
+        ("point_3_x", mesh.vertices[3].pos.x - response.rect.min.x),
+        ("point_3_y", mesh.vertices[3].pos.y - response.rect.min.y),
+    ];
+    let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
+    let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
+    {
+        colorpicker_shader.lock().render(glow_painter.gl(), &uniforms);
+    });
+    let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
+    painter.add(callback);
+    //// !!!! evil vile code (end)
+    
     painter.add(egui::Shape::mesh(mesh));
     
     if let Some(tool) = app.get_tool()

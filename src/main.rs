@@ -112,6 +112,9 @@ impl Warpaint
         
         let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("color_picker.glsl"))).unwrap();
         self.shaders.insert("colorpicker", Arc::new(Mutex::new(colorpicker_shader)));
+        
+        let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("canvas_background.glsl"))).unwrap();
+        self.shaders.insert("canvasbackground", Arc::new(Mutex::new(colorpicker_shader)));
     }
 }
 

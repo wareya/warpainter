@@ -76,73 +76,10 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame
     }
     
     // do rendering
-    
-    
     let painter = ui.painter_at(response.rect);
     
     let mut rect : egui::Rect = [[0.0, 0.0].into(), least_vec2.to_pos2()].into();
     rect = rect.translate(response.rect.min.to_vec2());
-    
-    /*
-    let mut img = Image::blank(least, least);
-    for y in 0..least
-    {
-        let y = y as f32;
-        let y_mid = y/least_f*2.0 - 1.0;
-        for x in 0..least
-        {
-            let x = x as f32;
-            let x_mid = x/least_f*2.0 - 1.0;
-            let mid_dist = length(&[y_mid, x_mid]);
-            
-            if mid_dist + ring_size > 1.0 && mid_dist < 1.0
-            {
-                let y_mid = y_mid / mid_dist;
-                let x_mid = x_mid / mid_dist;
-                
-                // angle
-                let h = (y_mid.atan2(x_mid) / core::f32::consts::PI * 180.0 + 360.0 + 150.0)%360.0;
-                
-                //distance, outline-rendering stuff
-                let p = (1.0 - mid_dist).abs().min((1.0 - ring_size - mid_dist).abs())*2.0;
-                let a = (p*least_f*ring_size/1.2).clamp(0.0, 1.0);
-                let b = (p*least_f*ring_size/1.2 - 0.5).clamp(0.0, 1.0);
-                
-                img.set_pixel(x as isize, y as isize, px_to_int(hsv_to_rgb([h, 0.9, b, a])));
-            }
-            else if x > box_margin && x < box_margin+box_size
-                 && y > box_margin && y < box_margin+box_size
-            {
-                let s = (x-box_margin) / box_size;
-                let v = 1.0 - (y-box_margin) / box_size;
-                img.set_pixel(x as isize, y as isize, px_to_int(hsv_to_rgb([h, s, v, 1.0])));
-            }
-            else if x > box_margin-1.0 && x < box_margin+box_size+1.0
-                 && y > box_margin-1.0 && y < box_margin+box_size+1.0
-            {
-                img.set_pixel(x as isize, y as isize, [0, 0, 0, 192]);
-            }
-            else if x > box_margin-2.0 && x < box_margin+box_size+2.0
-                 && y > box_margin-2.0 && y < box_margin+box_size+2.0
-            {
-                img.set_pixel(x as isize, y as isize, [0, 0, 0, 92]);
-            }
-        }
-    }
-    
-    let tex = response.ctx.load_texture(
-        "colorpalette",
-        img.to_egui(),
-        egui::TextureFilter::Nearest
-    );
-    */
-    
-    /*
-    let mut mesh = egui::Mesh::with_texture(tex.id());
-    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
-    mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE);
-    painter.add(egui::Shape::mesh(mesh));
-    */
     
     //// !!!! evil vile code
     let uniforms = [
