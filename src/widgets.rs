@@ -18,7 +18,32 @@ pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
     let h = 16.0;
     let least_f = least as f32;
 */
+
+/*
+pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame : &mut eframe)
+{
+    let mut response = ui.allocate_ui([0.0, 0.0].into(), egui::Sense::click_and_drag());
     
+    let tex = app.image_preview.as_ref().unwrap();
+    let size = tex.size();
+    let (mut w, mut h) = (size[0] as f32, size[1] as f32);
+    
+    let mut mesh = egui::Mesh::with_texture(tex.id());
+    let mut rect : egui::Rect = [[-w/2.0, -h/2.0].into(), [w/2.0, h/2.0].into()].into();
+    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
+    mesh.add_rect_with_uv (
+        rect,
+        uv,
+        egui::Color32::WHITE
+    );
+    let center = response.rect.center();
+    for vert in mesh.vertices.iter_mut()
+    {
+        vert.pos += center.to_vec2();
+    }
+}
+*/
+
 pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame : &mut eframe::Frame) -> egui::Response
 {
     let input = ui.input().clone();

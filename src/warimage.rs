@@ -321,4 +321,18 @@ impl Image
         }
         ret
     }
+    pub (crate) fn clear_with_color_float(&mut self, color : [f32; 4])
+    {
+        for y in 0..self.height as isize
+        {
+            for x in 0..self.width as isize
+            {
+                self.set_pixel_float_wrapped(x, y, color);
+            }
+        }
+    }
+    pub (crate) fn clear(&mut self)
+    {
+        self.clear_with_color_float([0.0, 0.0, 0.0, 0.0]);
+    }
 }

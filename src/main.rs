@@ -50,10 +50,13 @@ struct Warpaint
     sub_color_hsv : [f32; 4],
     
     tools : Vec<Box<dyn Tool>>,
-    curr_tool : usize,
+    current_tool : usize,
     
     loaded_shaders : bool,
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
+    
+    loaded_icons : bool,
+    icons : VecMap<&'static str, egui::TextureHandle>,
 }
 
 impl Default for Warpaint
@@ -89,11 +92,17 @@ impl Default for Warpaint
             sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
             sub_color_hsv : [1.0, 1.0, 1.0, 1.0],
             
-            tools : vec!(Box::new(crate::Pencil::new())),
-            curr_tool : 0,
+            tools : vec!(
+                Box::new(Pencil::new()),
+                Box::new(Fill::new()),
+            ),
+            current_tool : 0,
             
             loaded_shaders : false,
             shaders : VecMap::new(),
+            
+            loaded_icons : false,
+            icons : VecMap::new(),
         };
         
         ret
@@ -115,6 +124,43 @@ impl Warpaint
         
         let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("canvas_background.glsl"))).unwrap();
         self.shaders.insert("canvasbackground", Arc::new(Mutex::new(colorpicker_shader)));
+    }
+    fn load_icons(&mut self, ctx : &egui::Context)
+    {
+        if self.loaded_icons
+        {
+            return;
+        }
+        self.loaded_icons = true;
+        
+        let stuff = [
+            ("new layer",           include_bytes!("icons/new layer.png")           .to_vec()),
+            ("delete layer",        include_bytes!("icons/delete layer.png")        .to_vec()),
+            ("duplicate layer",     include_bytes!("icons/duplicate layer.png")     .to_vec()),
+            ("new group",           include_bytes!("icons/new group.png")           .to_vec()),
+            ("into group",          include_bytes!("icons/into group.png")          .to_vec()),
+            ("transfer down",       include_bytes!("icons/transfer down.png")       .to_vec()),
+            ("merge down",          include_bytes!("icons/merge down.png")          .to_vec()),
+            ("lock",                include_bytes!("icons/lock.png")                .to_vec()),
+            ("lock alpha",          include_bytes!("icons/lock alpha.png")          .to_vec()),
+            ("clipping mask",       include_bytes!("icons/clipping mask.png")       .to_vec()),
+            ("move layer up",       include_bytes!("icons/move layer up.png")       .to_vec()),
+            ("move layer down",     include_bytes!("icons/move layer down.png")     .to_vec()),
+            
+            ("tool pencil",         include_bytes!("icons/tool pencil.png")         .to_vec()),
+            ("tool fill",           include_bytes!("icons/tool fill.png")           .to_vec()),
+        ];
+        for thing in stuff
+        {
+            let img = image::io::Reader::new(std::io::Cursor::new(&thing.1[..])).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
+            let img = Image::from_rgbaimage(&img).to_egui();
+            let img = ctx.load_texture(
+                "my-image",
+                img,
+                egui::TextureFilter::Nearest
+            );
+            self.icons.insert(thing.0, img);
+        }
     }
 }
 
@@ -139,16 +185,16 @@ impl Warpaint
 {
     fn tool_think(&mut self, inputstate : &CanvasInputState)
     {
-        if self.curr_tool < self.tools.len()
+        if self.current_tool < self.tools.len()
         {
-            let mut tool = self.tools.remove(self.curr_tool);
+            let mut tool = self.tools.remove(self.current_tool);
             tool.think(self, inputstate);
-            self.tools.insert(self.curr_tool, tool);
+            self.tools.insert(self.current_tool, tool);
         }
     }
     fn get_tool(&self) -> Option<&Box<dyn Tool>>
     {
-        self.tools.get(self.curr_tool)
+        self.tools.get(self.current_tool)
     }
 }
 
@@ -397,9 +443,11 @@ impl eframe::App for Warpaint
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
+        self.load_icons(ctx);
         self.load_shaders(frame);
         
-        egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui| {
+        egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
+        {
             egui::menu::bar(ui, |ui|
             {
                 ui.menu_button("File", |ui|
@@ -442,18 +490,6 @@ impl eframe::App for Warpaint
         
         self.update_canvas_preview(&ctx);
         
-        egui::Window::new("Debug Text").show(ctx, |ui|
-        {
-            egui::ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui|
-            {
-                if self.debug_text.len() > 500
-                {
-                    self.debug_text.drain(0..self.debug_text.len()-500);
-                }
-                ui.label(&self.debug_text.join("\n"));
-            });
-        });
-        
         egui::SidePanel::right("RightPanel").show(ctx, |ui|
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
@@ -468,13 +504,7 @@ impl eframe::App for Warpaint
                         ui.selectable_value(&mut layer.blend_mode, "Normal".to_string(), "Normal");
                         ui.selectable_value(&mut layer.blend_mode, "Multiply".to_string(), "Multiply");
                     });
-                }
-                else
-                {
                     
-                }
-                if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
-                {
                     let mut opacity = layer.opacity * 100.0;
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     layer.opacity = opacity/100.0;
@@ -483,60 +513,66 @@ impl eframe::App for Warpaint
                 {
                     
                 }
+        
+                macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
+                        $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [18.0, 18.0]).selected($selected))
+                           .on_hover_text($tooltip)
+                } }
+                
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
                 {
-                    if ui.button("c").on_hover_text("Toggle Clipping Mask").clicked()
+                    ui.spacing_mut().item_spacing = [1.0, 0.0].into();
+                    ui.spacing_mut().button_padding = [0.0, 0.0].into();
+                    if add_button!(ui, "clipping mask", "Toggle Clipping Mask", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("l").on_hover_text("Toggle Layer Lock").clicked()
+                    if add_button!(ui, "lock", "Toggle Layer Lock", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("a").on_hover_text("Toggle Alpha Lock").clicked()
-                    {
-                        // FIXME/TODO
-                    }
-                    if ui.button("o").on_hover_text("Toggle Onion Skin Color").clicked()
+                    if add_button!(ui, "lock alpha", "Toggle Alpha Lock", false).clicked()
                     {
                         // FIXME/TODO
                     }
                 });
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
                 {
-                    if ui.button("+").on_hover_text("New Layer").clicked()
+                    ui.spacing_mut().item_spacing = [1.0, 0.0].into();
+                    ui.spacing_mut().button_padding = [0.0, 0.0].into();
+                    if add_button!(ui, "new layer", "New Layer", false).clicked()
                     {
                         self.new_layer();
                     }
-                    if ui.button("g").on_hover_text("New Group").clicked()
+                    if add_button!(ui, "new group", "New Group", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("G").on_hover_text("Into New Group").clicked()
+                    if add_button!(ui, "into group", "Into New Group", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("d").on_hover_text("Duplicate").clicked()
+                    if add_button!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("^").on_hover_text("Move Up").clicked()
+                    if add_button!(ui, "move layer up", "Move Layer Up", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("v").on_hover_text("Move Down").clicked()
+                    if add_button!(ui, "move layer down", "Move Layer Down", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("t").on_hover_text("Transfer Down").clicked()
+                    if add_button!(ui, "transfer down", "Transfer Down", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("m").on_hover_text("Merge Down").clicked()
+                    if add_button!(ui, "merge down", "Merge Down", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if ui.button("-").on_hover_text("Delete Layer").clicked()
+                    if add_button!(ui, "delete layer", "Delete Layer", false).clicked()
                     {
                         self.delete_current_layer();
                     }
@@ -570,17 +606,22 @@ impl eframe::App for Warpaint
                 }
             });
         });
-        egui::SidePanel::left("ToolPanel").min_width(64.0).default_width(64.0).show(ctx, |ui|
+        egui::SidePanel::left("ToolPanel").min_width(22.0).default_width(22.0).show(ctx, |ui|
         {
+            macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
+                    $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [22.0, 22.0]).selected($selected))
+                       .on_hover_text($tooltip)
+            } }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                if ui.button("Pencil").clicked()
+                ui.spacing_mut().button_padding = [0.0, 0.0].into();
+                if add_button!(ui, "tool pencil", "Pencil Tool", self.current_tool == 0).clicked()
                 {
-                    self.debug(format!("pressed pencil"));
+                    self.current_tool = 0;
                 }
-                if ui.button("Fill").clicked()
+                if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 1).clicked()
                 {
-                    self.debug(format!("pressed fill"));
+                    self.current_tool = 1;
                 }
             });
         });
@@ -594,8 +635,31 @@ impl eframe::App for Warpaint
                 ui.add(|ui : &mut egui::Ui| color_picker(ui, self, frame));
             });
         });
-        egui::CentralPanel::default().show(ctx, |ui|
+        
+        egui::TopBottomPanel::bottom("DebugText").resizable(true).max_height(150.0).show(ctx, |ui|
         {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui|
+            {
+                if self.debug_text.len() > 500
+                {
+                    self.debug_text.drain(0..self.debug_text.len()-500);
+                }
+                let mut text = self.debug_text.join("\n");
+                ui.add_enabled(false, egui::TextEdit::multiline(&mut text).hint_text("debug output"));
+            });
+        });
+        
+        let frame = egui::Frame {
+            inner_margin: egui::style::Margin::same(0.0),
+            rounding: egui::Rounding::none(),
+            fill: ctx.style().visuals.window_fill(),
+            stroke: Default::default(),
+            ..Default::default()
+        };
+        
+        egui::CentralPanel::default().frame(frame).show(ctx, |ui|
+        {
+            ui.spacing_mut().window_margin = 0.0.into();
             ui.add(|ui : &mut egui::Ui| canvas(ui, self));
         });
         

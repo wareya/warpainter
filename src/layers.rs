@@ -92,6 +92,17 @@ impl Layer
             None
         }
     }
+    pub(crate) fn find_layer_unlocked(&self, uuid : u128) -> Option<&Layer>
+    {
+        if let Some(layer) = self.find_layer(uuid)
+        {
+            if !layer.locked
+            {
+                return Some(layer);
+            }
+        }
+        None
+    }
     pub(crate) fn find_layer_mut(&mut self, uuid : u128) -> Option<&mut Layer>
     {
         if self.uuid == uuid
