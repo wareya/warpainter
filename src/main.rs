@@ -574,11 +574,11 @@ impl eframe::App for Warpaint
                     }
                     if add_button!(ui, "new group", "New Group", false).clicked()
                     {
-                        // FIXME/TODO
+                        self.layers.add_group(self.current_layer);
                     }
                     if add_button!(ui, "into group", "Into New Group", false).clicked()
                     {
-                        // FIXME/TODO
+                        self.layers.into_group(self.current_layer);
                     }
                     if add_button!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
                     {
@@ -611,9 +611,9 @@ impl eframe::App for Warpaint
                 let mut layer_info = vec!();
                 for layer in self.layers.children.iter()
                 {
-                    layer.visit_layers(0, &mut |layer : &Layer|
+                    layer.visit_layers(0, &mut |layer, depth|
                     {
-                        layer_info.push((layer.name.clone(), layer.uuid));
+                        layer_info.push((layer.name.clone(), layer.uuid, depth));
                         Some(())
                     });
                 }
@@ -621,6 +621,7 @@ impl eframe::App for Warpaint
                 {
                     ui.horizontal(|ui|
                     {
+                        ui.allocate_space([info.2 as f32 * 4.0, 0.0].into());
                         let mut button = egui::Button::new(info.0);
                         if info.1 == self.current_layer
                         {

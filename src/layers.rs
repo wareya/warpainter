@@ -164,9 +164,9 @@ impl Layer
             image
         }
     }
-    pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer) -> Option<()>) -> Option<()>
+    pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer, usize) -> Option<()>) -> Option<()>
     {
-        if f(self).is_none()
+        if f(self, depth).is_none()
         {
             return None;
         }
@@ -179,9 +179,9 @@ impl Layer
         }
         Some(())
     }
-    pub(crate) fn visit_layers_mut(&mut self, depth : usize, f : &mut dyn FnMut(&mut Layer) -> Option<()>) -> Option<()>
+    pub(crate) fn visit_layers_mut(&mut self, depth : usize, f : &mut dyn FnMut(&mut Layer, usize) -> Option<()>) -> Option<()>
     {
-        if f(self).is_none()
+        if f(self, depth).is_none()
         {
             return None;
         }
@@ -194,10 +194,42 @@ impl Layer
         }
         Some(())
     }
+    pub(crate) fn visit_layer_parent(&self, find_uuid : u128, f : &mut dyn FnMut(&Layer, usize)) -> Option<()>
+    {
+        for i in 0..self.children.len()
+        {
+            if self.children[i].uuid == find_uuid
+            {
+                f(self, i);
+                return None;
+            }
+            else if self.children[i].visit_layer_parent(find_uuid, f).is_none()
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
+    pub(crate) fn visit_layer_parent_mut(&mut self, find_uuid : u128, f : &mut dyn FnMut(&mut Layer, usize)) -> Option<()>
+    {
+        for i in 0..self.children.len()
+        {
+            if self.children[i].uuid == find_uuid
+            {
+                f(self, i);
+                return None;
+            }
+            else if self.children[i].visit_layer_parent_mut(find_uuid, f).is_none()
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
     pub (crate) fn count(&self) -> usize
     {
         let mut n = 0;
-        self.visit_layers(0, &mut |layer|
+        self.visit_layers(0, &mut |layer, _|
         {
             n += 1;
             n += layer.count();
@@ -208,7 +240,7 @@ impl Layer
     pub (crate) fn count_drawable(&self) -> usize
     {
         let mut n = 0;
-        self.visit_layers(0, &mut |layer|
+        self.visit_layers(0, &mut |layer, _|
         {
             if self.data.is_some()
             {
@@ -224,7 +256,7 @@ impl Layer
     {
         let mut prev_uuid = 0;
         let mut found = false;
-        self.visit_layers(0, &mut |layer|
+        self.visit_layers(0, &mut |layer, _|
         {
             if layer.uuid == find_uuid
             {
@@ -247,7 +279,7 @@ impl Layer
         let mut prev_uuid = 0;
         let mut next_uuid = 0;
         let mut found = false;
-        self.visit_layers(0, &mut |layer|
+        self.visit_layers(0, &mut |layer, _|
         {
             if prev_uuid == find_uuid
             {
@@ -267,7 +299,8 @@ impl Layer
     // deletes the given layer if it exists
     pub (crate) fn delete_layer(&mut self, find_uuid : u128)
     {
-        self.visit_layers_mut(0, &mut |layer|
+        // FIXME change to use visit_layer_parent_mut
+        self.visit_layers_mut(0, &mut |layer, _|
         {
             let old_len = layer.children.len();
             layer.children.retain(|layer| layer.uuid != find_uuid);
@@ -302,7 +335,16 @@ impl Layer
                 else
                 {
                     let layer = self.children.remove(i);
-                    self.children.insert(i-1, layer);
+                    if self.children[i-1].data.is_some()
+                    {
+                        // target is a layer, insert next to it
+                        self.children.insert(i-1, layer);
+                    }
+                    else
+                    {
+                        // target is a group, insert into it
+                        self.children[i-1].children.push(layer);
+                    }
                     break;
                 }
             }
@@ -334,7 +376,16 @@ impl Layer
                 else
                 {
                     let layer = self.children.remove(i);
-                    self.children.insert(i+1, layer);
+                    if self.children[i].data.is_some()
+                    {
+                        // target is a layer, insert next to it
+                        self.children.insert(i+1, layer);
+                    }
+                    else
+                    {
+                        // target is a group, insert into it
+                        self.children[i].children.insert(0, layer);
+                    }
                     break;
                 }
             }
@@ -345,5 +396,22 @@ impl Layer
             }
         }
         None
+    }
+    pub (crate) fn add_group(&mut self, find_uuid : u128)
+    {
+        self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
+        {
+            parent.children.insert(i, Layer::new_group("New Group"));
+        });
+    }
+    pub (crate) fn into_group(&mut self, find_uuid : u128)
+    {
+        self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
+        {
+            let layer = parent.children.remove(i);
+            let mut group = Layer::new_group("New Group");
+            group.children.insert(0, layer);
+            parent.children.insert(i, group);
+        });
     }
 }
