@@ -69,6 +69,7 @@ impl Default for Warpaint
         let canvas_height = img.height;
         
         let mut root_layer = Layer::new_group("___root___");
+        root_layer.uuid = 0;
         let image_layer = Layer::new_layer_from_image("New Layer", img);
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
@@ -454,12 +455,39 @@ impl eframe::App for Warpaint
                 {
                     if ui.button("Open...").clicked()
                     {
-                        if let Some(path) = rfd::FileDialog::new().pick_file()
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Supported Image Formats",
+                                &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds"])
+                            //.add_filter("Warpaint Project",
+                            //    &["wrp"])
+                            .pick_file()
                         {
+                            self.cancel_edit();
+                            
+                            // FIXME handle error
                             let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
                             let img = Image::from_rgbaimage(&img);
                             self.load_from_img(img);
                             self.update_canvas_preview(ctx);
+                            
+                            ui.close_menu();
+                        }
+                    }
+                    if ui.button("Save Copy...").clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("PNG", &["png"])
+                            //.add_filter("Warpaint Project",
+                            //    &["wrp"])
+                            .save_file()
+                        {
+                            self.cancel_edit();
+                            
+                            let img = self.flatten().to_imagebuffer();
+                            // FIXME handle error
+                            img.save(path).unwrap();
+                            
+                            ui.close_menu();
                         }
                     }
                 });
@@ -558,11 +586,11 @@ impl eframe::App for Warpaint
                     }
                     if add_button!(ui, "move layer up", "Move Layer Up", false).clicked()
                     {
-                        // FIXME/TODO
+                        self.layers.move_layer_up(self.current_layer);
                     }
                     if add_button!(ui, "move layer down", "Move Layer Down", false).clicked()
                     {
-                        // FIXME/TODO
+                        self.layers.move_layer_down(self.current_layer);
                     }
                     if add_button!(ui, "transfer down", "Transfer Down", false).clicked()
                     {

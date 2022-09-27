@@ -282,4 +282,68 @@ impl Layer
             }
         });
     }
+    pub (crate) fn move_layer_up(&mut self, find_uuid : u128) -> Option<Layer>
+    {
+        for i in 0..self.children.len()
+        {
+            if self.children[i].uuid == find_uuid
+            {
+                if i == 0
+                {
+                    if self.uuid != 0
+                    {
+                        return Some(self.children.remove(i));
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    let layer = self.children.remove(i);
+                    self.children.insert(i-1, layer);
+                    break;
+                }
+            }
+            else if let Some(layer) = self.children[i].move_layer_up(find_uuid)
+            {
+                self.children.insert(i, layer);
+                break;
+            }
+        }
+        None
+    }
+    pub (crate) fn move_layer_down(&mut self, find_uuid : u128) -> Option<Layer>
+    {
+        for i in 0..self.children.len()
+        {
+            if self.children[i].uuid == find_uuid
+            {
+                if i+1 >= self.children.len()
+                {
+                    if self.uuid != 0
+                    {
+                        return Some(self.children.remove(i));
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    let layer = self.children.remove(i);
+                    self.children.insert(i+1, layer);
+                    break;
+                }
+            }
+            else if let Some(layer) = self.children[i].move_layer_down(find_uuid)
+            {
+                self.children.insert(i+1, layer);
+                break;
+            }
+        }
+        None
+    }
 }

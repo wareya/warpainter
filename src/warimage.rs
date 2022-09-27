@@ -291,6 +291,24 @@ impl Image
                 egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.to_int()),
         }
     }
+    pub (crate) fn to_imagebuffer(&self) -> image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>
+    {
+        match &self.data
+        {
+            ImageData::Int(data) =>
+            {
+                type T = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>;
+                let img = T::from_vec(self.width as u32, self.height as u32, data.clone()).unwrap();
+                img
+            }
+            ImageData::Float(data) =>
+            {
+                type T = image::ImageBuffer::<image::Rgba<f32>, Vec<f32>>;
+                let img = T::from_vec(self.width as u32, self.height as u32, data.clone()).unwrap();
+                image::DynamicImage::from(img).to_rgba8()
+            }
+        }
+    }
     pub (crate) fn blend_from(&mut self, other : &Image)
     {
         for y in 0..self.height as isize

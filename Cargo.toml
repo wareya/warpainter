@@ -1,7 +1,7 @@
 [package]
 name = "warpaint"
 version = "0.1.0"
-license = "Apache-2.0"
+license = "Apache-2.0 WITH LLVM-exception"
 edition = "2021"
 
 [profile.release]
@@ -22,6 +22,3 @@ features = [
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]
-
-[build]
-rustflags = ["-Clink-args=-fuse-ld=lld"]
