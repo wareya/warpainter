@@ -717,7 +717,7 @@ impl eframe::App for Warpainter
             ui.add(|ui : &mut egui::Ui| canvas(ui, self));
         });
         
-        // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui 0.19.0 at least)
+        // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui/eframe 0.19.0 at least)
         //ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
     fn on_exit(&mut self, gl : Option<&glow::Context>)
@@ -735,8 +735,12 @@ impl eframe::App for Warpainter
 fn main()
 {
     let mut options = eframe::NativeOptions::default();
+    
+    // eframe 0.19.0 is borked on windows 10, the window flickers violently when you resize it, flashing white
+    // this is a seizure hazard when using the dark theme, so force the light theme instead
     options.follow_system_theme = false;
     options.default_theme = eframe::Theme::Light;
+    
     options.initial_window_size = Some([1280.0, 720.0].into());
     eframe::run_native (
         "Warpainter",
