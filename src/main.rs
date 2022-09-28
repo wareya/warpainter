@@ -554,8 +554,11 @@ impl eframe::App for Warpainter
                     
                     let mut opacity = layer.opacity * 100.0;
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
+                    if layer.opacity * 100.0 != opacity
+                    {
+                        layer.flattened_dirty = true;
+                    }
                     layer.opacity = opacity/100.0;
-                    layer.flattened_dirty = true;
                 }
                 else
                 {

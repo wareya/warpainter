@@ -192,6 +192,7 @@ impl Layer
         }
         else
         {
+            println!("layer group is dirty...reflattening");
             let mut image = Image::blank(canvas_width, canvas_height);
             for child in self.children.iter_mut().rev()
             {
