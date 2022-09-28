@@ -65,7 +65,7 @@ impl Layer
             clipped : false,
         }
     }
-    pub(crate) fn is_layer(&self) -> bool
+    pub(crate) fn is_drawable(&self) -> bool
     {
         self.data.is_some()
     }
@@ -156,10 +156,13 @@ impl Layer
         }
         else
         {
-            let mut image = Image::blank(canvas_width, canvas_height);
+            let mut image = Image::blank_white_transparent(canvas_width, canvas_height);
             for child in self.children.iter().rev()
             {
-                image.blend_from(&child.flatten(canvas_width, canvas_height, override_uuid, override_data));
+                if child.visible
+                {
+                    image.blend_from(&child.flatten(canvas_width, canvas_height, override_uuid, override_data), child.opacity);
+                }
             }
             image
         }
@@ -232,7 +235,6 @@ impl Layer
         self.visit_layers(0, &mut |layer, _|
         {
             n += 1;
-            n += layer.count();
             Some(())
         });
         n

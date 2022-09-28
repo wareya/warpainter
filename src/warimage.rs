@@ -13,10 +13,21 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 {
     px_to_int(px_lerp_float(px_to_float(a), px_to_float(b), amount))
 }
+
 pub (crate) fn px_mix_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
-    let mut r = px_lerp_float(a, b, amount);
+    let mut r = [0.0; 4];
+    for i in 0..3
+    {
+        r[i] = a[i] * a[3] + b[i] * b[3] * (1.0 - a[3]);
+    }
     r[3] = a[3] + b[3]*(1.0 - a[3]);
+    if r[3] > 0.0
+    {
+        r[0] /= r[3];
+        r[1] /= r[3];
+        r[2] /= r[3];
+    }
     r
 }
 pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
@@ -104,6 +115,64 @@ pub (crate) fn hsv_to_rgb(hsva : [f32; 4]) -> [f32; 4]
 
 impl ImageData
 {
+    fn premultiply(mut self) -> Self
+    {
+        match &mut self
+        {
+            Self::Int(ref mut data) =>
+            {
+                for i in (0..data.len()).step_by(4)
+                {
+                    data[i+0] = to_int(to_float(data[i+0]) * to_float(data[i+3]));
+                    data[i+1] = to_int(to_float(data[i+1]) * to_float(data[i+3]));
+                    data[i+2] = to_int(to_float(data[i+2]) * to_float(data[i+3]));
+                }
+            }
+            Self::Float(ref mut data) =>
+            {
+                for i in (0..data.len()).step_by(4)
+                {
+                    data[i+0] = data[i+0] * data[i+3];
+                    data[i+1] = data[i+1] * data[i+3];
+                    data[i+2] = data[i+2] * data[i+3];
+                }
+            }
+        }
+        self
+    }
+    fn unpremultiply(mut self) -> Self
+    {
+        match &mut self
+        {
+            Self::Int(ref mut data) =>
+            {
+                for i in (0..data.len()).step_by(4)
+                {
+                    if data[i+3] == 0
+                    {
+                        continue;
+                    }
+                    data[i+0] = to_int(to_float(data[i+0]) / to_float(data[i+3]));
+                    data[i+1] = to_int(to_float(data[i+1]) / to_float(data[i+3]));
+                    data[i+2] = to_int(to_float(data[i+2]) / to_float(data[i+3]));
+                }
+            }
+            Self::Float(ref mut data) =>
+            {
+                for i in (0..data.len()).step_by(4)
+                {
+                    if data[i+3] == 0.0
+                    {
+                        continue;
+                    }
+                    data[i+0] = data[i+0] / data[i+3];
+                    data[i+1] = data[i+1] / data[i+3];
+                    data[i+2] = data[i+2] / data[i+3];
+                }
+            }
+        }
+        self
+    }
     fn new_int(w : usize, h : usize) -> Self
     {
         Self::Int(vec!(0; w*h*4))
@@ -113,6 +182,22 @@ impl ImageData
         match self
         {
             Self::Int(data) => data.clone(),
+            Self::Float(data) =>
+            {
+                let mut out = vec!(0; data.len());
+                for i in 0..data.len()
+                {
+                    out[i] = to_int(data[i]);
+                }
+                out
+            }
+        }
+    }
+    fn into_int(self) -> Vec<u8>
+    {
+        match self
+        {
+            Self::Int(data) => data,
             Self::Float(data) =>
             {
                 let mut out = vec!(0; data.len());
@@ -258,7 +343,7 @@ impl Image
     pub (crate) fn blank(w : usize, h : usize) -> Self
     {
         let data = ImageData::new_int(w as usize, h as usize);
-        let mut ret = Self { width : w as usize, height : h as usize, data };
+        let ret = Self { width : w as usize, height : h as usize, data };
         ret
     }
     pub (crate) fn from_rgbaimage(input : &image::RgbaImage) -> Self
@@ -281,15 +366,38 @@ impl Image
     {
         Self::blank(self.width, self.height)
     }
+    pub (crate) fn blank_white_transparent(w : usize, h : usize) -> Self
+    {
+        let mut data = ImageData::new_int(w as usize, h as usize);
+        match &mut data
+        {
+            ImageData::Int(ref mut data) =>
+            {
+                for px in data.chunks_exact_mut(4)
+                {
+                    for (i, c) in px.iter_mut().enumerate()
+                    {
+                        *c = [255, 255, 255, 0][i];
+                    }
+                }
+            }
+            ImageData::Float(ref mut data) =>
+            {
+                for px in data.chunks_exact_mut(4)
+                {
+                    for (i, c) in px.iter_mut().enumerate()
+                    {
+                        *c = [1.0, 1.0, 1.0, 0.0][i];
+                    }
+                }
+            }
+        }
+        let ret = Self { width : w as usize, height : h as usize, data };
+        ret
+    }
     pub (crate) fn to_egui(&self) -> egui::ColorImage
     {
-        match &self.data
-        {
-            ImageData::Int(data) =>
-                egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &data),
-            _ =>
-                egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.to_int()),
-        }
+        egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.clone().to_int())
     }
     pub (crate) fn to_imagebuffer(&self) -> image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>
     {
@@ -309,14 +417,15 @@ impl Image
             }
         }
     }
-    pub (crate) fn blend_from(&mut self, other : &Image)
+    pub (crate) fn blend_from(&mut self, other : &Image, top_opacity : f32)
     {
         for y in 0..self.height as isize
         {
             for x in 0..self.width as isize
             {
                 let a = self.get_pixel_float_wrapped(x, y);
-                let b = other.get_pixel_float(x, y);
+                let mut b = other.get_pixel_float(x, y);
+                b[3] *= top_opacity;
                 let c = px_mix_float(a, b, b[3]);
                 self.set_pixel_float_wrapped(x, y, c);
             }

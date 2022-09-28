@@ -19,8 +19,10 @@ I expect to have all of the following features. This is sorted in order of devel
 ### layer management stuff
 [x] layers
 [x] layer creation/deletion
-[ ] layer groups (implemented but not hooked up)
-[ ] layer management (moving, merging, etc)
+[x] layer groups (implemented but not hooked up)
+[x] layer moving (by buttons)
+[ ] layer moving (by drag and drop)
+[ ] layer merging/flattening/etc
 
 ### other layer stuff
 [ ] photoshop blend modes
@@ -35,7 +37,7 @@ I expect to have all of the following features. This is sorted in order of devel
 [ ] grids
 [ ] rgb and alpha sliders for the color picker
 [x] view transformation (scale, pan, rotation)
-[ ] full view transformation (including mirroring)
+[ ] view mirroring
 [ ] preview panel like clip studio paint and photoshop's navigator panel
 [ ] custom preview windows with a scripting language, for things like tilesets, animations, etc
 [ ] project tabs

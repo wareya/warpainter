@@ -255,7 +255,7 @@ impl Warpaint
                         else
                         {
                             let mut r = current_image.clone();
-                            r.blend_from(edit_image);
+                            r.blend_from(edit_image, 1.0); // FIXME use drawing opacity / brush alpha
                             return Some(r);
                         }
                     }
@@ -391,6 +391,7 @@ impl Warpaint
     fn new_layer(&mut self)
     {
         let layer = Layer::new_layer("New Layer", self.canvas_width, self.canvas_height);
+        // FIXME use visit_layer_parent_mut
         if let Some(parent) = self.layers.find_layer_parent_mut(self.current_layer)
         {
             let mut i = 0;
@@ -403,7 +404,14 @@ impl Warpaint
                 }
             }
             self.current_layer = layer.uuid;
-            parent.children.insert(i, layer);
+            if parent.children[i].is_drawable()
+            {
+                parent.children.insert(i, layer);
+            }
+            else
+            {
+                parent.children[i].children.insert(0, layer);
+            }
         }
         else
         {
@@ -413,10 +421,11 @@ impl Warpaint
     }
     fn delete_current_layer(&mut self)
     {
-        let total_count = self.layers.count_drawable();
+        // FIXME use visit_layer_parent_mut
+        let total_count = self.layers.count();
         if let Some(layer) = self.layers.find_layer(self.current_layer)
         {
-            if total_count == layer.count_drawable()
+            if layer.count()+1 >= total_count
             {
                 return;
             }
@@ -539,6 +548,10 @@ impl eframe::App for Warpaint
                 }
                 else
                 {
+                    egui::ComboBox::from_id_source("blend_mode_dropdown").selected_text("").show_ui(ui, |_ui|{});
+                    
+                    let mut opacity = 0.0;
+                    ui.add_enabled(false, egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     
                 }
         
@@ -546,20 +559,24 @@ impl eframe::App for Warpaint
                         $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [18.0, 18.0]).selected($selected))
                            .on_hover_text($tooltip)
                 } }
+                macro_rules! add_button_disabled { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
+                        $ui.add_enabled(false, egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [18.0, 18.0]).selected($selected))
+                           .on_hover_text($tooltip)
+                } }
                 
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
                 {
                     ui.spacing_mut().item_spacing = [1.0, 0.0].into();
                     ui.spacing_mut().button_padding = [0.0, 0.0].into();
-                    if add_button!(ui, "clipping mask", "Toggle Clipping Mask", false).clicked()
+                    if add_button_disabled!(ui, "clipping mask", "Toggle Clipping Mask", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if add_button!(ui, "lock", "Toggle Layer Lock", false).clicked()
+                    if add_button_disabled!(ui, "lock", "Toggle Layer Lock", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if add_button!(ui, "lock alpha", "Toggle Alpha Lock", false).clicked()
+                    if add_button_disabled!(ui, "lock alpha", "Toggle Alpha Lock", false).clicked()
                     {
                         // FIXME/TODO
                     }
@@ -580,7 +597,7 @@ impl eframe::App for Warpaint
                     {
                         self.layers.into_group(self.current_layer);
                     }
-                    if add_button!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
+                    if add_button_disabled!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
                     {
                         // FIXME/TODO
                     }
@@ -592,11 +609,11 @@ impl eframe::App for Warpaint
                     {
                         self.layers.move_layer_down(self.current_layer);
                     }
-                    if add_button!(ui, "transfer down", "Transfer Down", false).clicked()
+                    if add_button_disabled!(ui, "transfer down", "Transfer Down", false).clicked()
                     {
                         // FIXME/TODO
                     }
-                    if add_button!(ui, "merge down", "Merge Down", false).clicked()
+                    if add_button_disabled!(ui, "merge down", "Merge Down", false).clicked()
                     {
                         // FIXME/TODO
                     }
@@ -621,7 +638,7 @@ impl eframe::App for Warpaint
                 {
                     ui.horizontal(|ui|
                     {
-                        ui.allocate_space([info.2 as f32 * 4.0, 0.0].into());
+                        ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
                         let mut button = egui::Button::new(info.0);
                         if info.1 == self.current_layer
                         {
