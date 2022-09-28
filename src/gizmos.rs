@@ -4,7 +4,7 @@ use crate::transform::*;
 
 pub (crate) trait Gizmo
 {
-    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter);
+    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter);
 }
 
 pub (crate) fn draw_dotted(painter : &egui::Painter, from : [f32; 2], to : [f32; 2])
@@ -56,7 +56,7 @@ pub (crate) struct BoxGizmo
 
 impl Gizmo for BoxGizmo
 {
-    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;
@@ -91,7 +91,7 @@ pub (crate) struct BrushGizmo
 
 impl Gizmo for BrushGizmo
 {
-    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;

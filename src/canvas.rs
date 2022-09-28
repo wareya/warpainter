@@ -25,7 +25,7 @@ fn to_array(v : egui::Pos2) -> [f32; 2]
 
 impl CanvasInputState
 {
-    fn update(&mut self, app : &crate::Warpaint, input : &egui::InputState, response : &egui::Response)
+    fn update(&mut self, app : &crate::Warpainter, input : &egui::InputState, response : &egui::Response)
     {
         self.time = input.time as f32;
         self.delta = input.unstable_dt;
@@ -71,7 +71,7 @@ impl CanvasInputState
     }
 }
 
-pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
+pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui::Response
 {
     let input = ui.input().clone();
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());

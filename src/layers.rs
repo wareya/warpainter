@@ -11,6 +11,9 @@ pub(crate) struct Layer
     pub(crate) data : Option<Image>,
     pub(crate) children : Vec<Layer>,
     
+    pub(crate) flattened_data : Option<Image>,
+    pub(crate) flattened_dirty : bool,
+    
     pub(crate) uuid : u128,
     
     pub(crate) offset : [f32; 2],
@@ -31,6 +34,9 @@ impl Layer
             
             data : Some(image),
             children : vec!(),
+            
+            flattened_data : None,
+            flattened_dirty : true,
             
             uuid : Uuid::new_v4().as_u128(),
             
@@ -54,6 +60,9 @@ impl Layer
             
             data : None,
             children : vec!(),
+            
+            flattened_data : None,
+            flattened_dirty : true,
             
             uuid : Uuid::new_v4().as_u128(),
             
@@ -141,30 +150,60 @@ impl Layer
             None
         }
     }
-    pub(crate) fn flatten(&self, canvas_width : usize, canvas_height : usize, override_uuid : u128, override_data : Option<&Image>) -> Image
+    pub(crate) fn flatten_is_dirty(&self, override_uuid : Option<u128>) -> bool
     {
-        if self.uuid == override_uuid
+        if self.flattened_dirty || Some(self.uuid) == override_uuid
         {
-            if let Some(data) = override_data
-            {
-                return data.clone();
-            }
-        }
-        if let Some(image) = &self.data
-        {
-            image.clone()
+            return true;
         }
         else
         {
-            let mut image = Image::blank_white_transparent(canvas_width, canvas_height);
-            for child in self.children.iter().rev()
+            for child in self.children.iter()
+            {
+                if child.flatten_is_dirty(override_uuid)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image>) -> &'b Image where 'a: 'b
+    {
+        if Some(self.uuid) == override_uuid && override_data.is_some()
+        {
+            return override_data.unwrap();
+        }
+        else
+        {
+            self.flatten_as_root(canvas_width, canvas_height, override_uuid, override_data)
+        }
+    }
+    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image>) -> &'a Image
+    {
+        if !self.flatten_is_dirty(override_uuid) && self.flattened_data.is_some()
+        {
+            return self.flattened_data.as_ref().unwrap();
+        }
+        else if let Some(image) = &self.data
+        {
+            self.flattened_dirty = false;
+            return image;
+        }
+        else
+        {
+            let mut image = Image::blank(canvas_width, canvas_height);
+            for child in self.children.iter_mut().rev()
             {
                 if child.visible
                 {
-                    image.blend_from(&child.flatten(canvas_width, canvas_height, override_uuid, override_data), child.opacity);
+                    let opacity = child.opacity;
+                    image.blend_from(child.flatten(canvas_width, canvas_height, override_uuid, override_data), opacity);
                 }
             }
-            image
+            self.flattened_data = Some(image);
+            self.flattened_dirty = false;
+            return self.flattened_data.as_ref().unwrap();
         }
     }
     pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer, usize) -> Option<()>) -> Option<()>
@@ -309,6 +348,7 @@ impl Layer
             let new_len = layer.children.len();
             if new_len != old_len
             {
+                layer.flattened_dirty = true;
                 None
             }
             else
@@ -323,6 +363,7 @@ impl Layer
         {
             if self.children[i].uuid == find_uuid
             {
+                self.flattened_dirty = true;
                 if i == 0
                 {
                     if self.uuid != 0
@@ -352,6 +393,9 @@ impl Layer
             }
             else if let Some(layer) = self.children[i].move_layer_up(find_uuid)
             {
+                self.children[i].flattened_dirty = true;
+                self.flattened_dirty = true;
+                
                 self.children.insert(i, layer);
                 break;
             }
@@ -364,6 +408,7 @@ impl Layer
         {
             if self.children[i].uuid == find_uuid
             {
+                self.flattened_dirty = true;
                 if i+1 >= self.children.len()
                 {
                     if self.uuid != 0
@@ -393,6 +438,9 @@ impl Layer
             }
             else if let Some(layer) = self.children[i].move_layer_down(find_uuid)
             {
+                self.children[i].flattened_dirty = true;
+                self.flattened_dirty = true;
+                
                 self.children.insert(i+1, layer);
                 break;
             }
@@ -403,6 +451,7 @@ impl Layer
     {
         self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
         {
+            parent.flattened_dirty = true;
             parent.children.insert(i, Layer::new_group("New Group"));
         });
     }
@@ -410,6 +459,7 @@ impl Layer
     {
         self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
         {
+            parent.flattened_dirty = true;
             let layer = parent.children.remove(i);
             let mut group = Layer::new_group("New Group");
             group.children.insert(0, layer);

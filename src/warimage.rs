@@ -14,9 +14,9 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
     px_to_int(px_lerp_float(px_to_float(a), px_to_float(b), amount))
 }
 
-pub (crate) fn px_mix_float(a : [f32; 4], mut b : [f32; 4], amount : f32) -> [f32; 4]
+pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
-    b[3] *= amount;
+    a[3] *= amount;
     let mut r = [0.0; 4];
     for i in 0..3
     {
@@ -417,16 +417,15 @@ impl Image
             }
         }
     }
-    pub (crate) fn blend_from(&mut self, other : &Image, top_opacity : f32)
+    pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
     {
         for y in 0..self.height as isize
         {
             for x in 0..self.width as isize
             {
-                let a = self.get_pixel_float_wrapped(x, y);
-                let mut b = other.get_pixel_float(x, y);
-                b[3] *= top_opacity;
-                let c = px_mix_float(a, b, b[3]);
+                let bottom_pixel = self.get_pixel_float_wrapped(x, y);
+                let top_pixel = top.get_pixel_float(x, y);
+                let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
                 self.set_pixel_float_wrapped(x, y, c);
             }
         }

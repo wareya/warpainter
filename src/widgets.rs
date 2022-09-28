@@ -7,7 +7,7 @@ use crate::transform::*;
 use crate::gizmos::draw_doubled;
 
 /*
-pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
+pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter) -> egui::Response
 {
     let input = ui.input().clone();
     
@@ -18,7 +18,7 @@ pub (crate) fn alpha_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> eg
 */
 
 /*
-pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame : &mut eframe)
+pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpainter, frame : &mut eframe)
 {
     let mut response = ui.allocate_ui([0.0, 0.0].into(), egui::Sense::click_and_drag());
     
@@ -42,7 +42,7 @@ pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpaint, fra
 }
 */
 
-pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
+pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter) -> egui::Response
 {
     let input = ui.input().clone();
     let _time = input.time as f32;

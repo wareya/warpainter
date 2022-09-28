@@ -1,6 +1,8 @@
 //#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+// always show console, because still in early development
 #![windows_subsystem = "console"]
+// not useful while prototyping
 #![allow(dead_code)]
 
 extern crate alloc;
@@ -29,7 +31,7 @@ use layers::*;
 use quadrender::*;
 use vecmap::*;
 
-struct Warpaint
+struct Warpainter
 {
     layers : Layer,
     current_layer : u128,
@@ -59,7 +61,7 @@ struct Warpaint
     icons : VecMap<&'static str, egui::TextureHandle>,
 }
 
-impl Default for Warpaint
+impl Default for Warpainter
 {
     fn default() -> Self
     {
@@ -110,7 +112,7 @@ impl Default for Warpaint
     }
 }
 
-impl Warpaint
+impl Warpainter
 {
     fn load_shaders(&mut self, frame : &mut eframe::Frame)
     {
@@ -165,7 +167,7 @@ impl Warpaint
     }
 }
 
-impl Warpaint
+impl Warpainter
 {
     fn load_from_img(&mut self, img : Image)
     {
@@ -182,7 +184,7 @@ impl Warpaint
     }
 }
 
-impl Warpaint
+impl Warpainter
 {
     fn tool_think(&mut self, inputstate : &CanvasInputState)
     {
@@ -199,7 +201,7 @@ impl Warpaint
     }
 }
 
-impl Warpaint
+impl Warpainter
 {
     fn begin_edit(&mut self, inplace : bool)
     {
@@ -227,15 +229,15 @@ impl Warpaint
     {
         (&mut self.editing_image).as_mut()
     }
-    fn flatten(&self) -> Image
+    fn flatten<'a>(&'a mut self) -> &'a Image
     {
         if let Some(override_image) = self.get_temp_edit_image()
         {
-            self.layers.flatten(self.canvas_width, self.canvas_height, self.current_layer, Some(&override_image))
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image))
         }
         else
         {
-            self.layers.flatten(self.canvas_width, self.canvas_height, 0, None)
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None)
         }
     }
     fn get_temp_edit_image(&self) -> Option<Image>
@@ -280,19 +282,27 @@ impl Warpaint
                 }
             }
         }
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            layer.flattened_dirty = true;
+        }
         
         self.editing_image = None;
         self.edit_is_direct = false;
     }
     fn cancel_edit(&mut self)
     {
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            layer.flattened_dirty = true;
+        }
         self.editing_image = None;
         self.edit_is_direct = false;
     }
 }
 
 
-impl Warpaint
+impl Warpainter
 {
     fn zoom(&mut self, amount : f32)
     {
@@ -345,7 +355,7 @@ impl Warpaint
         self.debug_text.push(text.to_string());
     }
 }
-impl Warpaint
+impl Warpainter
 {
     fn set_main_color_rgb8(&mut self, new : [u8; 4])
     {
@@ -386,7 +396,7 @@ impl Warpaint
     }
 }
 
-impl Warpaint
+impl Warpainter
 {
     fn new_layer(&mut self)
     {
@@ -449,7 +459,7 @@ impl Warpaint
     }
 }
 
-impl eframe::App for Warpaint
+impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
@@ -467,7 +477,7 @@ impl eframe::App for Warpaint
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("Supported Image Formats",
                                 &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds"])
-                            //.add_filter("Warpaint Project",
+                            //.add_filter("Warpainter Project",
                             //    &["wrp"])
                             .pick_file()
                         {
@@ -486,7 +496,7 @@ impl eframe::App for Warpaint
                     {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("PNG", &["png"])
-                            //.add_filter("Warpaint Project",
+                            //.add_filter("Warpainter Project",
                             //    &["wrp"])
                             .save_file()
                         {
@@ -545,6 +555,7 @@ impl eframe::App for Warpaint
                     let mut opacity = layer.opacity * 100.0;
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     layer.opacity = opacity/100.0;
+                    layer.flattened_dirty = true;
                 }
                 else
                 {
@@ -728,8 +739,8 @@ fn main()
     options.default_theme = eframe::Theme::Light;
     options.initial_window_size = Some([1280.0, 720.0].into());
     eframe::run_native (
-        "Warpaint",
+        "Warpainter",
         options,
-        Box::new(|_| Box::new(Warpaint::default())),
+        Box::new(|_| Box::new(Warpainter::default())),
     );
 }

@@ -6,10 +6,10 @@ use crate::gizmos::*;
 
 pub (crate) trait Tool
 {
-    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState);
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState);
     fn edits_inplace(&self) -> bool; // whether the layer gets a full layer copy or a blank layer that gets composited on top
     fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
-    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>;
+    fn get_gizmo(&self, app : &crate::Warpainter, focused : bool) -> Option<Box<dyn Gizmo>>;
 }
 
 pub (crate) struct Fill
@@ -27,7 +27,7 @@ impl Fill
 }
 impl Tool for Fill
 {
-    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState)
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
         if new_input.held[0] && !self.prev_input.held[0]
         {
@@ -106,7 +106,7 @@ impl Tool for Fill
     {
         true
     }
-    fn get_gizmo(&self, _app : &crate::Warpaint, _focused : bool) -> Option<Box<dyn Gizmo>>
+    fn get_gizmo(&self, _app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         None
     }
@@ -148,7 +148,7 @@ fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color 
 
 impl Tool for Pencil
 {
-    fn think(&mut self, app : &mut crate::Warpaint, new_input : &CanvasInputState)
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
         if new_input.held[0] && !self.prev_input.held[0]
         {
@@ -192,7 +192,7 @@ impl Tool for Pencil
     {
         true
     }
-    fn get_gizmo(&self, app : &crate::Warpaint, _focused : bool) -> Option<Box<dyn Gizmo>>
+    fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         let mut pos = self.prev_input.canvas_mouse_coord;
         pos[0] -= app.canvas_width as f32 / 2.0;

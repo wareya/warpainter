@@ -2010,7 +2010,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "warpaint"
+name = "warpainter"
 version = "0.1.0"
 dependencies = [
  "eframe",
