@@ -1,4 +1,5 @@
 // insert-only vec-based map
+
 pub (crate) struct VecMap<K, V>
 {
     keys   : Vec<K>,

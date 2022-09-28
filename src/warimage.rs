@@ -14,8 +14,9 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
     px_to_int(px_lerp_float(px_to_float(a), px_to_float(b), amount))
 }
 
-pub (crate) fn px_mix_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+pub (crate) fn px_mix_float(a : [f32; 4], mut b : [f32; 4], amount : f32) -> [f32; 4]
 {
+    b[3] *= amount;
     let mut r = [0.0; 4];
     for i in 0..3
     {
@@ -355,7 +356,6 @@ impl Image
         {
             for x in 0..ret.width
             {
-                use image::Pixel;
                 let px = input.get_pixel(x as u32, y as u32).0;
                 ret.set_pixel(x as isize, y as isize, px);
             }

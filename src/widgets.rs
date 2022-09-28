@@ -3,9 +3,7 @@ use alloc::sync::Arc;
 
 use eframe::egui;
 use eframe::egui_glow;
-use crate::warimage::*;
 use crate::transform::*;
-use crate::layers::*;
 use crate::gizmos::draw_doubled;
 
 /*
@@ -44,10 +42,10 @@ pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpaint, fra
 }
 */
 
-pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame : &mut eframe::Frame) -> egui::Response
+pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint) -> egui::Response
 {
     let input = ui.input().clone();
-    let time = input.time as f32;
+    let _time = input.time as f32;
     
     let avail = ui.available_size();
     let least = avail.x.min(avail.y) as usize;
@@ -67,7 +65,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpaint, frame
     let a = app.main_color_hsv[3];
     
     let least_vec2 = [least as f32, least as f32].into();
-    let mut response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());
+    let response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());
     
     let box_start = response.rect.min + [box_margin, box_margin].into();
     let box_end   = box_start + [box_size, box_size].into();

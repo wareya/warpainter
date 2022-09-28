@@ -1,7 +1,3 @@
-use alloc::sync::Arc;
-use egui::mutex::Mutex;
-
-use eframe::egui;
 use eframe::egui_glow::glow;
 use glow::HasContext;
 

@@ -1,6 +1,7 @@
 //#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 #![windows_subsystem = "console"]
+#![allow(dead_code)]
 
 extern crate alloc;
 
@@ -23,7 +24,6 @@ use warimage::*;
 use transform::*;
 use widgets::*;
 use canvas::*;
-use gizmos::*;
 use tools::*;
 use layers::*;
 use quadrender::*;
@@ -74,7 +74,7 @@ impl Default for Warpaint
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
-        let mut ret = Self {
+        let ret = Self {
             layers : root_layer,
             current_layer : image_layer_uuid,
             
@@ -171,8 +171,8 @@ impl Warpaint
     {
         self.layers = Layer::new_group("___root___");
         
-        let canvas_width = img.width;
-        let canvas_height = img.height;
+        self.canvas_width = img.width;
+        self.canvas_height = img.height;
         
         let image_layer = Layer::new_layer_from_image("New Layer", img);
         let image_layer_uuid = image_layer.uuid;
@@ -297,7 +297,7 @@ impl Warpaint
     fn zoom(&mut self, amount : f32)
     {
         let mut log_zoom = self.xform.get_scale().max(0.01).log(2.0);
-        let mut old_zoom = (log_zoom*2.0).round()/2.0;
+        let old_zoom = (log_zoom*2.0).round()/2.0;
         
         log_zoom += amount;
         
@@ -306,8 +306,8 @@ impl Warpaint
         {
             new_zoom = log_zoom;
         }
-        log_zoom = log_zoom.clamp(-16.0, 16.0);
-        self.xform.set_scale(2.0_f32.powf(log_zoom));
+        new_zoom = new_zoom.clamp(-8.0, 8.0);
+        self.xform.set_scale(2.0_f32.powf(new_zoom));
     }
     fn update_canvas_preview(&mut self, ctx : &egui::Context)
     {
@@ -675,10 +675,7 @@ impl eframe::App for Warpaint
         {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                let input = ui.input().clone();
-                let time = input.time as f32;
-                
-                ui.add(|ui : &mut egui::Ui| color_picker(ui, self, frame));
+                ui.add(|ui : &mut egui::Ui| color_picker(ui, self));
             });
         });
         

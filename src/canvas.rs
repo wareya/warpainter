@@ -3,10 +3,7 @@ use alloc::sync::Arc;
 
 use eframe::egui;
 use eframe::egui_glow;
-use crate::warimage::*;
 use crate::transform::*;
-use crate::gizmos::*;
-use crate::Tool;
 
 #[derive(Clone, Debug, Default)]
 pub (crate) struct CanvasInputState
@@ -128,10 +125,10 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpaint) -> egui::R
     
     let tex = app.image_preview.as_ref().unwrap();
     let size = tex.size();
-    let (mut w, mut h) = (size[0] as f32, size[1] as f32);
+    let (w, h) = (size[0] as f32, size[1] as f32);
     
     let mut mesh = egui::Mesh::with_texture(tex.id());
-    let mut rect : egui::Rect = [[-w/2.0, -h/2.0].into(), [w/2.0, h/2.0].into()].into();
+    let rect : egui::Rect = [[-w/2.0, -h/2.0].into(), [w/2.0, h/2.0].into()].into();
     let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
     mesh.add_rect_with_uv (
         rect,

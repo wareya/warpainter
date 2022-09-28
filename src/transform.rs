@@ -183,7 +183,7 @@ impl Transform {
     }
     pub (crate) fn make_uniform(&mut self)
     {
-        let mut other = Self::ident();
+        let _other = Self::ident();
         // FIXME / TODO
     }
     // FIXME replace with actual matrix inversion

@@ -42,7 +42,7 @@ impl Tool for Fill
             let color = app.main_color_rgb;
             if let Some(Some(base)) = app.layers.find_layer_unlocked(app.current_layer).map(|x| x.data.as_ref())
             {
-                if let Some(mut image) = (&mut app.editing_image).as_mut()
+                if let Some(image) = (&mut app.editing_image).as_mut()
                 {
                     if !self.prev_input.held[0] || prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                     {
@@ -106,7 +106,7 @@ impl Tool for Fill
     {
         true
     }
-    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>
+    fn get_gizmo(&self, _app : &crate::Warpaint, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         None
     }
@@ -161,7 +161,7 @@ impl Tool for Pencil
             
             app.debug(format!("{:?}", coord));
             let color = app.main_color_rgb;
-            if let Some(mut image) = app.get_editing_image()
+            if let Some(image) = app.get_editing_image()
             {
                 if !self.prev_input.held[0]
                 {
@@ -192,12 +192,12 @@ impl Tool for Pencil
     {
         true
     }
-    fn get_gizmo(&self, app : &crate::Warpaint, focused : bool) -> Option<Box<dyn Gizmo>>
+    fn get_gizmo(&self, app : &crate::Warpaint, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         let mut pos = self.prev_input.canvas_mouse_coord;
         pos[0] -= app.canvas_width as f32 / 2.0;
         pos[1] -= app.canvas_height as f32 / 2.0;
-        let mut gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
+        let gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
     }
 }

@@ -232,7 +232,7 @@ impl Layer
     pub (crate) fn count(&self) -> usize
     {
         let mut n = 0;
-        self.visit_layers(0, &mut |layer, _|
+        self.visit_layers(0, &mut |_layer, _|
         {
             n += 1;
             Some(())
@@ -242,7 +242,7 @@ impl Layer
     pub (crate) fn count_drawable(&self) -> usize
     {
         let mut n = 0;
-        self.visit_layers(0, &mut |layer, _|
+        self.visit_layers(0, &mut |_layer, _|
         {
             if self.data.is_some()
             {

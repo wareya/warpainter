@@ -55,8 +55,5 @@ void main()
     if (det <= 0.0)
         out_color = to_linear(vec4(color, 1.0));
     else
-    {
-        out_color = vec4(1.0);
-        out_color *= 0.5;
-    }
+        out_color = vec4(0.0);
 }

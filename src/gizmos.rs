@@ -56,7 +56,7 @@ pub (crate) struct BoxGizmo
 
 impl Gizmo for BoxGizmo
 {
-    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;
@@ -91,7 +91,7 @@ pub (crate) struct BrushGizmo
 
 impl Gizmo for BrushGizmo
 {
-    fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
+    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpaint, response : &mut egui::Response, painter : &egui::Painter)
     {
         let x = self.x;
         let y = self.y;
