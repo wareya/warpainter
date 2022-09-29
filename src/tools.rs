@@ -166,12 +166,10 @@ impl Tool for Pencil
                 if !self.prev_input.held[0]
                 {
                     image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
-                    app.mark_current_layer_dirty([coord, coord]);
                 }
                 else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                 {
                     draw_line_no_start_float(image, prev_coord, coord, color);
-                    app.mark_current_layer_dirty([prev_coord, coord]);
                 }
             }
         }
