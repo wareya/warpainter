@@ -40,13 +40,6 @@ pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
     px_to_int(px_mix_float(px_to_float(a), px_to_float(b), amount))
 }
 
-#[derive(Debug, Clone)]
-pub (crate) enum ImageData
-{
-    Float(Vec<f32>),
-    Int(Vec<u8>),
-}
-
 #[inline]
 pub (crate) fn to_float(x : u8) -> f32
 {
@@ -129,6 +122,13 @@ pub (crate) fn get_pixel<T : Copy>(data : &[T], x : isize, y : isize, width : is
 {
     let index = (y*width + x) as usize * 4;
     [data[index], data[index+1], data[index+2], data[index+3]]
+}
+
+#[derive(Debug, Clone)]
+pub (crate) enum ImageData
+{
+    Float(Vec<f32>),
+    Int(Vec<u8>),
 }
 
 impl ImageData
@@ -236,6 +236,39 @@ pub (crate) struct Image
     pub (crate) width : usize,
     pub (crate) height : usize,
     data : ImageData,
+}
+
+impl Image
+{
+    #[inline]
+    pub (crate) fn bytes(&self) -> &[u8]
+    {
+        use byte_slice_cast::*;
+        let bytes = match &self.data
+        {
+            ImageData::Int(data) => data,
+            ImageData::Float(data) => data[..].as_byte_slice(),
+        };
+        bytes
+    }
+    #[inline]
+    pub (crate) fn is_float(&self) -> bool
+    {
+        match &self.data
+        {
+            ImageData::Int(_) => false,
+            ImageData::Float(_) => true,
+        }
+    }
+    #[inline]
+    pub (crate) fn is_int(&self) -> bool
+    {
+        match &self.data
+        {
+            ImageData::Int(_) => true,
+            ImageData::Float(_) => false,
+        }
+    }
 }
 
 impl Image
@@ -420,6 +453,7 @@ impl Image
         let ret = Self { width : w as usize, height : h as usize, data };
         ret
     }
+    // FIXME scrap this. `from_rgba_unmultiplied` is slow and not realtime-friendly.
     pub (crate) fn to_egui(&self) -> egui::ColorImage
     {
         egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.clone().to_int())
@@ -444,81 +478,27 @@ impl Image
     }
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32)
     {
-        match &mut self.data
+        for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize).min(self.height as isize)
         {
-            ImageData::Int(data) =>
+            for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize).min(self.width as isize)
             {
-                assert!(self.width*self.height*4 == data.len());
-                for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize).min(self.height as isize)
-                {
-                    for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize).min(self.width as isize)
-                    {
-                        let bottom_pixel = px_to_float(get_pixel(data, x, y, self.width as isize));
-                        let top_pixel = top.get_pixel_float(x, y);
-                        let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                        data[y as usize*self.width*4 + x as usize*4 + 0] = to_int(c[0]);
-                        data[y as usize*self.width*4 + x as usize*4 + 1] = to_int(c[1]);
-                        data[y as usize*self.width*4 + x as usize*4 + 2] = to_int(c[2]);
-                        data[y as usize*self.width*4 + x as usize*4 + 3] = to_int(c[3]);
-                    }
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                assert!(self.width*self.height*4 == data.len());
-                for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize).min(self.height as isize)
-                {
-                    for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize).min(self.width as isize)
-                    {
-                        let bottom_pixel = get_pixel(data, x, y, self.width as isize);
-                        let top_pixel = top.get_pixel_float(x, y);
-                        let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                        data[y as usize*self.width*4 + x as usize*4 + 0] = c[0];
-                        data[y as usize*self.width*4 + x as usize*4 + 1] = c[1];
-                        data[y as usize*self.width*4 + x as usize*4 + 2] = c[2];
-                        data[y as usize*self.width*4 + x as usize*4 + 3] = c[3];
-                    }
-                }
+                let bottom_pixel = self.get_pixel_float_wrapped(x, y);
+                let top_pixel = top.get_pixel_float(x, y);
+                let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
+                self.set_pixel_float_wrapped(x, y, c);
             }
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
     {
-        match &mut self.data
+        for y in 0..self.height as isize
         {
-            ImageData::Int(data) =>
+            for x in 0..self.width as isize
             {
-                assert!(self.width*self.height*4 == data.len());
-                for y in 0..self.height as isize
-                {
-                    for x in 0..self.width as isize
-                    {
-                        let bottom_pixel = px_to_float(get_pixel(data, x, y, self.width as isize));
-                        let top_pixel = top.get_pixel_float(x, y);
-                        let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                        data[y as usize*self.width*4 + x as usize*4 + 0] = to_int(c[0]);
-                        data[y as usize*self.width*4 + x as usize*4 + 1] = to_int(c[1]);
-                        data[y as usize*self.width*4 + x as usize*4 + 2] = to_int(c[2]);
-                        data[y as usize*self.width*4 + x as usize*4 + 3] = to_int(c[3]);
-                    }
-                }
-            }
-            ImageData::Float(data) =>
-            {
-                assert!(self.width*self.height*4 == data.len());
-                for y in 0..self.height as isize
-                {
-                    for x in 0..self.width as isize
-                    {
-                        let bottom_pixel = get_pixel(data, x, y, self.width as isize);
-                        let top_pixel = top.get_pixel_float(x, y);
-                        let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                        data[y as usize*self.width*4 + x as usize*4 + 0] = c[0];
-                        data[y as usize*self.width*4 + x as usize*4 + 1] = c[1];
-                        data[y as usize*self.width*4 + x as usize*4 + 2] = c[2];
-                        data[y as usize*self.width*4 + x as usize*4 + 3] = c[3];
-                    }
-                }
+                let bottom_pixel = self.get_pixel_float_wrapped(x, y);
+                let top_pixel = top.get_pixel_float(x, y);
+                let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
+                self.set_pixel_float_wrapped(x, y, c);
             }
         }
     }

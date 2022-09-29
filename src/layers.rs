@@ -245,6 +245,7 @@ impl Layer
         }
         else
         {
+            println!("group is dirty, reflattening");
             let new_dirty_rect;
             // FIXME clear flattened image instead of recreating if it exists
             if self.flattened_data.is_none() || dirty_rect.is_none()

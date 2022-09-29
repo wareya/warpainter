@@ -42,7 +42,7 @@ struct Warpainter
     edit_is_direct : bool,
     editing_image : Option<Image>,
     
-    image_preview : Option<egui::TextureHandle>,
+    //image_preview : Option<egui::TextureHandle>,
     xform : Transform,
     debug_text : Vec<String>,
     
@@ -86,7 +86,7 @@ impl Default for Warpainter
             edit_is_direct : false,
             editing_image : None,
             
-            image_preview : None,
+            //image_preview : None,
             xform : Transform::ident(),
             debug_text : vec!(),
             
@@ -328,12 +328,14 @@ impl Warpainter
     }
     fn update_canvas_preview(&mut self, ctx : &egui::Context)
     {
+        /*
         let img = self.flatten().to_egui();
         match &mut self.image_preview
         {
             Some(texhandle) =>
             {
                 let img = egui::ImageData::Color(img);
+                
                 let filter = if self.xform.get_scale() >= 0.97
                 {
                     egui::TextureFilter::Nearest
@@ -355,6 +357,7 @@ impl Warpainter
                 self.image_preview = Some(img);
             }
         }
+        */
     }
     
     fn debug<T : ToString>(&mut self, text : T)
@@ -563,6 +566,7 @@ impl eframe::App for Warpainter
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     if layer.opacity * 100.0 != opacity
                     {
+                        println!("marking as dirty");
                         layer.dirtify_all();
                     }
                     layer.opacity = opacity/100.0;

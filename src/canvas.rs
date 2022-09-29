@@ -123,51 +123,34 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     
     // render canvas
     
-    let tex = app.image_preview.as_ref().unwrap();
-    let size = tex.size();
-    let (w, h) = (size[0] as f32, size[1] as f32);
-    
-    let mut mesh = egui::Mesh::with_texture(tex.id());
-    let rect : egui::Rect = [[-w/2.0, -h/2.0].into(), [w/2.0, h/2.0].into()].into();
-    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
-    mesh.add_rect_with_uv (
-        rect,
-        uv,
-        egui::Color32::WHITE
-    );
     let mut xform = app.xform.clone();
     let center = response.rect.center();
     xform.translate([center.x, center.y]);
-    for vert in mesh.vertices.iter_mut()
-    {
-        let new = &xform * &[vert.pos[0], vert.pos[1]];
-        vert.pos.x = new[0];
-        vert.pos.y = new[1];
-    }
-    
+    xform.translate([-response.rect.min.x, -response.rect.min.y]);
     //// !!!! evil vile code
+    let texture = app.flatten().clone(); // FIXME use an Arc somehow
     let uniforms = [
         ("width", response.rect.width()),
         ("height", response.rect.height()),
-        ("point_0_x", mesh.vertices[0].pos.x - response.rect.min.x),
-        ("point_0_y", mesh.vertices[0].pos.y - response.rect.min.y),
-        ("point_1_x", mesh.vertices[1].pos.x - response.rect.min.x),
-        ("point_1_y", mesh.vertices[1].pos.y - response.rect.min.y),
-        ("point_2_x", mesh.vertices[2].pos.x - response.rect.min.x),
-        ("point_2_y", mesh.vertices[2].pos.y - response.rect.min.y),
-        ("point_3_x", mesh.vertices[3].pos.x - response.rect.min.x),
-        ("point_3_y", mesh.vertices[3].pos.y - response.rect.min.y),
+        ("canvas_width", texture.width as f32),
+        ("canvas_height", texture.height as f32),
+        ("mat_0_0", xform.rows[0][0]),
+        ("mat_0_1", xform.rows[1][0]),
+        ("mat_1_0", xform.rows[0][1]),
+        ("mat_1_1", xform.rows[1][1]),
+        ("mat_2_0", xform.rows[0][2]),
+        ("mat_2_1", xform.rows[1][2]),
     ];
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
-        colorpicker_shader.lock().render(glow_painter.gl(), &uniforms);
+        let mut shader = colorpicker_shader.lock();
+        shader.add_texture(glow_painter.gl(), &texture);
+        shader.render(glow_painter.gl(), &uniforms);
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
     painter.add(callback);
     //// !!!! evil vile code (end)
-    
-    painter.add(egui::Shape::mesh(mesh));
     
     if let Some(tool) = app.get_tool()
     {

@@ -2,7 +2,7 @@
 #[derive(Clone, Debug)]
 pub (crate) struct Transform
 {
-    rows : [[f32; 3]; 3],
+    pub (crate) rows : [[f32; 3]; 3],
 }
 impl Default for Transform
 {
