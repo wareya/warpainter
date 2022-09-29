@@ -284,7 +284,7 @@ impl Warpainter
         }
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            layer.flattened_dirty = true;
+            layer.dirtify_all();
         }
         
         self.editing_image = None;
@@ -294,10 +294,17 @@ impl Warpainter
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            layer.flattened_dirty = true;
+            layer.dirtify_all();
         }
         self.editing_image = None;
         self.edit_is_direct = false;
+    }
+    fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
+    {
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            layer.dirtify_rect(rect);
+        }
     }
 }
 
@@ -556,7 +563,7 @@ impl eframe::App for Warpainter
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     if layer.opacity * 100.0 != opacity
                     {
-                        layer.flattened_dirty = true;
+                        layer.dirtify_all();
                     }
                     layer.opacity = opacity/100.0;
                 }
