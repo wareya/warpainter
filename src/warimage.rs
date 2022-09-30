@@ -17,25 +17,42 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 }
 
 #[inline]
-pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+pub (crate) fn px_mix_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
-    // a is top layer, b is bottom
-    a[3] *= amount;
+    if a[3] * amount == 0.0
+    {
+        return b;
+    }
+    else if b[3] == 0.0
+    {
+        return [a[0], a[1], a[2], a[3] * amount];
+    }
+
     let mut r = [0.0; 4];
     
-    let b_mod_a = b[3] * (1.0 - a[3]);
-    r[3] = a[3] + b_mod_a;
-    let div = if r[3] > 0.0 { r[3] } else { 1.0 };
+    // a is top layer, b is bottom
+    let a_alpha = a[3] * amount;
+    let b_under_a = b[3] * (1.0 - a_alpha);
+    r[3] = a_alpha + b_under_a;
     
-    r[0] = (a[0] * a[3] + b[0] * b_mod_a) / div;
-    r[1] = (a[1] * a[3] + b[1] * b_mod_a) / div;
-    r[2] = (a[2] * a[3] + b[2] * b_mod_a) / div;
+    r[0] = (a[0] * a_alpha + b[0] * b_under_a) / r[3];
+    r[1] = (a[1] * a_alpha + b[1] * b_under_a) / r[3];
+    r[2] = (a[2] * a_alpha + b[2] * b_under_a) / r[3];
     
     r
 }
 #[inline]
 pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 {
+    if a[3] as f32 * amount == 0.0
+    {
+        return b;
+    }
+    else if b[3] == 0
+    {
+        return [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)];
+    }
+
     // a is top layer, b is bottom
     px_to_int(px_mix_float(px_to_float(a), px_to_float(b), amount))
 }
