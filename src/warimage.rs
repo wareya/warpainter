@@ -19,25 +19,24 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 #[inline]
 pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
+    // a is top layer, b is bottom
     a[3] *= amount;
     let mut r = [0.0; 4];
+    
     let b_mod_a = b[3] * (1.0 - a[3]);
-    for i in 0..3
-    {
-        r[i] = a[i] * a[3] + b[i] * b_mod_a;
-    }
     r[3] = a[3] + b_mod_a;
-    if r[3] > 0.0
-    {
-        r[0] /= r[3];
-        r[1] /= r[3];
-        r[2] /= r[3];
-    }
+    let div = if r[3] > 0.0 { r[3] } else { 1.0 };
+    
+    r[0] = (a[0] * a[3] + b[0] * b_mod_a) / div;
+    r[1] = (a[1] * a[3] + b[1] * b_mod_a) / div;
+    r[2] = (a[2] * a[3] + b[2] * b_mod_a) / div;
+    
     r
 }
 #[inline]
 pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 {
+    // a is top layer, b is bottom
     px_to_int(px_mix_float(px_to_float(a), px_to_float(b), amount))
 }
 
@@ -49,9 +48,8 @@ pub (crate) fn to_float(x : u8) -> f32
 #[inline]
 pub (crate) fn to_int(x : f32) -> u8
 {
-    (x*255.0).round().clamp(0.0, 255.0) as u8
+    (x.clamp(0.0, 1.0)*255.0 + 0.5) as u8 // correct rounding is too slow
 }
-
 #[inline]
 pub (crate) fn px_to_float(x : [u8; 4]) -> [f32; 4]
 {
@@ -455,6 +453,7 @@ impl Image
             }
         }
     }
+    #[inline(never)]
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
@@ -465,11 +464,9 @@ impl Image
         let self_width = self.width;
         let top_width = top.width;
         
-        let mut bottom_index;
-        let mut top_index;
         macro_rules! do_loop
         {
-            ($bottom:expr, $top:expr, $inner:block) =>
+            ($bottom_index:expr, $top_index:expr, $bottom:expr, $top:expr, $inner:block) =>
             {
                 {
                     assert!($bottom.len() >= (max_y-1)*self_width + (max_x-1));
@@ -480,8 +477,8 @@ impl Image
                         let top_index_y_part = y*top_width;
                         for x in min_x..max_x
                         {
-                            bottom_index = self_index_y_part + x;
-                            top_index = top_index_y_part + x;
+                            *$bottom_index = self_index_y_part + x;
+                            *$top_index = top_index_y_part + x;
                             
                             $inner
                         }
@@ -493,37 +490,74 @@ impl Image
         match (&mut self.data, &top.data)
         {
             (ImageData::Float(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top,
+            {
+                let mut bottom_index = 0usize;
+                let mut top_index = 0usize;
+                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = top[top_index];
                     let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
                     bottom[bottom_index] = c;
-                }),
+                });
+            }
             (ImageData::Float(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top,
+            {
+                let mut bottom_index = 0usize;
+                let mut top_index = 0usize;
+                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = px_to_float(top[top_index]);
                     let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
                     bottom[bottom_index] = c;
-                }),
+                });
+            }
             (ImageData::Int(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top,
+            {
+                let mut bottom_index = 0usize;
+                let mut top_index = 0usize;
+                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
                 {
                     let bottom_pixel = px_to_float(bottom[bottom_index]);
                     let top_pixel = top[top_index];
                     let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
                     bottom[bottom_index] = px_to_int(c);
-                }),
+                });
+            }
             (ImageData::Int(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top,
+            {
+                let mut bottom_index = 0usize;
+                let mut top_index = 0usize;
+                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = top[top_index];
                     let c = px_mix(top_pixel, bottom_pixel, top_opacity);
                     bottom[bottom_index] = c;
-                })
+                });
+            }
+            //(ImageData::Int(bottom), ImageData::Int(top)) =>
+            //{
+            //    assert!(bottom.len() >= (max_y-1)*self_width + (max_x-1));
+            //    assert!(top.len()    >= (max_y-1)* top_width + (max_x-1));
+            //    for y in min_y..max_y
+            //    {
+            //        let self_index_y_part = y*self_width;
+            //        let top_index_y_part = y*top_width;
+            //        for x in min_x..max_x
+            //        {
+            //            let bottom_index = self_index_y_part + x;
+            //            let top_index = top_index_y_part + x;
+            //            
+            //            let bottom_pixel = bottom[bottom_index];
+            //            let top_pixel = top[top_index];
+            //            let c = px_mix(top_pixel, bottom_pixel, top_opacity);
+            //            bottom[bottom_index] = c;
+            //        }
+            //    }
+            //}
+            _ => panic!()
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
