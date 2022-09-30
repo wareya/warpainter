@@ -466,23 +466,63 @@ impl Image
         
         macro_rules! do_loop
         {
-            ($bottom_index:expr, $top_index:expr, $bottom:expr, $top:expr, $inner:block) =>
+            ($bottom:expr, $top:expr, $inner:expr) =>
             {
                 {
-                    assert!($bottom.len() >= (max_y-1)*self_width + (max_x-1));
-                    assert!($top.len()    >= (max_y-1)* top_width + (max_x-1));
-                    for y in min_y..max_y
+                    // FEARLESS CONCURRENCY
+                    
+                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
+                    let infos =
                     {
-                        let self_index_y_part = y*self_width;
-                        let top_index_y_part = y*top_width;
-                        for x in min_x..max_x
+                        let row_count = max_y - min_y + 1;
+                        if row_count < 4 { vec!((bottom, min_y)) }
+                        else
                         {
-                            *$bottom_index = self_index_y_part + x;
-                            *$top_index = top_index_y_part + x;
+                            let chunk_size_rows = row_count/4;
+                            let chunk_size_pixels = chunk_size_rows*self_width;
                             
-                            $inner
+                            let (split_a, split_b) = bottom.split_at_mut(chunk_size_pixels*2);
+                            
+                            let (split_1, split_2) = split_a.split_at_mut(chunk_size_pixels);
+                            let (split_3, split_4) = split_b.split_at_mut(chunk_size_pixels);
+                            let split_1_offset = min_y + chunk_size_rows*0;
+                            let split_2_offset = min_y + chunk_size_rows*1;
+                            let split_3_offset = min_y + chunk_size_rows*2;
+                            let split_4_offset = min_y + chunk_size_rows*3;
+                            
+                            vec!(
+                                (split_1, split_1_offset),
+                                (split_2, split_2_offset),
+                                (split_3, split_3_offset),
+                                (split_4, split_4_offset),
+                            )
                         }
-                    }
+                    };
+                    crossbeam::scope(|s|
+                    {
+                        for info in infos
+                        {
+                            s.spawn(move |_|
+                            {
+                                let bottom = info.0;
+                                let offset = info.1;
+                                let min_y = 0;
+                                let max_y = bottom.len()/self_width;
+                                for y in min_y..max_y
+                                {
+                                    let self_index_y_part = y*self_width;
+                                    let top_index_y_part = (y+offset)*top_width;
+                                    for x in min_x..max_x
+                                    {
+                                        let bottom_index = self_index_y_part + x;
+                                        let top_index = top_index_y_part + x;
+                                        
+                                        $inner(bottom_index, top_index, bottom, $top);
+                                    }
+                                }
+                            });
+                        }
+                    }).unwrap();
                 }
             }
         }
@@ -491,9 +531,7 @@ impl Image
         {
             (ImageData::Float(bottom), ImageData::Float(top)) =>
             {
-                let mut bottom_index = 0usize;
-                let mut top_index = 0usize;
-                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
+                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[f32; 4]], top : &[[f32; 4]]|
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = top[top_index];
@@ -503,9 +541,7 @@ impl Image
             }
             (ImageData::Float(bottom), ImageData::Int(top)) =>
             {
-                let mut bottom_index = 0usize;
-                let mut top_index = 0usize;
-                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
+                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[f32; 4]], top : &[[u8; 4]]|
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = px_to_float(top[top_index]);
@@ -515,9 +551,7 @@ impl Image
             }
             (ImageData::Int(bottom), ImageData::Float(top)) =>
             {
-                let mut bottom_index = 0usize;
-                let mut top_index = 0usize;
-                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
+                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[u8; 4]], top : &[[f32; 4]]|
                 {
                     let bottom_pixel = px_to_float(bottom[bottom_index]);
                     let top_pixel = top[top_index];
@@ -527,9 +561,7 @@ impl Image
             }
             (ImageData::Int(bottom), ImageData::Int(top)) =>
             {
-                let mut bottom_index = 0usize;
-                let mut top_index = 0usize;
-                do_loop!(&mut bottom_index, &mut top_index, bottom, top,
+                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[u8; 4]], top : &[[u8; 4]]|
                 {
                     let bottom_pixel = bottom[bottom_index];
                     let top_pixel = top[top_index];
@@ -537,27 +569,6 @@ impl Image
                     bottom[bottom_index] = c;
                 });
             }
-            //(ImageData::Int(bottom), ImageData::Int(top)) =>
-            //{
-            //    assert!(bottom.len() >= (max_y-1)*self_width + (max_x-1));
-            //    assert!(top.len()    >= (max_y-1)* top_width + (max_x-1));
-            //    for y in min_y..max_y
-            //    {
-            //        let self_index_y_part = y*self_width;
-            //        let top_index_y_part = y*top_width;
-            //        for x in min_x..max_x
-            //        {
-            //            let bottom_index = self_index_y_part + x;
-            //            let top_index = top_index_y_part + x;
-            //            
-            //            let bottom_pixel = bottom[bottom_index];
-            //            let top_pixel = top[top_index];
-            //            let c = px_mix(top_pixel, bottom_pixel, top_opacity);
-            //            bottom[bottom_index] = c;
-            //        }
-            //    }
-            //}
-            _ => panic!()
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
