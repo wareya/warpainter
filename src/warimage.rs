@@ -191,6 +191,10 @@ impl ImageData
         }
         self
     }
+    fn new_float(w : usize, h : usize) -> Self
+    {
+        Self::Float(vec!(0.0; w*h*4))
+    }
     fn new_int(w : usize, h : usize) -> Self
     {
         Self::Int(vec!(0; w*h*4))
