@@ -380,6 +380,11 @@ impl Image
     }
 }
 
+fn nop<T>(t : T) -> T
+{
+    t
+}
+
 impl Image
 {
     pub (crate) fn blank(w : usize, h : usize) -> Self
@@ -466,17 +471,18 @@ impl Image
         
         macro_rules! do_loop
         {
-            ($bottom:expr, $top:expr, $inner:expr) =>
+            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr) =>
             {
                 {
+                    let thread_count = 3;
                     let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
                     let infos =
                     {
                         let row_count = max_y - min_y + 1;
-                        if row_count < 4 { vec!((bottom, min_y)) }
+                        if row_count < thread_count { vec!((bottom, min_y)) }
                         else
                         {
-                            let chunk_size_rows = row_count/4;
+                            let chunk_size_rows = row_count/thread_count;
                             let chunk_size_pixels = chunk_size_rows*self_width;
                             
                             let (split_a, split_b) = bottom.split_at_mut(chunk_size_pixels*2);
@@ -516,7 +522,10 @@ impl Image
                                         let bottom_index = self_index_y_part + x;
                                         let top_index = top_index_y_part + x;
                                         
-                                        $inner(bottom_index, top_index, bottom, $top);
+                                        let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                        let top_pixel = $top_read_f($top[top_index]);
+                                        let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
+                                        bottom[bottom_index] = $bottom_write_f(c);
                                     }
                                 }
                             });
@@ -529,45 +538,13 @@ impl Image
         match (&mut self.data, &top.data)
         {
             (ImageData::Float(bottom), ImageData::Float(top)) =>
-            {
-                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[f32; 4]], top : &[[f32; 4]]|
-                {
-                    let bottom_pixel = bottom[bottom_index];
-                    let top_pixel = top[top_index];
-                    let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                    bottom[bottom_index] = c;
-                });
-            }
+                do_loop!(bottom, top, nop, nop, nop, px_mix_float),
             (ImageData::Float(bottom), ImageData::Int(top)) =>
-            {
-                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[f32; 4]], top : &[[u8; 4]]|
-                {
-                    let bottom_pixel = bottom[bottom_index];
-                    let top_pixel = px_to_float(top[top_index]);
-                    let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                    bottom[bottom_index] = c;
-                });
-            }
+                do_loop!(bottom, top, nop, px_to_float, nop, px_mix_float),
             (ImageData::Int(bottom), ImageData::Float(top)) =>
-            {
-                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[u8; 4]], top : &[[f32; 4]]|
-                {
-                    let bottom_pixel = px_to_float(bottom[bottom_index]);
-                    let top_pixel = top[top_index];
-                    let c = px_mix_float(top_pixel, bottom_pixel, top_opacity);
-                    bottom[bottom_index] = px_to_int(c);
-                });
-            }
+                do_loop!(bottom, top, px_to_float, nop, px_to_int, px_mix_float),
             (ImageData::Int(bottom), ImageData::Int(top)) =>
-            {
-                do_loop!(bottom, top, move |bottom_index, top_index, bottom : &mut [[u8; 4]], top : &[[u8; 4]]|
-                {
-                    let bottom_pixel = bottom[bottom_index];
-                    let top_pixel = top[top_index];
-                    let c = px_mix(top_pixel, bottom_pixel, top_opacity);
-                    bottom[bottom_index] = c;
-                });
-            }
+                do_loop!(bottom, top, nop, nop, nop, px_mix),
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
