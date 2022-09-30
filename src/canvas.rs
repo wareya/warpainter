@@ -106,6 +106,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     
     // FIXME: enforce that the canvas does not go offscreen
     // (idea: if center of screen is not inside of canvas, prevent center of canvas from going past edges)
+    // (idea 2: prevent right extrema from going more than 25% leftwards from center, and so on for all extrema)
     if inputstate.held[2]
     {
         app.xform.translate(inputstate.window_mouse_motion);

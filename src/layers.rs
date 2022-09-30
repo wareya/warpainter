@@ -15,6 +15,10 @@ fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32;
     rect = rect_enclose_point(rect, rect_2[1]);
     rect
 }
+fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
+{
+    rect_enclose_point([rect[0], rect[0]], rect[1])
+}
 
 pub(crate) struct Layer
 {
@@ -163,7 +167,7 @@ impl Layer
             None
         }
     }
-    pub(crate) fn get_flatten_dirty_rect(&self, override_uuid : Option<u128>) -> Option<[[f32; 2]; 2]>
+    pub(crate) fn get_flatten_dirty_rect(&self) -> Option<[[f32; 2]; 2]>
     {
         if self.flattened_dirty_rect.is_some()// && Some(self.uuid) == override_uuid
         {
@@ -172,7 +176,7 @@ impl Layer
         let mut reference = None;
         for child in self.children.iter()
         {
-            if let Some(inner) = child.get_flatten_dirty_rect(override_uuid)
+            if let Some(inner) = child.get_flatten_dirty_rect()
             {
                 if reference.is_some()
                 {
@@ -194,7 +198,7 @@ impl Layer
         }
         else
         {
-            self.flattened_dirty_rect = Some(inner);
+            self.flattened_dirty_rect = Some(rect_normalize(inner));
         }
     }
     pub(crate) fn dirtify_point(&mut self, point : [f32; 2])
@@ -224,6 +228,10 @@ impl Layer
     {
         if Some(self.uuid) == override_uuid && override_data.is_some()
         {
+            // FIXME use different dirty rects for override and non-override
+            // and detect switching between override and non-override mode
+            // and use both rects (enclosure) when indeed switching
+            self.flattened_dirty_rect = None;
             override_data.unwrap()
         }
         else
@@ -233,7 +241,7 @@ impl Layer
     }
     pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image>) -> &'a Image
     {
-        let dirty_rect = self.get_flatten_dirty_rect(override_uuid);
+        let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()
         {
             return self.flattened_data.as_ref().unwrap();
@@ -245,9 +253,9 @@ impl Layer
         }
         else
         {
-            println!("group is dirty, reflattening");
-            let new_dirty_rect;
-            // FIXME clear flattened image instead of recreating if it exists
+            //println!("group is dirty, reflattening ({:?})", dirty_rect);
+            let mut new_dirty_rect;
+            
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
                 new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];

@@ -478,9 +478,9 @@ impl Image
     }
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32)
     {
-        for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize).min(self.height as isize)
+        for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize + 1).min(self.height as isize)
         {
-            for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize).min(self.width as isize)
+            for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize + 1).min(self.width as isize)
             {
                 let bottom_pixel = self.get_pixel_float_wrapped(x, y);
                 let top_pixel = top.get_pixel_float(x, y);
