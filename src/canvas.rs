@@ -127,8 +127,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     let texture = app.flatten().clone(); // FIXME
     let (w, h) = (texture.width as f32, texture.height as f32);
     
-    let mut xform = app.xform.clone();
-    let center = response.rect.center();
+    let xform = app.xform.clone();
     
     let mut vertices = [
         [-w/2.0, -h/2.0],

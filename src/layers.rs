@@ -254,7 +254,7 @@ impl Layer
         else
         {
             //println!("group is dirty, reflattening ({:?})", dirty_rect);
-            let mut new_dirty_rect;
+            let new_dirty_rect;
             
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
