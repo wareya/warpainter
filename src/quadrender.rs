@@ -24,8 +24,8 @@ const VERT_SHADER : &'static str = "
     
     void main()
     {
-        gl_Position = vec4(in_vertex, 0.0, 1.0);
-        vertex = in_vertex * vec2(0.5, -0.5) + vec2(0.5);
+        gl_Position = vec4(in_vertex * vec2(1.0, -1.0), 0.0, 1.0);
+        vertex = in_vertex * vec2(0.5) + vec2(0.5);
         uv = in_uv;
     }
 ";

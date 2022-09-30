@@ -123,29 +123,54 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     
     // render canvas
     
+    let texture = app.flatten().clone(); // FIXME
+    let (w, h) = (texture.width as f32, texture.height as f32);
+    
     let mut xform = app.xform.clone();
     let center = response.rect.center();
-    xform.translate([center.x, center.y]);
-    xform.translate([-response.rect.min.x, -response.rect.min.y]);
+    
+    let mut vertices = [
+        [-w/2.0, -h/2.0],
+        [ w/2.0, -h/2.0],
+        [-w/2.0,  h/2.0],
+        [ w/2.0,  h/2.0]
+    ];
+    let uvs = [
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [0.0, 1.0],
+        [1.0, 1.0]
+    ];
+    
+    let mut minima_x = 1000000.0f32;
+    let mut minima_y = 1000000.0f32;
+    
+    for vert in vertices.iter_mut()
+    {
+        *vert = &xform * &[vert[0], vert[1]];
+        
+        minima_x = minima_x.min(vert[0]);
+        minima_y = minima_y.min(vert[1]);
+        
+        vert[0] /= response.rect.width()/2.0;
+        vert[1] /= response.rect.height()/2.0;
+    }
+    
     //// !!!! evil vile code
-    let texture = app.flatten().clone(); // FIXME use an Arc somehow
     let uniforms = [
         ("width", response.rect.width()),
         ("height", response.rect.height()),
-        ("canvas_width", texture.width as f32),
-        ("canvas_height", texture.height as f32),
-        ("mat_0_0", xform.rows[0][0]),
-        ("mat_0_1", xform.rows[1][0]),
-        ("mat_1_0", xform.rows[0][1]),
-        ("mat_1_1", xform.rows[1][1]),
-        ("mat_2_0", xform.rows[0][2]),
-        ("mat_2_1", xform.rows[1][2]),
+        ("canvas_width", w),
+        ("canvas_height", h),
+        ("minima_x", minima_x),
+        ("minima_y", minima_y),
     ];
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
         let mut shader = colorpicker_shader.lock();
-        shader.add_texture(glow_painter.gl(), &texture);
+        shader.add_texture(glow_painter.gl(), &texture); // FIXME need to clone texture to move into here
+        shader.add_vertices(&vertices, &uvs);
         shader.render(glow_painter.gl(), &uniforms);
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
