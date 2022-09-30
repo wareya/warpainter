@@ -469,8 +469,6 @@ impl Image
             ($bottom:expr, $top:expr, $inner:expr) =>
             {
                 {
-                    // FEARLESS CONCURRENCY
-                    
                     let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
                     let infos =
                     {
@@ -498,6 +496,7 @@ impl Image
                             )
                         }
                     };
+                    // FEARLESS CONCURRENCY
                     crossbeam::scope(|s|
                     {
                         for info in infos
