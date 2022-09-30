@@ -1,5 +1,5 @@
 #version 140
-in vec2 position;
+in vec2 vertex;
 out vec4 out_color;
 
 uniform float width;
@@ -75,10 +75,10 @@ void main()
 {
     float least_f = min(width, height);
     float box_margin = (least_f - box_size)/2.0;
-    float x = position.x * width;
-    float y = position.y * height;
+    float x = vertex.x * width;
+    float y = vertex.y * height;
     
-    vec2 mid_diff = position*2.0 - vec2(1.0);
+    vec2 mid_diff = vertex*2.0 - vec2(1.0);
     float mid_dist = length(mid_diff);
     
     if (mid_dist + ring_size > 1.0 && mid_dist < 1.0)
