@@ -42,7 +42,6 @@ struct Warpainter
     edit_is_direct : bool,
     editing_image : Option<Image>,
     
-    //image_preview : Option<egui::TextureHandle>,
     xform : Transform,
     debug_text : Vec<String>,
     
@@ -326,39 +325,6 @@ impl Warpainter
         new_zoom = new_zoom.clamp(-8.0, 8.0);
         self.xform.set_scale(2.0_f32.powf(new_zoom));
     }
-    fn update_canvas_preview(&mut self, ctx : &egui::Context)
-    {
-        /*
-        let img = self.flatten().to_egui();
-        match &mut self.image_preview
-        {
-            Some(texhandle) =>
-            {
-                let img = egui::ImageData::Color(img);
-                
-                let filter = if self.xform.get_scale() >= 0.97
-                {
-                    egui::TextureFilter::Nearest
-                }
-                else
-                {
-                    egui::TextureFilter::Linear
-                };
-                texhandle.set(img, filter);
-            }
-            None =>
-            {
-                let img = ctx.load_texture(
-                    "my-image",
-                    img,
-                    egui::TextureFilter::Nearest
-                );
-                
-                self.image_preview = Some(img);
-            }
-        }
-        */
-    }
     
     fn debug<T : ToString>(&mut self, text : T)
     {
@@ -497,7 +463,6 @@ impl eframe::App for Warpainter
                             let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
                             let img = Image::from_rgbaimage(&img);
                             self.load_from_img(img);
-                            self.update_canvas_preview(ctx);
                             
                             ui.close_menu();
                         }
@@ -544,8 +509,6 @@ impl eframe::App for Warpainter
                 });
             });
         });
-        
-        self.update_canvas_preview(&ctx);
         
         egui::SidePanel::right("RightPanel").show(ctx, |ui|
         {
