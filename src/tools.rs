@@ -197,9 +197,9 @@ impl Tool for Pencil
     fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         let mut pos = self.prev_input.canvas_mouse_coord;
-        pos[0] -= app.canvas_width as f32 / 2.0;
-        pos[1] -= app.canvas_height as f32 / 2.0;
-        let gizmo = BrushGizmo { x : pos[0].floor() + 0.5, y : pos[1].floor() + 0.5, r : 0.5 };
+        pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
+        pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
+        let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
     }
 }

@@ -248,7 +248,6 @@ impl ImageData
     }
     fn to_int(&self) -> Vec<u8>
     {
-        use byte_slice_cast::*;
         match self
         {
             Self::Int(data) => flatten(data),
