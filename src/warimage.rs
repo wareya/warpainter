@@ -20,6 +20,7 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
     a[3] *= amount;
+    
     if a[3] == 0.0
     {
         return b;
@@ -38,9 +39,12 @@ pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f3
     r[3] = a[3] + b_under_a;
     let m = 1.0 / r[3];
     
+    let a_a = a[3] * m;
+    let b_a = b_under_a * m;
+    
     for i in 0..3
     {
-        r[i] = (a[i] * a[3] + b[i] * b_under_a) * m;
+        r[i] = a[i] * a_a + b[i] * b_a;
     }
     
     r
@@ -495,7 +499,7 @@ impl Image
             ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr) =>
             {
                 {
-                    let thread_count = 3;
+                    let thread_count = 4; // DO NOT CHANGE until you fix the below fixme
                     let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
                     let infos =
                     {
@@ -506,6 +510,7 @@ impl Image
                             let chunk_size_rows = row_count/thread_count;
                             let chunk_size_pixels = chunk_size_rows*self_width;
                             
+                            // FIXME make independent of number of threads
                             let (split_a, split_b) = bottom.split_at_mut(chunk_size_pixels*2);
                             
                             let (split_1, split_2) = split_a.split_at_mut(chunk_size_pixels);

@@ -124,7 +124,14 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     
     // render canvas
     
+    let start = std::time::SystemTime::now();
     let texture = app.flatten().clone(); // FIXME
+    let elapsed = start.elapsed();
+    let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
+    if elapsed > 0.1
+    {
+        println!("time to flatten: {}", elapsed);
+    }
     let (w, h) = (texture.width as f32, texture.height as f32);
     
     let xform = app.xform.clone();
