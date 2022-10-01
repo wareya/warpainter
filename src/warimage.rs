@@ -499,8 +499,12 @@ impl Image
             ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr) =>
             {
                 {
-                    let thread_count = 4; // DO NOT CHANGE until you fix the below fixme
-                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
+                    let mut thread_count = 4;
+                    if let Some(count) = std::thread::available_parallelism().ok()
+                    {
+                        thread_count = count.get();
+                    }
+                    let mut bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
                     let infos =
                     {
                         let row_count = max_y - min_y + 1;
@@ -509,23 +513,21 @@ impl Image
                         {
                             let chunk_size_rows = row_count/thread_count;
                             let chunk_size_pixels = chunk_size_rows*self_width;
-                            
-                            // FIXME make independent of number of threads
-                            let (split_a, split_b) = bottom.split_at_mut(chunk_size_pixels*2);
-                            
-                            let (split_1, split_2) = split_a.split_at_mut(chunk_size_pixels);
-                            let (split_3, split_4) = split_b.split_at_mut(chunk_size_pixels);
-                            let split_1_offset = min_y + chunk_size_rows*0;
-                            let split_2_offset = min_y + chunk_size_rows*1;
-                            let split_3_offset = min_y + chunk_size_rows*2;
-                            let split_4_offset = min_y + chunk_size_rows*3;
-                            
-                            vec!(
-                                (split_1, split_1_offset),
-                                (split_2, split_2_offset),
-                                (split_3, split_3_offset),
-                                (split_4, split_4_offset),
-                            )
+                            let mut ret = Vec::new();
+                            for i in 0..thread_count
+                            {
+                                if i+1 < thread_count
+                                {
+                                    let (split, remainder) = bottom.split_at_mut(chunk_size_pixels);
+                                    bottom = remainder;
+                                    ret.push((split, min_y + chunk_size_rows*i));
+                                }
+                            }
+                            if bottom.len() > 0
+                            {
+                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1)));
+                            }
+                            ret
                         }
                     };
                     // FEARLESS CONCURRENCY
