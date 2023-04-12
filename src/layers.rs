@@ -270,9 +270,10 @@ impl Layer
             {
                 if child.visible
                 {
+                    let mode = child.blend_mode.clone();
                     let opacity = child.opacity;
                     let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                    self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity);
+                    self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &mode);
                 }
             }
             self.flattened_dirty_rect = None;
@@ -461,6 +462,7 @@ impl Layer
                         // target is a group, insert into it
                         self.children[i-1].children.push(layer);
                     }
+                    self.children[i-1].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
                     break;
                 }
             }
@@ -506,6 +508,7 @@ impl Layer
                         // target is a group, insert into it
                         self.children[i].children.insert(0, layer);
                     }
+                    self.children[i].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
                     break;
                 }
             }

@@ -1,145 +1,6 @@
 use eframe::egui;
 
-#[inline]
-pub (crate) fn px_lerp_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
-{
-    let mut r = [0.0; 4];
-    for i in 0..4
-    {
-        r[i] = a[i] * (1.0 - amount) + b[i] * amount;
-    }
-    r
-}
-#[inline]
-pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
-{
-    px_to_int(px_lerp_float(px_to_float(a), px_to_float(b), amount))
-}
-
-#[inline]
-pub (crate) fn px_mix_float(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
-{
-    a[3] *= amount;
-    
-    if a[3] == 0.0
-    {
-        return b;
-    }
-    else if b[3] == 0.0
-    {
-        return [a[0], a[1], a[2], a[3]];
-    }
-
-    let mut r = [0.0; 4];
-    
-    // TODO: inline assembly here
-    
-    // a is top layer, b is bottom
-    let b_under_a = b[3] * (1.0 - a[3]);
-    r[3] = a[3] + b_under_a;
-    let m = 1.0 / r[3];
-    
-    let a_a = a[3] * m;
-    let b_a = b_under_a * m;
-    
-    for i in 0..3
-    {
-        r[i] = a[i] * a_a + b[i] * b_a;
-    }
-    
-    r
-}
-#[inline]
-pub (crate) fn px_mix(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
-{
-    if a[3] == 0 || amount == 0.0
-    {
-        return b;
-    }
-    else if b[3] == 0
-    {
-        return [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)];
-    }
-
-    // a is top layer, b is bottom
-    px_to_int(px_mix_float(px_to_float(a), px_to_float(b), amount))
-}
-
-#[inline]
-pub (crate) fn to_float(x : u8) -> f32
-{
-    (x as f32)/255.0
-}
-#[inline]
-pub (crate) fn to_int(x : f32) -> u8
-{
-    (x.clamp(0.0, 1.0)*255.0 + 0.5) as u8 // correct rounding is too slow
-}
-#[inline]
-pub (crate) fn px_to_float(x : [u8; 4]) -> [f32; 4]
-{
-    [
-        to_float(x[0]),
-        to_float(x[1]),
-        to_float(x[2]),
-        to_float(x[3]),
-    ]
-}
-#[inline]
-pub (crate) fn px_to_int(x : [f32; 4]) -> [u8; 4]
-{
-    [
-        to_int(x[0]),
-        to_int(x[1]),
-        to_int(x[2]),
-        to_int(x[3]),
-    ]
-}
-
-#[inline]
-pub (crate) fn rgb_to_hsv(rgba : [f32; 4]) -> [f32; 4]
-{
-    let v = rgba[0].max(rgba[1]).max(rgba[2]);
-    let c = v - rgba[0].min(rgba[1]).min(rgba[2]);
-    let s = if v > 0.0 { c / v } else { 0.0 };
-    let h;
-    if c == 0.0
-    {
-        h = 0.0;
-    }
-    else if v == rgba[0]
-    {
-        h = 60.0 * (rgba[1] - rgba[2])/c;
-    }
-    else if v == rgba[1]
-    {
-        h = 60.0 * (rgba[2] - rgba[0])/c + 120.0;
-    }
-    else
-    {
-        h = 60.0 * (rgba[0] - rgba[1])/c + 240.0;
-    }
-    [h, s, v, rgba[3]]
-}
-#[inline]
-pub (crate) fn hsv_to_rgb(hsva : [f32; 4]) -> [f32; 4]
-{
-    let c = hsva[2] * hsva[1];
-    let h2 = hsva[0] / 60.0;
-    let x = c * (1.0 - ((h2%2.0) - 1.0).abs());
-    
-    let triad = [
-        [c, x, 0.0],
-        [x, c, 0.0],
-        [0.0, c, x],
-        [0.0, x, c],
-        [x, 0.0, c],
-        [c, 0.0, x],
-    ][h2.floor() as usize % 6];
-    
-    let m = hsva[2] - c;
-    [triad[0] + m, triad[1] + m, triad[2] + m, hsva[3]]
-}
+use crate::pixelmath::*;
 
 /*
 // for flattened slices. not used right now
@@ -483,7 +344,7 @@ impl Image
         }
     }
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32, blend_mode : &String)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width.min(top.width) as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -503,7 +364,12 @@ impl Image
                     {
                         thread_count = count.get();
                     }
-                    let mut bottom = $bottom.get_mut(min_y*self_width..max_y*self_width).unwrap();
+                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
+                    if !bottom.is_some()
+                    {
+                        return;
+                    }
+                    let mut bottom = bottom.unwrap();
                     let infos =
                     {
                         let row_count = max_y - min_y + 1;
@@ -562,21 +428,115 @@ impl Image
             }
         }
         
+        let blend_float = match blend_mode.as_str()
+        {
+            "Multiply" => px_func_float::<BlendModeMultiply>,
+            "Divide" => px_func_float::<BlendModeDivide>,
+            "Screen" => px_func_float::<BlendModeScreen>,
+            "Add" => px_func_float::<BlendModeAdd>,
+            "Glow Add" => px_func_float::<BlendModeAddGlow>,
+            "Subtract" => px_func_float::<BlendModeSubtract>,
+            "Difference" => px_func_float::<BlendModeDifference>,
+            "Signed Diff" => px_func_float::<BlendModeSignedDifference>,
+            "Signed Add" => px_func_float::<BlendModeSignedAdd>,
+            "Negation" => px_func_float::<BlendModeNegation>,
+            "Lighten" => px_func_float::<BlendModeLighten>,
+            "Darken" => px_func_float::<BlendModeDarken>,
+            "Linear Burn" => px_func_float::<BlendModeLinearBurn>,
+            "Color Burn" => px_func_float::<BlendModeColorBurn>,
+            "Color Dodge" => px_func_float::<BlendModeColorDodge>,
+            "Glow Dodge" => px_func_float::<BlendModeGlowDodge>,
+            "Glow" => px_func_float::<BlendModeGlow>,
+            "Reflect" => px_func_float::<BlendModeReflect>,
+            "Overlay" => px_func_float::<BlendModeOverlay>,
+            "Soft Light" => px_func_float::<BlendModeSoftLight>,
+            "Hard Light" => px_func_float::<BlendModeHardLight>,
+            "Vivid Light" => px_func_float::<BlendModeVividLight>,
+            "Linear Light" => px_func_float::<BlendModeLinearLight>,
+            "Pin Light" => px_func_float::<BlendModePinLight>,
+            "Hard Mix" => px_func_float::<BlendModeHardMix>,
+            "Exclusion" => px_func_float::<BlendModeExclusion>,
+            
+            "Hue" => px_func_triad_float::<BlendModeHue>,
+            "Saturation" => px_func_triad_float::<BlendModeSaturation>,
+            "Color" => px_func_triad_float::<BlendModeColor>,
+            "Luminosity" => px_func_triad_float::<BlendModeLuminosity>,
+            
+            "Flat Hue" => px_func_triad_float::<BlendModeFlatHue>,
+            "Flat Sat" => px_func_triad_float::<BlendModeFlatSaturation>,
+            "Flat Color" => px_func_triad_float::<BlendModeFlatColor>,
+            "Value" => px_func_triad_float::<BlendModeValue>,
+            
+            "Hard Sat" => px_func_triad_float::<BlendModeHardSaturation>,
+            "Hard Color" => px_func_triad_float::<BlendModeHardColor>,
+            "Lightness" => px_func_triad_float::<BlendModeLightness>,
+            
+            "Interpolate" => px_lerp_float,
+            _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
+        };
+        
+        let blend_int = match blend_mode.as_str()
+        {
+            "Multiply" => px_func::<BlendModeMultiply>,
+            "Divide" => px_func::<BlendModeDivide>,
+            "Screen" => px_func::<BlendModeScreen>,
+            "Add" => px_func::<BlendModeAdd>,
+            "Glow Add" => px_func::<BlendModeAddGlow>,
+            "Subtract" => px_func::<BlendModeSubtract>,
+            "Difference" => px_func::<BlendModeDifference>,
+            "Signed Diff" => px_func::<BlendModeSignedDifference>,
+            "Signed Add" => px_func::<BlendModeSignedAdd>,
+            "Negation" => px_func::<BlendModeNegation>,
+            "Lighten" => px_func::<BlendModeLighten>,
+            "Darken" => px_func::<BlendModeDarken>,
+            "Linear Burn" => px_func::<BlendModeLinearBurn>,
+            "Color Burn" => px_func::<BlendModeColorBurn>,
+            "Color Dodge" => px_func::<BlendModeColorDodge>,
+            "Glow Dodge" => px_func::<BlendModeGlowDodge>,
+            "Glow" => px_func::<BlendModeGlow>,
+            "Reflect" => px_func::<BlendModeReflect>,
+            "Overlay" => px_func::<BlendModeOverlay>,
+            "Soft Light" => px_func::<BlendModeSoftLight>,
+            "Hard Light" => px_func::<BlendModeHardLight>,
+            "Vivid Light" => px_func::<BlendModeVividLight>,
+            "Linear Light" => px_func::<BlendModeLinearLight>,
+            "Pin Light" => px_func::<BlendModePinLight>,
+            "Hard Mix" => px_func::<BlendModeHardMix>,
+            "Exclusion" => px_func::<BlendModeExclusion>,
+            
+            "Hue" => px_func_triad::<BlendModeHue>,
+            "Saturation" => px_func_triad::<BlendModeSaturation>,
+            "Color" => px_func_triad::<BlendModeColor>,
+            "Luminosity" => px_func_triad::<BlendModeLuminosity>,
+            
+            "Flat Hue" => px_func_triad::<BlendModeFlatHue>,
+            "Flat Sat" => px_func_triad::<BlendModeFlatSaturation>,
+            "Flat Color" => px_func_triad::<BlendModeFlatColor>,
+            "Value" => px_func_triad::<BlendModeValue>,
+            
+            "Hard Sat" => px_func_triad::<BlendModeHardSaturation>,
+            "Hard Color" => px_func_triad::<BlendModeHardColor>,
+            "Lightness" => px_func_triad::<BlendModeLightness>,
+            
+            "Interpolate" => px_lerp,
+            _ => px_func::<BlendModeNormal>, // Normal, or unknown
+        };
+        
         match (&mut self.data, &top.data)
         {
             (ImageData::Float(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, px_mix_float),
+                do_loop!(bottom, top, nop, nop, nop, blend_float),
             (ImageData::Float(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top, nop, px_to_float, nop, px_mix_float),
+                do_loop!(bottom, top, nop, px_to_float, nop, blend_float),
             (ImageData::Int(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top, px_to_float, nop, px_to_int, px_mix_float),
+                do_loop!(bottom, top, px_to_float, nop, px_to_int, blend_float),
             (ImageData::Int(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, px_mix),
+                do_loop!(bottom, top, nop, nop, nop, blend_int),
         }
     }
-    pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32)
+    pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32, blend_mode : &String)
     {
-        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, top_opacity)
+        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, top_opacity, blend_mode)
     }
     
     pub (crate) fn resized(&mut self, new_w : usize, new_h : usize) -> Image
@@ -597,9 +557,9 @@ impl Image
     }
     pub (crate) fn clear_rect_with_color_float(&mut self, rect : [[f32; 2]; 2], color : [f32; 4])
     {
-        for y in rect[0][1].floor().max(0.0) as isize..(rect[1][1].ceil() as isize).min(self.height as isize)
+        for y in rect[0][1].floor().max(0.0) as isize..=(rect[1][1].ceil() as isize).min(self.height as isize)
         {
-            for x in rect[0][0].floor().max(0.0) as isize..(rect[1][0].ceil() as isize).min(self.width as isize)
+            for x in rect[0][0].floor().max(0.0) as isize..=(rect[1][0].ceil() as isize).min(self.width as isize)
             {
                 self.set_pixel_float_wrapped(x, y, color);
             }

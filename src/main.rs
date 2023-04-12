@@ -21,6 +21,7 @@ mod tools;
 mod layers;
 mod quadrender;
 mod vecmap;
+mod pixelmath;
 
 use warimage::*;
 use transform::*;
@@ -30,6 +31,7 @@ use tools::*;
 use layers::*;
 use quadrender::*;
 use vecmap::*;
+use pixelmath::*;
 
 struct Warpainter
 {
@@ -256,7 +258,7 @@ impl Warpainter
                         else
                         {
                             let mut r = current_image.clone();
-                            r.blend_from(edit_image, 1.0); // FIXME use drawing opacity / brush alpha
+                            r.blend_from(edit_image, 1.0, &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
                             return Some(r);
                         }
                     }
@@ -517,19 +519,92 @@ impl eframe::App for Warpainter
                 let focused_outline = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255));
                 if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                 {
+                    let old_blend_mode = layer.blend_mode.clone();
                     egui::ComboBox::from_id_source("blend_mode_dropdown")
                         .selected_text(&layer.blend_mode)
                         .show_ui(ui, |ui|
                     {
                         ui.selectable_value(&mut layer.blend_mode, "Normal".to_string(), "Normal");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Darken".to_string(), "Darken");
                         ui.selectable_value(&mut layer.blend_mode, "Multiply".to_string(), "Multiply");
+                        ui.selectable_value(&mut layer.blend_mode, "Color Burn".to_string(), "Color Burn");
+                        ui.selectable_value(&mut layer.blend_mode, "Linear Burn".to_string(), "Linear Burn");
+                        ui.selectable_value(&mut layer.blend_mode, "Subtract".to_string(), "Subtract");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Lighten".to_string(), "Lighten");
+                        ui.selectable_value(&mut layer.blend_mode, "Screen".to_string(), "Screen");
+                        ui.selectable_value(&mut layer.blend_mode, "Color Dodge".to_string(), "Color Dodge");
+                        ui.selectable_value(&mut layer.blend_mode, "Glow Dodge".to_string(), "Glow Dodge");
+                        ui.selectable_value(&mut layer.blend_mode, "Add".to_string(), "Add"); // aka linear dodge
+                        ui.selectable_value(&mut layer.blend_mode, "Glow Add".to_string(), "Glow Add");
+                        ui.selectable_value(&mut layer.blend_mode, "Divide".to_string(), "Divide");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Glow".to_string(), "Glow");
+                        ui.selectable_value(&mut layer.blend_mode, "Reflect".to_string(), "Reflect");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Overlay".to_string(), "Overlay");
+                        ui.selectable_value(&mut layer.blend_mode, "Soft Light".to_string(), "Soft Light");
+                        ui.selectable_value(&mut layer.blend_mode, "Hard Light".to_string(), "Hard Light");
+                        ui.selectable_value(&mut layer.blend_mode, "Vivid Light".to_string(), "Vivid Light");
+                        ui.selectable_value(&mut layer.blend_mode, "Linear Light".to_string(), "Linear Light");
+                        ui.selectable_value(&mut layer.blend_mode, "Pin Light".to_string(), "Pin Light");
+                        ui.selectable_value(&mut layer.blend_mode, "Hard Mix".to_string(), "Hard Mix");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Signed Add".to_string(), "Signed Add");
+                        ui.selectable_value(&mut layer.blend_mode, "Signed Diff".to_string(), "Signed Diff");
+                        ui.selectable_value(&mut layer.blend_mode, "Negation".to_string(), "Negation");
+                        ui.selectable_value(&mut layer.blend_mode, "Difference".to_string(), "Difference");
+                        ui.selectable_value(&mut layer.blend_mode, "Exclusion".to_string(), "Exclusion");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Hue".to_string(), "Hue");
+                        ui.selectable_value(&mut layer.blend_mode, "Saturation".to_string(), "Saturation");
+                        ui.selectable_value(&mut layer.blend_mode, "Color".to_string(), "Color");
+                        ui.selectable_value(&mut layer.blend_mode, "Brightness".to_string(), "Brightness");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Flat Hue".to_string(), "Flat Hue");
+                        ui.selectable_value(&mut layer.blend_mode, "Flat Sat".to_string(), "Flat Sat");
+                        ui.selectable_value(&mut layer.blend_mode, "Flat Color".to_string(), "Flat Color");
+                        ui.selectable_value(&mut layer.blend_mode, "Value".to_string(), "Value");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Hard Sat".to_string(), "Hard Sat");
+                        ui.selectable_value(&mut layer.blend_mode, "Hard Color".to_string(), "Hard Color");
+                        ui.selectable_value(&mut layer.blend_mode, "Lightness".to_string(), "Lightness");
+                        
+                        ui.separator();
+                        
+                        // TODO erase (subtract top alpha from bottom alpha)
+                        // TODO reveal (add top alpha to bottom
+                        // TODO alpha mask (erase/reveal but based on luma)
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Interpolate".to_string(), "Interpolate");
                     });
+                    
+                    if old_blend_mode != layer.blend_mode
+                    {
+                        layer.dirtify_all();
+                    }
                     
                     let mut opacity = layer.opacity * 100.0;
                     ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
                     if layer.opacity * 100.0 != opacity
                     {
-                        println!("marking as dirty");
                         layer.dirtify_all();
                     }
                     layer.opacity = opacity/100.0;

@@ -13,7 +13,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] eyedropper tool
 - [ ] line tool
 - [ ] other shape tools
-- [ ] selection tool (arbitrary alpha-mask-based selections, not shape-bsae dselections)
+- [ ] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
 - [ ] transform tool (bilinear transform, not perspective transform)
 
 ### layer management stuff
@@ -23,9 +23,11 @@ I expect to have all of the following features. This is sorted in order of devel
 - [x] layer moving (by buttons)
 - [ ] layer moving (by drag and drop)
 - [ ] layer merging/flattening/etc
+- [ ] real layer widget with a context menu, visibility button, etc
+- [ ] layer multiselection (with a main layer selection still)
 
 ### other layer stuff
-- [ ] photoshop blend modes
+- [x] photoshop blend modes
 - [ ] warpaint-specific blend modes like "multiply brightness and color" and "add (signed)"
 - [ ] custom blend modes with a scripting language
 - [ ] layer masks
@@ -34,7 +36,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] layer lock (implemented but not hooked up)
 
 ### ui
-- [ ] grids
+- [ ] grids (three levels, non-square support)
 - [ ] rgb and alpha sliders for the color picker
 - [x] view transformation (scale, pan, rotation)
 - [ ] view mirroring

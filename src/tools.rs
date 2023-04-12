@@ -3,6 +3,7 @@ use crate::warimage::*;
 use crate::transform::*;
 use crate::canvas::CanvasInputState;
 use crate::gizmos::*;
+use crate::pixelmath::*;
 
 pub (crate) trait Tool
 {

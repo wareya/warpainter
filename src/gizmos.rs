@@ -34,14 +34,16 @@ pub (crate) fn draw_doubled(painter : &egui::Painter, points : &[[[f32; 2]; 2]])
     let white = egui::Stroke::new(3.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255));
     let black = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 255));
     
+    // white section for outline
     for pair in points.iter()
     {
         painter.line_segment([pair[0].into(), pair[1].into()].into(), white);
     }
+    // black section for inner line
     for pair in points.iter()
     {
         painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
-        // counteract bad linear AA by drawing twice
+        // counteract bad linear-color-space AA by drawing twice
         painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
     }
 }
