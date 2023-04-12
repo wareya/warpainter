@@ -201,6 +201,17 @@ impl Layer
             self.flattened_dirty_rect = Some(rect_normalize(inner));
         }
     }
+    pub(crate) fn dirtify_full_rect(&mut self)
+    {
+        self.flattened_dirty_rect = match &self.data
+        {
+            Some(image) =>
+            {
+                Some([[0.0, 0.0], [image.width as f32, image.height as f32]])
+            }
+            _ => Some([[0.0, 0.0], [1000000.0, 1000000.0]]) // FIXME store child sizes
+        };
+    }
     pub(crate) fn dirtify_point(&mut self, point : [f32; 2])
     {
         self.dirtify_rect([point, point]);
@@ -422,7 +433,7 @@ impl Layer
             let new_len = layer.children.len();
             if new_len != old_len
             {
-                layer.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                layer.dirtify_full_rect();
                 None
             }
             else
@@ -437,7 +448,7 @@ impl Layer
         {
             if self.children[i].uuid == find_uuid
             {
-                self.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                self.dirtify_full_rect();
                 if i == 0
                 {
                     if self.uuid != 0
@@ -462,14 +473,14 @@ impl Layer
                         // target is a group, insert into it
                         self.children[i-1].children.push(layer);
                     }
-                    self.children[i-1].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                    self.children[i-1].dirtify_full_rect();
                     break;
                 }
             }
             else if let Some(layer) = self.children[i].move_layer_up(find_uuid)
             {
-                self.children[i].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
-                self.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                self.children[i].dirtify_full_rect();
+                self.dirtify_full_rect();
                 
                 self.children.insert(i, layer);
                 break;
@@ -483,7 +494,7 @@ impl Layer
         {
             if self.children[i].uuid == find_uuid
             {
-                self.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                self.dirtify_full_rect();
                 if i+1 >= self.children.len()
                 {
                     if self.uuid != 0
@@ -508,14 +519,14 @@ impl Layer
                         // target is a group, insert into it
                         self.children[i].children.insert(0, layer);
                     }
-                    self.children[i].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                    self.children[i].dirtify_full_rect();
                     break;
                 }
             }
             else if let Some(layer) = self.children[i].move_layer_down(find_uuid)
             {
-                self.children[i].flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
-                self.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+                self.children[i].dirtify_full_rect();
+                self.dirtify_full_rect();
                 
                 self.children.insert(i+1, layer);
                 break;
@@ -527,7 +538,7 @@ impl Layer
     {
         self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
         {
-            parent.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+            parent.dirtify_all();
             parent.children.insert(i, Layer::new_group("New Group"));
         });
     }
@@ -535,7 +546,7 @@ impl Layer
     {
         self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
         {
-            parent.flattened_dirty_rect = Some([[0.0, 0.0], [10000.0, 10000.0]]); // fixme store width/height/etc
+            parent.dirtify_all();
             let layer = parent.children.remove(i);
             let mut group = Layer::new_group("New Group");
             group.children.insert(0, layer);

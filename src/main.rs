@@ -589,9 +589,10 @@ impl eframe::App for Warpainter
                         
                         ui.separator();
                         
-                        // TODO erase (subtract top alpha from bottom alpha)
-                        // TODO reveal (add top alpha to bottom
-                        // TODO alpha mask (erase/reveal but based on luma)
+                        ui.selectable_value(&mut layer.blend_mode, "Erase".to_string(), "Erase");
+                        ui.selectable_value(&mut layer.blend_mode, "Reveal".to_string(), "Reveal");
+                        ui.selectable_value(&mut layer.blend_mode, "Alpha Mask".to_string(), "Alpha Mask");
+                        ui.selectable_value(&mut layer.blend_mode, "Alpha Reject".to_string(), "Alpha Reject");
                         
                         ui.selectable_value(&mut layer.blend_mode, "Interpolate".to_string(), "Interpolate");
                     });

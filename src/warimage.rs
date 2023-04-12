@@ -471,7 +471,13 @@ impl Image
             "Hard Color" => px_func_triad_float::<BlendModeHardColor>,
             "Lightness" => px_func_triad_float::<BlendModeLightness>,
             
+            "Erase" => px_func_full_float::<BlendModeErase>,
+            "Reveal" => px_func_full_float::<BlendModeReveal>,
+            "Alpha Mask" => px_func_full_float::<BlendModeAlphaMask>,
+            "Alpha Reject" => px_func_full_float::<BlendModeAlphaReject>,
+            
             "Interpolate" => px_lerp_float,
+            
             _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
         };
         
@@ -518,7 +524,13 @@ impl Image
             "Hard Color" => px_func_triad::<BlendModeHardColor>,
             "Lightness" => px_func_triad::<BlendModeLightness>,
             
+            "Erase" => px_func_full::<BlendModeErase>,
+            "Reveal" => px_func_full::<BlendModeReveal>,
+            "Alpha Mask" => px_func_full::<BlendModeAlphaMask>,
+            "Alpha Reject" => px_func_full::<BlendModeAlphaReject>,
+            
             "Interpolate" => px_lerp,
+            
             _ => px_func::<BlendModeNormal>, // Normal, or unknown
         };
         

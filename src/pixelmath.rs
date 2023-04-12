@@ -49,7 +49,7 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
     
     for i in 0..3
     {
-        r[i] = T::blend(a[i], b[i]) * a_a + b[i] * b_a;
+        r[i] = lerp(a[i], T::blend(a[i], b[i]), b[3]) * a_a + b[i] * b_a;
     }
     
     r
@@ -579,6 +579,61 @@ impl BlendModeTriad for BlendModeLightness
         let hsla_bottom = rgb_to_hsl([bottom[0], bottom[1], bottom[2], 1.0]);
         let rgba = hsl_to_rgb([hsla_bottom[0], hsla_bottom[1], hsla_top[2], 1.0]);
         [rgba[0], rgba[1], rgba[2]]
+    }
+}
+
+
+#[inline]
+pub (crate) fn px_func_full_float<T : BlendModeFull>(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+{
+    T::blend(a, b, amount)
+}
+#[inline]
+pub (crate) fn px_func_full<T : BlendModeFull>(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
+{
+    px_to_int(px_func_full_float::<T>(px_to_float(a), px_to_float(b), amount))
+}
+pub (crate) trait BlendModeFull
+{
+    fn blend(top : [f32; 4], bottom : [f32; 4], amount : f32) -> [f32; 4];
+}
+
+pub (crate) struct BlendModeErase;
+impl BlendModeFull for BlendModeErase
+{
+    fn blend(top : [f32; 4], mut bottom : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        bottom[3] = lerp(bottom[3], bottom[3] * (1.0 - top[3]), amount);
+        bottom
+    }
+}
+pub (crate) struct BlendModeReveal;
+impl BlendModeFull for BlendModeReveal
+{
+    fn blend(top : [f32; 4], mut bottom : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        bottom[3] = lerp(bottom[3], 1.0 - (1.0 - bottom[3]) * (1.0 - top[3]), amount);
+        bottom
+    }
+}
+pub (crate) struct BlendModeAlphaMask;
+impl BlendModeFull for BlendModeAlphaMask
+{
+    fn blend(top : [f32; 4], mut bottom : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        let l = (top[0] + top[1] + top[2]) * (1.0/3.0);
+        bottom[3] = lerp(bottom[3], bottom[3] * l, amount * top[3]);
+        bottom
+    }
+}
+pub (crate) struct BlendModeAlphaReject;
+impl BlendModeFull for BlendModeAlphaReject
+{
+    fn blend(top : [f32; 4], mut bottom : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        let l = 1.0 - (top[0] + top[1] + top[2]) * (1.0/3.0);
+        bottom[3] = lerp(bottom[3], bottom[3] * l, amount * top[3]);
+        bottom
     }
 }
 
