@@ -283,6 +283,9 @@ impl Layer
                 new_dirty_rect = dirty_rect.unwrap();
                 self.flattened_data.as_mut().unwrap().clear_rect_with_color_float(new_dirty_rect, [0.0, 0.0, 0.0, 0.0]);
             }
+            // We keep track of what's "first" (bottommost) in a given group to give it a special blend mode against the empty flattening target layer.
+            // This makes it so that "reveal" etc blend modes work more intuitively instead of having to choose
+            // between erased transparent data being lost or fully transparent higher layers overwriting fully transparent lower layers.
             let mut first = true;
             let mut stash_is_first = false;
             let mut stash = None;
@@ -291,9 +294,9 @@ impl Layer
             let mut stash_blend_mode = "".to_string();
             for i in (0..self.children.len()).rev()
             {
-                let (mut a, mut b) = self.children.split_at_mut(i);
+                let (a, b) = self.children.split_at_mut(i);
                 let above = a.last_mut();
-                let mut child = b.first_mut().unwrap();
+                let child = b.first_mut().unwrap();
                 if child.visible
                 {
                     let mode = child.blend_mode.clone();
@@ -304,8 +307,9 @@ impl Layer
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
                     {
                         // child is a clip target, get into clip target mode
-                        stash = Some(source_data.clone());
-                        stash_clean = Some(source_data.clone());
+                        stash = Some(source_data.clone()); // for color
+                        stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
+                        stash_clean = Some(source_data.clone()); // for alpha
                         stash_is_first = first;
                         stash_opacity = opacity;
                         stash_blend_mode = mode.clone();
@@ -332,6 +336,9 @@ impl Layer
                         {
                             self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_opacity, &stash_blend_mode);
                         }
+                        
+                        stash = None;
+                        stash_clean = None;
                     }
                     else if stash.is_some() && above.is_some() // above.is_some() is redundant with the above if branch, but left in for clarity
                     {
