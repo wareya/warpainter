@@ -116,6 +116,8 @@ impl Tool for Fill
 pub (crate) struct Pencil
 {
     size : f32,
+    brush_shape : Image,
+    direction_shapes : Vec<Image>,
     prev_input : CanvasInputState,
 }
 
@@ -123,7 +125,76 @@ impl Pencil
 {
     pub (crate) fn new() -> Self
     {
-        Pencil { size : 1.0, prev_input : CanvasInputState::default() }
+        let size = 4.0;
+        let brush_shape = Pencil::generate_brush(size);
+        let direction_shapes = Pencil::directionalize_brush(&brush_shape);
+        Pencil { size, brush_shape, prev_input : CanvasInputState::default(), direction_shapes }
+    }
+    fn generate_brush(size : f32) -> Image
+    {
+        let img_size = size.ceil() as usize;
+        let mut shape = Image::blank(img_size, img_size);
+        for uy in 0..img_size as isize
+        {
+            let y = uy as f32 - (img_size as f32)*0.5 + 0.5;
+            for ux in 0..img_size as isize
+            {
+                let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
+                if y*y + x*x < size*size/4.0
+                {
+                    shape.set_pixel(ux, uy, [255, 255, 255, 255]);
+                }
+            }
+        }
+        shape
+    }
+    fn directionalize_brush(brush_shape : &Image) -> Vec<Image>
+    {
+        let mut ret = Vec::new();
+        let dirs = [
+            [ 1,  0],
+            [ 1,  1],
+            [ 0,  1],
+            [-1,  1],
+            [-1,  0],
+            [-1, -1],
+            [ 0, -1],
+            [ 1, -1],
+        ];
+        for dir in dirs
+        {
+            let mut new_brush = brush_shape.blank_with_same_size();
+            for uy in 0..new_brush.height as isize
+            {
+                for ux in 0..new_brush.width as isize
+                {
+                    let current = brush_shape.get_pixel(ux, uy);
+                    let next = brush_shape.get_pixel(ux + dir[0], uy + dir[1]);
+                    if current[3] > 0 && next[3] == 0
+                    {
+                        new_brush.set_pixel(ux, uy, current);
+                    }
+                }
+            }
+            if dir[0].abs() == dir[1].abs()
+            {
+                for uy in 0..new_brush.height as isize
+                {
+                    for ux in 0..new_brush.width as isize
+                    {
+                        let next_x = brush_shape.get_pixel(ux + dir[0], uy);
+                        let next_y = brush_shape.get_pixel(ux, uy + dir[1]);
+                        if next_x[3] > 0 && next_y[3] > 0
+                        {
+                            new_brush.set_pixel(ux, uy, next_y);
+                        }
+                    }
+                }
+            }
+            ret.push(new_brush);
+        }
+        
+        ret
     }
 }
 
@@ -139,12 +210,107 @@ fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f
     {
         let amount = i as f32 / max;
         let coord = vec_lerp(&from, &to, amount);
-        image.set_pixel_float(coord[0].round() as isize, coord[1].round() as isize, color);
+        let x = coord[0].round() as isize;
+        let y = coord[1].round() as isize;
+        image.set_pixel_float(x, y, color);
     }
 }
 fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4])
 {
     draw_line_no_start_float(image, from, to, px_to_float(color))
+}
+
+fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Image>)
+{
+    fn dir_index(x_d : isize, y_d : isize) -> usize
+    {
+        match (x_d, y_d)
+        {
+            ( 1,  0) => 0,
+            ( 1,  1) => 1,
+            ( 0,  1) => 2,
+            (-1,  1) => 3,
+            (-1,  0) => 4,
+            (-1, -1) => 5,
+            ( 0, -1) => 6,
+            ( 1, -1) => 7,
+            _ => panic!(),
+        }
+    }
+    from[0] = from[0].floor();
+    from[1] = from[1].floor();
+    to[0] = to[0].floor();
+    to[1] = to[1].floor();
+    let diff = vec_sub(&from, &to);
+    let max = diff[0].abs().max(diff[1].abs());
+    let mut prev_x = from[0].round() as isize;
+    let mut prev_y = from[1].round() as isize;
+    for i in 1..=max as usize
+    {
+        let amount = i as f32 / max;
+        let coord = vec_lerp(&from, &to, amount);
+        let x = coord[0].round() as isize;
+        let y = coord[1].round() as isize;
+        let dir = dir_index(x - prev_x, y - prev_y);
+        let brush_shape = &brush[dir];
+        for uy in 0..brush_shape.height as isize
+        {
+            for ux in 0..brush_shape.width as isize
+            {
+                let mut c = brush_shape.get_pixel_float(ux, uy);
+                if c[3] > 0.0
+                {
+                    c[0] *= color[0];
+                    c[1] *= color[1];
+                    c[2] *= color[2];
+                    c[3] *= color[3];
+                    image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, color);
+                }
+            }
+        }
+        prev_x = x;
+        prev_y = y;
+    }
+}
+fn draw_brush_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Image>)
+{
+    draw_brush_line_no_start_float(image, from, to, px_to_float(color), brush)
+}
+fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brush_shape : &Image)
+{
+    let x = at[0].floor() as isize;
+    let y = at[1].floor() as isize;
+    for uy in 0..brush_shape.height as isize
+    {
+        for ux in 0..brush_shape.width as isize
+        {
+            let mut c = brush_shape.get_pixel_float(ux, uy);
+            if c[3] > 0.0
+            {
+                c[0] *= color[0];
+                c[1] *= color[1];
+                c[2] *= color[2];
+                c[3] *= color[3];
+                image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, color);
+            }
+        }
+    }
+}
+fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape : &Image)
+{
+    draw_brush_at_float(image, at, px_to_float(color), brush_shape)
+}
+
+
+fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
+{
+    use crate::rect_normalize;
+    rect = rect_normalize(rect);
+    rect[0][0] -= grow_size[0];
+    rect[0][1] -= grow_size[1];
+    rect[1][0] += grow_size[0];
+    rect[1][1] += grow_size[1];
+    rect
 }
 
 impl Tool for Pencil
@@ -164,15 +330,18 @@ impl Tool for Pencil
             let color = app.main_color_rgb;
             if let Some(image) = app.get_editing_image()
             {
+                let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
                 if !self.prev_input.held[0]
                 {
-                    image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
-                    app.mark_current_layer_dirty([coord, coord]);
+                    //image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
+                    draw_brush_at_float(image, coord, color, &self.brush_shape);
+                    app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
                 }
                 else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                 {
-                    draw_line_no_start_float(image, prev_coord, coord, color);
-                    app.mark_current_layer_dirty([prev_coord, coord]);
+                    //draw_line_no_start_float(image, prev_coord, coord, color);
+                    draw_brush_line_no_start_float(image, prev_coord, coord, color, &self.direction_shapes);
+                    app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
                 }
             }
         }

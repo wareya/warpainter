@@ -12,7 +12,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] eraser tool
 - [ ] eyedropper tool
 - [ ] line tool
-- [ ] other shape tools
+- [ ] other shape tools (rectangle, circle, polyline, arrow line, etc. with outline/stroke and non-fill variants)
 - [ ] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
 - [ ] transform tool (bilinear transform, not perspective transform)
 

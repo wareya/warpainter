@@ -1,7 +1,7 @@
 use crate::warimage::*;
 use uuid::Uuid;
 
-fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
+pub (crate) fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
 {
     rect[0][0] = rect[0][0].min(point[0]);
     rect[0][1] = rect[0][1].min(point[1]);
@@ -9,13 +9,13 @@ fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 
     rect[1][1] = rect[1][1].max(point[1]);
     rect
 }
-fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32; 2]; 2]
+pub (crate) fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32; 2]; 2]
 {
     rect = rect_enclose_point(rect, rect_2[0]);
     rect = rect_enclose_point(rect, rect_2[1]);
     rect
 }
-fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
+pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
 {
     rect_enclose_point([rect[0], rect[0]], rect[1])
 }
