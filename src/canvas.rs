@@ -125,7 +125,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     // render canvas
     
     let start = std::time::SystemTime::now();
-    let texture = app.flatten().clone(); // FIXME
+    let texture = app.flatten().clone(); // FIXME performance drain
     let elapsed = start.elapsed();
     let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
     if elapsed > 0.1
@@ -189,6 +189,41 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
         if let Some(mut gizmo) = tool.get_gizmo(app, true)
         {
             gizmo.draw(ui, app, &mut response, &painter);
+        }
+    }
+    
+    let grid_size = 16.0;
+    
+    if grid_size * app.get_zoom() > 8.49
+    {
+        let grid_x_last = (w/grid_size).floor()*grid_size;
+        let grid_y_last = (h/grid_size).floor()*grid_size;
+        let x_line_count = (grid_x_last/grid_size) as usize;
+        let y_line_count = (grid_y_last/grid_size) as usize;
+        
+        use crate::gizmos::draw_dotted;
+        for (line_count, a, b, c, d) in [
+            (x_line_count, vertices[0], vertices[1], vertices[2], vertices[3]),
+            (y_line_count, vertices[0], vertices[2], vertices[1], vertices[3])
+        ]
+        {
+            for i in 1..line_count
+            {
+                let t = i as f32 / line_count as f32;
+                
+                let fx = response.rect.width()/2.0;
+                let fy = response.rect.height()/2.0;
+                
+                let mut a = vec_lerp(&a, &b, t);
+                a[0] = (a[0] + 1.0) * fx + response.rect.min.x;
+                a[1] = (a[1] + 1.0) * fy + response.rect.min.y;
+                
+                let mut b = vec_lerp(&c, &d, t);
+                b[0] = (b[0] + 1.0) * fx + response.rect.min.x;
+                b[1] = (b[1] + 1.0) * fy + response.rect.min.y;
+                
+                draw_dotted(&painter, a, b, 2.0);
+            }
         }
     }
     

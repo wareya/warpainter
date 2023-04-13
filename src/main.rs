@@ -318,6 +318,10 @@ impl Warpainter
 
 impl Warpainter
 {
+    fn get_zoom(&self) -> f32
+    {
+        self.xform.get_scale()
+    }
     fn zoom(&mut self, amount : f32)
     {
         let mut log_zoom = self.xform.get_scale().max(0.01).log(2.0);
@@ -638,9 +642,20 @@ impl eframe::App for Warpainter
                 {
                     ui.spacing_mut().item_spacing = [1.0, 0.0].into();
                     ui.spacing_mut().button_padding = [0.0, 0.0].into();
-                    if add_button_disabled!(ui, "clipping mask", "Toggle Clipping Mask", false).clicked()
+                    
+                    let layer = self.layers.find_layer_mut(self.current_layer);
+                    let clipped      = layer.as_ref().map_or(false, |layer| layer.clipped     );
+                    let locked       = layer.as_ref().map_or(false, |layer| layer.locked      );
+                    let alpha_locked = layer.as_ref().map_or(false, |layer| layer.alpha_locked);
+                    drop(layer);
+                    
+                    if add_button!(ui, "clipping mask", "Toggle Clipping Mask", clipped).clicked()
                     {
-                        // FIXME/TODO
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            layer.clipped = !layer.clipped;
+                            layer.dirtify_all();
+                        }
                     }
                     if add_button_disabled!(ui, "lock", "Toggle Layer Lock", false).clicked()
                     {

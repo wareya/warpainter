@@ -7,25 +7,36 @@ pub (crate) trait Gizmo
     fn draw(&mut self, ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter);
 }
 
-pub (crate) fn draw_dotted(painter : &egui::Painter, from : [f32; 2], to : [f32; 2])
+pub (crate) fn draw_dotted(painter : &egui::Painter, from : [f32; 2], to : [f32; 2], dot_length : f32)
 {
-    let white = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255));
-    let black = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 255));
+    let white = egui::Stroke::new(0.5, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255));
+    let black = egui::Stroke::new(0.5, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 255));
     
     let len = length(&vec_sub(&from, &to));
     if len == 0.0
     {
         return;
     }
-    let dot_length = 4.0;
     
     for i in 0..(len/dot_length).ceil() as usize
     {
         let i_start = ((i as f32    )/(len/dot_length)).min(1.0);
         let i_end   = ((i as f32+1.0)/(len/dot_length)).min(1.0);
-        let start = vec_lerp(&from, &to, i_start);
-        let end   = vec_lerp(&from, &to, i_end);
-        painter.line_segment([start.into(), end.into()].into(), if i % 2 == 0 { white } else { black });
+        let mut start = vec_lerp(&from, &to, i_start);
+        let mut end   = vec_lerp(&from, &to, i_end);
+        start[0] = start[0].floor() + 0.5;
+        start[1] = start[1].floor() + 0.5;
+        end[0] = end[0].floor() + 0.5;
+        end[1] = end[1].floor() + 0.5;
+        if i % 2 == 0
+        {
+            painter.line_segment([start.into(), end.into()].into(), white);
+        }
+        else
+        {
+            painter.line_segment([start.into(), end.into()].into(), black);
+            painter.line_segment([start.into(), end.into()].into(), black);
+        }
     }
 }
 
@@ -77,10 +88,10 @@ impl Gizmo for BoxGizmo
             *point = &xform * &*point;
         }
         
-        draw_dotted(painter, points[0], points[1]);
-        draw_dotted(painter, points[0], points[2]);
-        draw_dotted(painter, points[1], points[3]);
-        draw_dotted(painter, points[2], points[3]);
+        draw_dotted(painter, points[0], points[1], 4.0);
+        draw_dotted(painter, points[0], points[2], 4.0);
+        draw_dotted(painter, points[1], points[3], 4.0);
+        draw_dotted(painter, points[2], points[3], 4.0);
     }
 }
 
