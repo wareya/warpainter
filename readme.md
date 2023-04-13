@@ -7,7 +7,7 @@ Warpaint (codename) is a pixel-art-oriented image editor written in rust.
 I expect to have all of the following features. This is sorted in order of development priority, not general importance.
 
 ### tools
-- [x] pencil tool (with proper edit and commit phases) (todo: brush size)
+- [x] pencil tool (with proper edit and commit phases)
 - [x] fill tool
 - [ ] eraser tool
 - [ ] eyedropper tool
@@ -36,7 +36,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] layer lock (implemented but not hooked up)
 
 ### ui
-- [ ] grids (three levels, non-square support)
+- [ ] grids (three levels, with support for non-axis-aligned grids)
 - [ ] rgb and alpha sliders for the color picker
 - [x] view transformation (scale, pan, rotation)
 - [ ] view mirroring
