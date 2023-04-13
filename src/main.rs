@@ -313,6 +313,14 @@ impl Warpainter
             layer.dirtify_rect(rect);
         }
     }
+    fn current_layer_is_alpha_locked(&self) -> bool
+    {
+        if let Some(layer) = self.layers.find_layer(self.current_layer)
+        {
+            return layer.alpha_locked;
+        }
+        false
+    }
 }
 
 
@@ -657,13 +665,19 @@ impl eframe::App for Warpainter
                             layer.dirtify_all();
                         }
                     }
-                    if add_button_disabled!(ui, "lock", "Toggle Layer Lock", false).clicked()
+                    if add_button!(ui, "lock", "Toggle Layer Lock", locked).clicked()
                     {
-                        // FIXME/TODO
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            layer.locked = !layer.locked;
+                        }
                     }
-                    if add_button_disabled!(ui, "lock alpha", "Toggle Alpha Lock", false).clicked()
+                    if add_button!(ui, "lock alpha", "Toggle Alpha Lock", alpha_locked).clicked()
                     {
-                        // FIXME/TODO
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            layer.alpha_locked = !layer.alpha_locked;
+                        }
                     }
                 });
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|

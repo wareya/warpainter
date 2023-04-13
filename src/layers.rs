@@ -307,9 +307,12 @@ impl Layer
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
                     {
                         // child is a clip target, get into clip target mode
-                        stash = Some(source_data.clone()); // for color
+                        // for color
+                        stash = Some(source_data.clone());
+                        // remove alpha
                         stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
-                        stash_clean = Some(source_data.clone()); // for alpha
+                        // for alpha, we restore the color bit's alpha with this later
+                        stash_clean = Some(source_data.clone());
                         stash_is_first = first;
                         stash_opacity = opacity;
                         stash_blend_mode = mode.clone();
@@ -318,15 +321,13 @@ impl Layer
                         let above = above.unwrap();
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
-
-                        let above_opacity = above.opacity;
-                        let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);
                         stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, above_opacity, above_mode);
                     }
                     else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                     {
                         // done with the clipping mask sequence, blend into rest of group
+                        // restore original alpha
                         stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), stash_opacity, &"Clip Alpha".to_string());
                         if stash_is_first
                         {
@@ -344,9 +345,6 @@ impl Layer
                     {
                         // continuing a clip mask blend
                         let above = above.unwrap();
-                        let above_opacity = above.opacity;
-                        let above_mode = &above.blend_mode.clone();
-
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);

@@ -30,8 +30,8 @@ I expect to have all of the following features. This is sorted in order of devel
 - [x] photoshop blend modes
 - [ ] layer masks
 - [x] layer clipping
-- [ ] alpha lock
-- [ ] layer lock (implemented but not hooked up)
+- [x] alpha lock
+- [x] layer lock
 
 ### ui
 - [x] basic grid
