@@ -277,6 +277,7 @@ impl Layer
                 new_dirty_rect = dirty_rect.unwrap();
                 self.flattened_data.as_mut().unwrap().clear_rect_with_color_float(new_dirty_rect, [0.0, 0.0, 0.0, 0.0]);
             }
+            let mut first = true;
             for child in self.children.iter_mut().rev()
             {
                 if child.visible
@@ -284,8 +285,16 @@ impl Layer
                     let mode = child.blend_mode.clone();
                     let opacity = child.opacity;
                     let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                    self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &mode);
+                    if first
+                    {
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &"Copy".to_string());
+                    }
+                    else
+                    {
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &mode);
+                    }
                 }
+                first = false;
             }
             self.flattened_dirty_rect = None;
             return self.flattened_data.as_ref().unwrap();

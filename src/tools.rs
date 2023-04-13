@@ -119,6 +119,7 @@ pub (crate) struct Pencil
     brush_shape : Image,
     direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
     prev_input : CanvasInputState,
+    is_eraser : bool,
 }
 
 impl Pencil
@@ -128,7 +129,12 @@ impl Pencil
         let size = 4.0;
         let brush_shape = Pencil::generate_brush(size);
         let direction_shapes = Pencil::directionalize_brush(&brush_shape);
-        Pencil { size, brush_shape, direction_shapes, prev_input : CanvasInputState::default() }
+        Pencil { size, brush_shape, direction_shapes, prev_input : CanvasInputState::default(), is_eraser : false }
+    }
+    pub (crate) fn to_eraser(mut self) -> Self
+    {
+        self.is_eraser = true;
+        self
     }
     pub (crate) fn update_brush(&mut self)
     {
@@ -182,7 +188,7 @@ impl Pencil
                 }
             }
             // needed for brushes that have natural diagonal "gaps", but we don't generate any yet
-            // and still need to change this to search over the vec instead of using get_pixel
+            // also, we still need to change this to search over the vec instead of using get_pixel
             /*
             if dir[0].abs() == dir[1].abs()
             {
@@ -228,7 +234,7 @@ fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color 
     draw_line_no_start_float(image, from, to, px_to_float(color))
 }
 
-fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2])
+fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool)
 {
     fn dir_index(x_d : isize, y_d : isize) -> usize
     {
@@ -264,24 +270,33 @@ fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut t
         for ((ux, uy), c) in brush_shape
         {
             let mut c = *c;
-            if c[3] > 0.0
+            if !erase
             {
-                c[0] *= color[0];
-                c[1] *= color[1];
-                c[2] *= color[2];
-                c[3] *= color[3];
-                image.set_pixel_float(x + ux - offset[0], y + uy - offset[1], color);
+                if c[3] > 0.0
+                {
+                    c[0] *= color[0];
+                    c[1] *= color[1];
+                    c[2] *= color[2];
+                    c[3] *= color[3];
+                    image.set_pixel_float(x + ux - offset[0], y + uy - offset[1], color);
+                }
+            }
+            else
+            {
+                let mut c = image.get_pixel_float(x + ux - offset[0], y + uy - offset[1]);
+                c[3] = 0.0;
+                image.set_pixel_float(x + ux - offset[0], y + uy - offset[1], c);
             }
         }
         prev_x = x;
         prev_y = y;
     }
 }
-fn draw_brush_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2])
+fn draw_brush_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool)
 {
-    draw_brush_line_no_start_float(image, from, to, px_to_float(color), brush, offset)
+    draw_brush_line_no_start_float(image, from, to, px_to_float(color), brush, offset, erase)
 }
-fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brush_shape : &Image)
+fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brush_shape : &Image, erase : bool)
 {
     let x = at[0].floor() as isize;
     let y = at[1].floor() as isize;
@@ -292,18 +307,27 @@ fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brus
             let mut c = brush_shape.get_pixel_float(ux, uy);
             if c[3] > 0.0
             {
-                c[0] *= color[0];
-                c[1] *= color[1];
-                c[2] *= color[2];
-                c[3] *= color[3];
-                image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, color);
+                if !erase
+                {
+                    c[0] *= color[0];
+                    c[1] *= color[1];
+                    c[2] *= color[2];
+                    c[3] *= color[3];
+                    image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, color);
+                }
+                else
+                {
+                    let mut c = image.get_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize);
+                    c[3] = 0.0;
+                    image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, c);
+                }
             }
         }
     }
 }
-fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape : &Image)
+fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape : &Image, erase : bool)
 {
-    draw_brush_at_float(image, at, px_to_float(color), brush_shape)
+    draw_brush_at_float(image, at, px_to_float(color), brush_shape, erase)
 }
 
 
@@ -333,20 +357,19 @@ impl Tool for Pencil
             
             app.debug(format!("{:?}", coord));
             let color = app.main_color_rgb;
+            let eraser = app.eraser_mode || self.is_eraser;
             if let Some(image) = app.get_editing_image()
             {
                 let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
                 let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
                 if !self.prev_input.held[0]
                 {
-                    //image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
-                    draw_brush_at_float(image, coord, color, &self.brush_shape);
+                    draw_brush_at_float(image, coord, color, &self.brush_shape, eraser);
                     app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
                 }
                 else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                 {
-                    //draw_line_no_start_float(image, prev_coord, coord, color);
-                    draw_brush_line_no_start_float(image, prev_coord, coord, color, &self.direction_shapes, offset_vec);
+                    draw_brush_line_no_start_float(image, prev_coord, coord, color, &self.direction_shapes, offset_vec, eraser);
                     app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
                 }
             }

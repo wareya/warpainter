@@ -47,6 +47,8 @@ struct Warpainter
     xform : Transform,
     debug_text : Vec<String>,
     
+    eraser_mode : bool,
+    
     main_color_rgb : [f32; 4],
     main_color_hsv : [f32; 4],
     sub_color_rgb : [f32; 4],
@@ -91,6 +93,8 @@ impl Default for Warpainter
             xform : Transform::ident(),
             debug_text : vec!(),
             
+            eraser_mode : false,
+            
             main_color_rgb : [0.0, 0.0, 0.0, 1.0],
             main_color_hsv : [0.0, 0.0, 0.0, 1.0],
             sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
@@ -98,6 +102,7 @@ impl Default for Warpainter
             
             tools : vec!(
                 Box::new(Pencil::new()),
+                Box::new(Pencil::new().to_eraser()),
                 Box::new(Fill::new()),
             ),
             current_tool : 0,
@@ -152,6 +157,7 @@ impl Warpainter
             ("move layer down",     include_bytes!("icons/move layer down.png")     .to_vec()),
             
             ("tool pencil",         include_bytes!("icons/tool pencil.png")         .to_vec()),
+            ("tool eraser",         include_bytes!("icons/tool eraser.png")         .to_vec()),
             ("tool fill",           include_bytes!("icons/tool fill.png")           .to_vec()),
         ];
         for thing in stuff
@@ -729,9 +735,13 @@ impl eframe::App for Warpainter
                 {
                     self.current_tool = 0;
                 }
-                if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 1).clicked()
+                if add_button!(ui, "tool eraser", "Eraser Tool", self.current_tool == 1).clicked()
                 {
                     self.current_tool = 1;
+                }
+                if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 2).clicked()
+                {
+                    self.current_tool = 2;
                 }
             });
         });

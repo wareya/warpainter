@@ -28,7 +28,7 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
 {
     a[3] *= amount;
     
-    if a[3] == 0.0 || amount == 0.0
+    if a[3] == 0.0
     {
         return b;
     }
@@ -690,6 +690,8 @@ pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32;
         
         "Interpolate" => px_lerp_float,
         
+        "Copy" => |a, _b, amount| [a[0], a[1], a[2], a[3] * amount], // used internally
+        
         _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
     }
 }
@@ -745,6 +747,8 @@ pub (crate) fn find_blend_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], f32
         "Alpha Reject" => px_func_full::<BlendModeAlphaReject>,
         
         "Interpolate" => px_lerp,
+        
+        "Copy" => |a, _b, amount| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
         
         _ => px_func::<BlendModeNormal>, // Normal, or unknown
     }
