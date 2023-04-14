@@ -561,7 +561,7 @@ impl eframe::App for Warpainter
                     let old_blend_mode = layer.blend_mode.clone();
                     egui::ComboBox::from_id_source("blend_mode_dropdown")
                         .selected_text(&layer.blend_mode)
-                        .width(200.0)
+                        .width(150.0)
                         .show_ui(ui, |ui|
                     {
                         ui.selectable_value(&mut layer.blend_mode, "Normal".to_string(), "Normal");

@@ -777,12 +777,12 @@ fn dither<T : Sized>(blended : T, base : T, mut amount : f32, coord : [usize; 2]
     let x = coord[0];
     let y = coord[1];
     amount = 1.0 - amount;
-    amount += ((x  +y)  &1) as f32 * (1.0/2.0);
-    amount += (     y   &1) as f32 * (1.0/4.0);
-    amount += ((x/2+y/2)&1) as f32 * (1.0/8.0);
-    amount += (    (y/2)&1) as f32 * (1.0/16.0);
-    amount += ((x/4+y/4)&1) as f32 * (1.0/32.0);
-    amount += (    (y/4)&1) as f32 * (1.0/64.0);
+    amount += ((x  +y  +1)&1) as f32 * (1.0/2.0);
+    amount += ((    y  +1)&1) as f32 * (1.0/4.0);
+    amount += ((x/2+y/2+1)&1) as f32 * (1.0/8.0);
+    amount += ((    y/2+1)&1) as f32 * (1.0/16.0);
+    amount += ((x/4+y/4+1)&1) as f32 * (1.0/32.0);
+    amount += ((    y/4+1)&1) as f32 * (1.0/64.0);
     if amount >= 1.0
     {
         base
