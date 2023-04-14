@@ -694,6 +694,13 @@ pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32;
         "Copy Alpha" => |a, b, _amount| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount| [a[0], a[1], a[2], a[3] * amount], // used internally
         
+        "Dither" => |mut a, b, _amount|
+        {
+            // normal blending, but ignore amount and top alpha (handled by post func)
+            a[3] = 1.0;
+            px_func_float::<BlendModeNormal>(a, b, 1.0)
+        },
+        
         _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
     }
 }
@@ -754,10 +761,64 @@ pub (crate) fn find_blend_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], f32
         "Copy Alpha" => |a, b, _amount| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
         
+        "Dither" => |mut a, b, _amount|
+        {
+            // normal blending, but ignore amount and top alpha (handled by post func)
+            a[3] = 255;
+            px_func::<BlendModeNormal>(a, b, 1.0)
+        },
+        
         _ => px_func::<BlendModeNormal>, // Normal, or unknown
     }
 }
 
+fn dither<T : Sized>(blended : T, base : T, mut amount : f32, coord : [usize; 2]) -> T
+{
+    let x = coord[0];
+    let y = coord[1];
+    amount = 1.0 - amount;
+    amount += ((x  +y)  &1) as f32 * (1.0/2.0);
+    amount += (     y   &1) as f32 * (1.0/4.0);
+    amount += ((x/2+y/2)&1) as f32 * (1.0/8.0);
+    amount += (    (y/2)&1) as f32 * (1.0/16.0);
+    amount += ((x/4+y/4)&1) as f32 * (1.0/32.0);
+    amount += (    (y/4)&1) as f32 * (1.0/64.0);
+    if amount >= 1.0
+    {
+        base
+    }
+    else
+    {
+        blended
+    }
+}
+
+pub (crate) fn find_post_func_float(blend_mode : &String) -> fn([f32; 4], [f32; 4], [f32; 4], f32, [usize; 2]) -> [f32; 4]
+{
+    match blend_mode.as_str()
+    {
+        "Dither" => |blended, top, base, mut amount, coord|
+        {
+            // blend original top alpha into amount because we threw it out in the blending stage
+            amount *= top[3];
+            dither::<[f32; 4]>(blended, base, amount, coord)
+        },
+        _ => |blended, _top, _base, _amount, _coord| blended,
+    }
+}
+pub (crate) fn find_post_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], [u8; 4], f32, [usize; 2]) -> [u8; 4]
+{
+    match blend_mode.as_str()
+    {
+        "Dither" => |blended, top, base, mut amount, coord|
+        {
+            // blend original top alpha into amount because we threw it out in the blending stage
+            amount *= to_float(top[3]);
+            dither::<[u8; 4]>(blended, base, amount, coord)
+        },
+        _ => |blended, _top, _base, _amount, _coord| blended,
+    }
+}
 
 #[inline]
 pub (crate) fn to_float(x : u8) -> f32

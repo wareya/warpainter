@@ -356,7 +356,7 @@ impl Image
         
         macro_rules! do_loop
         {
-            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr) =>
+            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr, $post_f:expr) =>
             {
                 {
                     let mut thread_count = 4;
@@ -418,6 +418,7 @@ impl Image
                                         let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
                                         let top_pixel = $top_read_f($top[top_index]);
                                         let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
+                                        let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
                                         bottom[bottom_index] = $bottom_write_f(c);
                                     }
                                 }
@@ -431,16 +432,19 @@ impl Image
         let blend_float = find_blend_func_float(&blend_mode);
         let blend_int = find_blend_func(&blend_mode);
         
+        let post_float = find_post_func_float(&blend_mode);
+        let post_int = find_post_func(&blend_mode);
+        
         match (&mut self.data, &top.data)
         {
             (ImageData::Float(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, blend_float),
+                do_loop!(bottom, top, nop, nop, nop, blend_float, post_float),
             (ImageData::Float(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top, nop, px_to_float, nop, blend_float),
+                do_loop!(bottom, top, nop, px_to_float, nop, blend_float, post_float),
             (ImageData::Int(bottom), ImageData::Float(top)) =>
-                do_loop!(bottom, top, px_to_float, nop, px_to_int, blend_float),
+                do_loop!(bottom, top, px_to_float, nop, px_to_int, blend_float, post_float),
             (ImageData::Int(bottom), ImageData::Int(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, blend_int),
+                do_loop!(bottom, top, nop, nop, nop, blend_int, post_int),
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32, blend_mode : &String)

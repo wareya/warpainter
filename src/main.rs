@@ -49,7 +49,6 @@ struct Warpainter
     debug_text : Vec<String>,
     
     eraser_mode : bool,
-    
     main_color_rgb : [f32; 4],
     main_color_hsv : [f32; 4],
     sub_color_rgb : [f32; 4],
@@ -95,7 +94,6 @@ impl Default for Warpainter
             debug_text : vec!(),
             
             eraser_mode : false,
-            
             main_color_rgb : [0.0, 0.0, 0.0, 1.0],
             main_color_hsv : [0.0, 0.0, 0.0, 1.0],
             sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
@@ -563,9 +561,11 @@ impl eframe::App for Warpainter
                     let old_blend_mode = layer.blend_mode.clone();
                     egui::ComboBox::from_id_source("blend_mode_dropdown")
                         .selected_text(&layer.blend_mode)
+                        .width(200.0)
                         .show_ui(ui, |ui|
                     {
                         ui.selectable_value(&mut layer.blend_mode, "Normal".to_string(), "Normal");
+                        ui.selectable_value(&mut layer.blend_mode, "Dither".to_string(), "Dither");
                         
                         ui.separator();
                         

@@ -94,6 +94,16 @@ pub (crate) fn vec_add<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32
     out
 }
 
+pub (crate) fn vec_floor<const N: usize>(a : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = a[i].floor();
+    }
+    out
+}
+
 pub (crate) fn xform_points(xform : &Transform, points : &mut [[f32; 2]])
 {
     for point in points.iter_mut()

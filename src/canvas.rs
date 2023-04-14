@@ -44,7 +44,7 @@ impl CanvasInputState
             input.pointer.button_down(egui::PointerButton::Extra2),
         ];
         
-        if !response.hovered() && !response.dragged() && !response.drag_released()
+        if !response.dragged() && !response.drag_released()
         {
             for e in self.held.iter_mut()
             {

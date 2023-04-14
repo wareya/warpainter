@@ -131,105 +131,6 @@ impl Tool for Fill
     }
 }
 
-pub (crate) struct Pencil
-{
-    size : f32,
-    brush_shape : Image,
-    direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
-    prev_input : CanvasInputState,
-    is_eraser : bool,
-}
-
-impl Pencil
-{
-    pub (crate) fn new() -> Self
-    {
-        let size = 1.0;
-        let brush_shape = Pencil::generate_brush(size);
-        let direction_shapes = Pencil::directionalize_brush(&brush_shape);
-        Pencil { size, brush_shape, direction_shapes, prev_input : CanvasInputState::default(), is_eraser : false }
-    }
-    pub (crate) fn to_eraser(mut self) -> Self
-    {
-        self.is_eraser = true;
-        self
-    }
-    pub (crate) fn update_brush(&mut self)
-    {
-        self.brush_shape = Pencil::generate_brush(self.size);
-        self.direction_shapes = Pencil::directionalize_brush(&self.brush_shape);
-    }
-    fn generate_brush(size : f32) -> Image
-    {
-        let img_size = size.ceil() as usize;
-        let mut shape = Image::blank(img_size, img_size);
-        for uy in 0..img_size as isize
-        {
-            let y = uy as f32 - (img_size as f32)*0.5 + 0.5;
-            for ux in 0..img_size as isize
-            {
-                let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
-                if y*y + x*x < size*size/4.0
-                {
-                    shape.set_pixel(ux, uy, [255, 255, 255, 255]);
-                }
-            }
-        }
-        shape
-    }
-    fn directionalize_brush(brush_shape : &Image) -> Vec<Vec<((isize, isize), [f32; 4])>>
-    {
-        let mut ret = Vec::new();
-        let dirs = [
-            [ 1,  0],
-            [ 1,  1],
-            [ 0,  1],
-            [-1,  1],
-            [-1,  0],
-            [-1, -1],
-            [ 0, -1],
-            [ 1, -1],
-        ];
-        for dir in dirs
-        {
-            let mut new_brush = Vec::new();
-            for uy in 0..brush_shape.height as isize
-            {
-                for ux in 0..brush_shape.width as isize
-                {
-                    let current = brush_shape.get_pixel_float(ux, uy);
-                    let next = brush_shape.get_pixel_float(ux + dir[0], uy + dir[1]);
-                    if current[3] > 0.0 && next[3] == 0.0
-                    {
-                        new_brush.push(((ux, uy), current));
-                    }
-                }
-            }
-            // needed for brushes that have natural diagonal "gaps", but we don't generate any yet
-            // also, we still need to change this to search over the vec instead of using get_pixel
-            /*
-            if dir[0].abs() == dir[1].abs()
-            {
-                for uy in 0..new_brush.height as isize
-                {
-                    for ux in 0..new_brush.width as isize
-                    {
-                        let next_x = brush_shape.get_pixel(ux + dir[0], uy);
-                        let next_y = brush_shape.get_pixel(ux, uy + dir[1]);
-                        if next_x[3] > 0 && next_y[3] > 0
-                        {
-                            new_brush.set_pixel(ux, uy, next_y);
-                        }
-                    }
-                }
-            }*/
-            ret.push(new_brush);
-        }
-        
-        ret
-    }
-}
-
 fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4])
 {
     from[0] = from[0].floor();
@@ -358,7 +259,6 @@ fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape
     draw_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock)
 }
 
-
 fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
 {
     use crate::rect_normalize;
@@ -370,6 +270,115 @@ fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
     rect
 }
 
+fn generate_brush(size : f32) -> Image
+{
+    let img_size = size.ceil() as usize;
+    let mut shape = Image::blank(img_size, img_size);
+    for uy in 0..img_size as isize
+    {
+        let y = uy as f32 - (img_size as f32)*0.5 + 0.5;
+        for ux in 0..img_size as isize
+        {
+            let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
+            if y*y + x*x < size*size/4.0
+            {
+                shape.set_pixel(ux, uy, [255, 255, 255, 255]);
+            }
+        }
+    }
+    shape
+}
+fn directionalize_brush(brush_shape : &Image) -> Vec<Vec<((isize, isize), [f32; 4])>>
+{
+    let mut ret = Vec::new();
+    let dirs = [
+        [ 1,  0],
+        [ 1,  1],
+        [ 0,  1],
+        [-1,  1],
+        [-1,  0],
+        [-1, -1],
+        [ 0, -1],
+        [ 1, -1],
+    ];
+    for dir in dirs
+    {
+        let mut new_brush = Vec::new();
+        for uy in 0..brush_shape.height as isize
+        {
+            for ux in 0..brush_shape.width as isize
+            {
+                let current = brush_shape.get_pixel_float(ux, uy);
+                let next = brush_shape.get_pixel_float(ux + dir[0], uy + dir[1]);
+                if current[3] > 0.0 && next[3] == 0.0
+                {
+                    new_brush.push(((ux, uy), current));
+                }
+            }
+        }
+        // needed for brushes that have natural diagonal "gaps", but we don't generate any yet
+        // also, we still need to change this to search over the vec instead of using get_pixel
+        /*
+        if dir[0].abs() == dir[1].abs()
+        {
+            for uy in 0..new_brush.height as isize
+            {
+                for ux in 0..new_brush.width as isize
+                {
+                    let next_x = brush_shape.get_pixel(ux + dir[0], uy);
+                    let next_y = brush_shape.get_pixel(ux, uy + dir[1]);
+                    if next_x[3] > 0 && next_y[3] > 0
+                    {
+                        new_brush.set_pixel(ux, uy, next_y);
+                    }
+                }
+            }
+        }*/
+        ret.push(new_brush);
+    }
+    
+    ret
+}
+pub (crate) struct Pencil
+{
+    size : f32,
+    brush_shape : Image,
+    direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
+    prev_input : CanvasInputState,
+    cursor_memory : [f32; 2],
+    smooth_mode : bool,
+    is_eraser : bool,
+}
+
+impl Pencil
+{
+    pub (crate) fn new() -> Self
+    {
+        let size = 1.0;
+        let brush_shape = generate_brush(size);
+        let direction_shapes = directionalize_brush(&brush_shape);
+        Pencil {
+            size,
+            brush_shape,
+            direction_shapes,
+            prev_input : CanvasInputState::default(),
+            cursor_memory : [0.0, 0.0],
+            smooth_mode : true,
+            is_eraser : false,
+        }
+    }
+    pub (crate) fn to_eraser(mut self) -> Self
+    {
+        self.is_eraser = true;
+        self
+    }
+    pub (crate) fn update_brush(&mut self)
+    {
+        self.brush_shape = generate_brush(self.size);
+        self.direction_shapes = directionalize_brush(&self.brush_shape);
+    }
+}
+
 impl Tool for Pencil
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
@@ -377,13 +386,43 @@ impl Tool for Pencil
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(true);
+            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
         }
-        if new_input.held[0]
+        // press or hold or release
+        if new_input.held[0] || self.prev_input.held[0]
         {
-            let prev_coord = self.prev_input.canvas_mouse_coord;
-            let coord = new_input.canvas_mouse_coord;
+            let do_smooth = new_input.held[0] && self.smooth_mode;
+            let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
+            let mut coord = vec_floor(&new_input.canvas_mouse_coord);
             
-            app.debug(format!("{:?}", coord));
+            if do_smooth
+            {
+                let coord_d = vec_sub(&coord, &prev_coord);
+                if coord_d[0].abs() > 1.0 || coord_d[1].abs() > 1.0
+                {
+                    // exact diagonal movement
+                    if coord_d[0].abs() == coord_d[1].abs()
+                    {
+                        coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), coord_d[1].clamp(-1.0, 1.0)]);
+                    }
+                    // more horizontal
+                    else if coord_d[0].abs() > coord_d[1].abs()
+                    {
+                        coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), 0.0]);
+                    }
+                    // more vertical
+                    else
+                    {
+                        coord = vec_sub(&coord, &[0.0, coord_d[1].clamp(-1.0, 1.0)]);
+                    }
+                }
+                // not enough motion to move
+                else
+                {
+                    coord = prev_coord;
+                }
+            }
+            
             let color = app.main_color_rgb;
             let eraser = app.eraser_mode || self.is_eraser;
             let alpha_locked = app.current_layer_is_alpha_locked();
@@ -396,14 +435,21 @@ impl Tool for Pencil
                     draw_brush_at_float(image, coord, color, &self.brush_shape, eraser, alpha_locked);
                     app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
                 }
-                else if prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
+                else if prev_coord[0] != coord[0] || prev_coord[1] != coord[1]
                 {
                     draw_brush_line_no_start_float(image, prev_coord, coord, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
                     app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
                 }
             }
+            
+            self.cursor_memory = coord;
         }
-        else if self.prev_input.held[0]
+        else
+        {
+            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+        }
+        // release
+        if !new_input.held[0] && self.prev_input.held[0]
         {
             app.commit_edit();
         }
@@ -420,9 +466,12 @@ impl Tool for Pencil
     }
     fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
-        let mut pos = self.prev_input.canvas_mouse_coord;
-        pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
-        pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
+        //let mut pos = self.prev_input.canvas_mouse_coord;
+        //pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
+        //pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
+        let mut pos = self.cursor_memory;
+        pos[0] = pos[0] - app.canvas_width as f32 / 2.0;
+        pos[1] = pos[1] - app.canvas_height as f32 / 2.0;
         let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
     }
@@ -437,9 +486,9 @@ impl Tool for Pencil
         ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).step_by(1.0).logarithmic(true).clamp_to_range(true));
         if self.size != old_size
         {
-            self.brush_shape = Pencil::generate_brush(self.size);
-            self.direction_shapes = Pencil::directionalize_brush(&self.brush_shape);
+            self.update_brush();
         }
+        ui.checkbox(&mut self.smooth_mode, "Smooth Diagonals");
     }
 }
 
