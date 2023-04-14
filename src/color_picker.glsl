@@ -91,23 +91,27 @@ void main()
         float a = clamp(p*least_f*ring_size/1.2, 0.0, 1.0);
         float b = clamp(p*least_f*ring_size/1.2 - 0.5, 0.0, 1.0);
         
-        out_color = to_linear(hsv_to_rgb(vec4(h, 0.9, b, a)));
+        //out_color = to_linear(hsv_to_rgb(vec4(h, 0.9, b, a)));
+        out_color = hsv_to_rgb(vec4(h, 0.9, b, a));
     }
     else if (x > box_margin && x < box_margin+box_size
           && y > box_margin && y < box_margin+box_size)
     {
         float s = (x-box_margin) / box_size;
         float v = 1.0 - (y-box_margin) / box_size;
-        out_color = to_linear(hsv_to_rgb(vec4(hue, s, v, 1.0)));
+        //out_color = to_linear(hsv_to_rgb(vec4(hue, s, v, 1.0)));
+        out_color = hsv_to_rgb(vec4(hue, s, v, 1.0));
     }
     else if (x > box_margin-1.0 && x < box_margin+box_size+1.0
           && y > box_margin-1.0 && y < box_margin+box_size+1.0)
     {
-        out_color = to_linear(hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.75)));
+        //out_color = to_linear(hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.75)));
+        out_color = hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.75));
     }
     else if (x > box_margin-2.0 && x < box_margin+box_size+2.0
           && y > box_margin-2.0 && y < box_margin+box_size+2.0)
     {
-        out_color = to_linear(hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.25)));
+        //out_color = to_linear(hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.25)));
+        out_color = hsv_to_rgb(vec4(0.0, 0.0, 0.0, 0.25));
     }
 }

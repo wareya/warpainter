@@ -44,7 +44,7 @@ pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpainter, f
 
 pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter) -> egui::Response
 {
-    let input = ui.input().clone();
+    let input = ui.input(|input| input.clone());
     let _time = input.time as f32;
     
     let avail = ui.available_size();

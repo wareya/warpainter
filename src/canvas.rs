@@ -16,6 +16,8 @@ pub (crate) struct CanvasInputState
     pub (crate) view_mouse_coord : [f32; 2],
     pub (crate) window_mouse_motion : [f32; 2],
     pub (crate) mouse_scroll : f32,
+    pub (crate) mouse_in_canvas : bool,
+    pub (crate) mouse_in_canvas_area : bool,
 }
 
 fn to_array(v : egui::Pos2) -> [f32; 2]
@@ -68,12 +70,18 @@ impl CanvasInputState
             
             coord
         };
+        
+        let in_x = self.canvas_mouse_coord[0] >= 0.0 && self.canvas_mouse_coord[0] < app.canvas_width as f32;
+        let in_y = self.canvas_mouse_coord[1] >= 0.0 && self.canvas_mouse_coord[1] < app.canvas_height as f32;
+        
+        self.mouse_in_canvas = response.hovered() && in_x && in_y;
+        self.mouse_in_canvas_area = response.hovered();
     }
 }
 
 pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui::Response, CanvasInputState)
 {
-    let input = ui.input().clone();
+    let input = ui.input(|input| input.clone());
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
     
     let painter = ui.painter_at(response.rect);
@@ -184,11 +192,14 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
     painter.add(callback);
     //// !!!! WARNING: evil vile code (end)
     
-    if let Some(tool) = app.get_tool()
+    if inputstate.mouse_in_canvas_area
     {
-        if let Some(mut gizmo) = tool.get_gizmo(app, true)
+        if let Some(tool) = app.get_tool()
         {
-            gizmo.draw(ui, app, &mut response, &painter);
+            if let Some(mut gizmo) = tool.get_gizmo(app, true)
+            {
+                gizmo.draw(ui, app, &mut response, &painter);
+            }
         }
     }
     
@@ -227,5 +238,5 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
         }
     }
     
-    response
+    (response, inputstate)
 }

@@ -51,5 +51,5 @@ void main()
     
     out_color = vec4(color, 1.0);
     out_color = mix_normal(c, out_color);
-    out_color = to_linear(out_color);
+    //out_color = to_linear(out_color);
 }

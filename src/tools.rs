@@ -118,7 +118,7 @@ impl Tool for Fill
     }
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
     {
-        Some((app.icons.get("tool fill").as_ref().unwrap(), [2.0, 2.0]))
+        Some((app.icons.get("tool fill").as_ref().unwrap(), [2.0, 18.0]))
     }
     fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
     {
@@ -142,7 +142,7 @@ impl Pencil
 {
     pub (crate) fn new() -> Self
     {
-        let size = 4.0;
+        let size = 1.0;
         let brush_shape = Pencil::generate_brush(size);
         let direction_shapes = Pencil::directionalize_brush(&brush_shape);
         Pencil { size, brush_shape, direction_shapes, prev_input : CanvasInputState::default(), is_eraser : false }
@@ -430,7 +430,7 @@ impl Tool for Pencil
     }
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
     {
-        Some((app.icons.get("tool pencil").as_ref().unwrap(), [2.0, 14.0]))
+        Some((app.icons.get("tool pencil").as_ref().unwrap(), [2.0, 19.0]))
     }
     fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
     {

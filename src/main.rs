@@ -168,7 +168,7 @@ impl Warpainter
             let img = ctx.load_texture(
                 "my-image",
                 img,
-                egui::TextureFilter::Nearest
+                egui::TextureOptions::NEAREST
             );
             self.icons.insert(thing.0, img);
         }
@@ -832,21 +832,19 @@ impl eframe::App for Warpainter
             });
         });
         
-        
-        ctx.set_cursor_icon(egui::CursorIcon::Default);
-        if let Some(input_state) = input_state
+        if let (Some(tool), Some(input_state)) = (self.get_tool(), input_state)
         {
-            if let Some(tool) = self.get_tool()
+            if input_state.mouse_in_canvas_area
             {
-                if let Some((cursor, offset)) = self.get_cursor(self)
+                if let Some((cursor, offset)) = tool.get_cursor(self)
                 {
                     ctx.set_cursor_icon(egui::CursorIcon::None);
                     let painter = ctx.debug_painter();
                     let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
-                    let pos = [[0.0, 0.0].into(), cursor.size_vec2().into()].into();
-                    pos.translate(input_state.window_mouse_coord.into());
-                    pos.translate(offset.into());
-                    painter.image(cursor, pos, uv, egui::Color32::WHITE);
+                    let mut pos : egui::Rect = [[0.0, 0.0].into(), cursor.size_vec2().to_pos2()].into();
+                    pos = pos.translate(input_state.window_mouse_coord.into());
+                    pos = pos.translate([-offset[0], -offset[1]].into());
+                    painter.image(cursor.id(), pos, uv, egui::Color32::WHITE);
                 }
             }
         }
@@ -879,5 +877,5 @@ fn main()
         "Warpainter",
         options,
         Box::new(|_| Box::new(Warpainter::default())),
-    );
+    ).unwrap();
 }
