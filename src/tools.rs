@@ -5,12 +5,17 @@ use crate::canvas::CanvasInputState;
 use crate::gizmos::*;
 use crate::pixelmath::*;
 
+use crate::egui;
+use crate::egui::Ui;
+
 pub (crate) trait Tool
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState);
     fn edits_inplace(&self) -> bool; // whether the layer gets a full layer copy or a blank layer that gets composited on top
     fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
     fn get_gizmo(&self, app : &crate::Warpainter, focused : bool) -> Option<Box<dyn Gizmo>>;
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>;
+    fn settings_panel(&mut self, app : &crate::Warpainter, ui : &mut Ui);
 }
 
 pub (crate) struct Fill
@@ -70,8 +75,8 @@ impl Tool for Fill
                                 {
                                     continue;
                                 }
-                                let cond1 = get_dist(image.get_pixel_float(coord[0] as isize, coord[1] as isize), dum_color) < 0.001;
-                                let cond2 = get_dist(base .get_pixel_float(coord[0] as isize, coord[1] as isize), ref_color) < self.threshold;
+                                let cond1 = get_dist(image.get_pixel_float(coord[0] as isize, coord[1] as isize), dum_color) <= 0.001;
+                                let cond2 = get_dist(base .get_pixel_float(coord[0] as isize, coord[1] as isize), ref_color) <= self.threshold;
                                 if cond1 && cond2
                                 {
                                     frontier.push(coord);
@@ -110,6 +115,17 @@ impl Tool for Fill
     fn get_gizmo(&self, _app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         None
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    {
+        Some((app.icons.get("tool fill").as_ref().unwrap(), [2.0, 2.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
+    {
+        ui.label("Treshold");
+        let mut threshold = self.threshold * 255.0;
+        ui.add(egui::Slider::new(&mut threshold, 0.0..=100.0).clamp_to_range(true));
+        self.threshold = threshold/255.0;
     }
 }
 
@@ -411,5 +427,20 @@ impl Tool for Pencil
         pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
         let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    {
+        Some((app.icons.get("tool pencil").as_ref().unwrap(), [2.0, 14.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
+    {
+        ui.label("Size");
+        let old_size = self.size;
+        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).logarithmic(true).clamp_to_range(true));
+        if self.size != old_size
+        {
+            self.brush_shape = Pencil::generate_brush(self.size);
+            self.direction_shapes = Pencil::directionalize_brush(&self.brush_shape);
+        }
     }
 }

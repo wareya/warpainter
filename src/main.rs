@@ -10,6 +10,7 @@ extern crate alloc;
 use eframe::egui;
 use alloc::sync::Arc;
 use egui::mutex::Mutex;
+use egui::Ui;
 use eframe::egui_glow::glow;
 
 mod warimage;
@@ -199,6 +200,15 @@ impl Warpainter
         {
             let mut tool = self.tools.remove(self.current_tool);
             tool.think(self, inputstate);
+            self.tools.insert(self.current_tool, tool);
+        }
+    }
+    fn tool_panel(&mut self, ui : &mut Ui)
+    {
+        if self.current_tool < self.tools.len()
+        {
+            let mut tool = self.tools.remove(self.current_tool);
+            tool.settings_panel(self, ui);
             self.tools.insert(self.current_tool, tool);
         }
     }
@@ -776,9 +786,15 @@ impl eframe::App for Warpainter
         });
         egui::SidePanel::left("ToolSettings").show(ctx, |ui|
         {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
+            egui::ScrollArea::vertical().show(ui, |ui|
+            {
+                self.tool_panel(ui);
+            });
+            
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
                 ui.add(|ui : &mut egui::Ui| color_picker(ui, self));
+                ui.separator();
             });
         });
         

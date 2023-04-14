@@ -163,7 +163,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
         vert[1] /= response.rect.height()/2.0;
     }
     
-    //// !!!! evil vile code
+    //// !!!! WARNING: evil vile code
     let uniforms = [
         ("width", response.rect.width()),
         ("height", response.rect.height()),
@@ -182,7 +182,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui:
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
     painter.add(callback);
-    //// !!!! evil vile code (end)
+    //// !!!! WARNING: evil vile code (end)
     
     if let Some(tool) = app.get_tool()
     {
