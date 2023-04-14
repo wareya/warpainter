@@ -34,28 +34,65 @@ use quadrender::*;
 use vecmap::*;
 use pixelmath::*;
 
+use bincode::{Decode, Encode};
+#[derive(Clone, Debug, Default, Decode, Encode)]
+enum UndoEvent
+{
+    #[default]
+    Null,
+    LayerInfoChange {
+        uuid : u128,
+        old : LayerInfo,
+        new : LayerInfo,
+    },
+    LayerMove {
+        uuid : Vec<u128>,
+        old_parent : Vec<u128>,
+        new_parent : Vec<u128>,
+        old_position : Vec<usize>,
+        new_position : Vec<usize>,
+    },
+    LayerPaint {
+        uuid : u128,
+        rect : [[usize; 2]; 2],
+        old : Image,
+        new : Image,
+        mask : Vec<bool>,
+    },
+}
+
 struct Warpainter
 {
-    layers : Layer,
-    current_layer : u128,
+    // saved to project (later...)
+    
+    layers : Layer, // tree, layers contain other layers
+    current_layer : u128, // uuid
     
     canvas_width : usize,
     canvas_height : usize,
     
-    edit_is_direct : bool,
-    editing_image : Option<Image>,
+    // saved globally (not yet)
     
-    xform : Transform,
-    debug_text : Vec<String>,
-    
-    eraser_mode : bool,
+    eraser_mode : bool, // color mode that forces non-eraser tools to act like erasers
     main_color_rgb : [f32; 4],
     main_color_hsv : [f32; 4],
     sub_color_rgb : [f32; 4],
     sub_color_hsv : [f32; 4],
     
-    tools : Vec<Box<dyn Tool>>,
-    current_tool : usize,
+    current_tool : usize, // FIXME change to &'static str
+    
+    // unsaved
+    
+    redo_buffer : Vec<UndoEvent>,
+    undo_buffer : Vec<UndoEvent>,
+    
+    xform : Transform, // view/camera. FIXME: support mirroring
+    debug_text : Vec<String>,
+    
+    tools : Vec<Box<dyn Tool>>, // FIXME change to VecMap<&'static str, ....
+    
+    edit_is_direct : bool,
+    editing_image : Option<Image>,
     
     loaded_shaders : bool,
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
@@ -91,13 +128,16 @@ impl Default for Warpainter
             
             //image_preview : None,
             xform : Transform::ident(),
-            debug_text : vec!(),
+            debug_text : Vec::new(),
             
             eraser_mode : false,
             main_color_rgb : [0.0, 0.0, 0.0, 1.0],
             main_color_hsv : [0.0, 0.0, 0.0, 1.0],
             sub_color_rgb : [1.0, 1.0, 1.0, 1.0],
             sub_color_hsv : [1.0, 1.0, 1.0, 1.0],
+            
+            redo_buffer : Vec::new(),
+            undo_buffer : Vec::new(),
             
             tools : vec!(
                 Box::new(Pencil::new()),
@@ -163,6 +203,7 @@ impl Warpainter
         ];
         for thing in stuff
         {
+            // FIXME: https://github.com/rust-lang/rust/issues/48331
             let img = image::io::Reader::new(std::io::Cursor::new(&thing.1[..])).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
             let img = Image::from_rgbaimage(&img).to_egui();
             let img = ctx.load_texture(
@@ -305,7 +346,11 @@ impl Warpainter
                 {
                     if let Some(current_image) = &mut layer.data
                     {
+                        let old_data = current_image.clone();
                         *current_image = image;
+                        
+                        self.redo_buffer = Vec::new();
+                        self.undo_buffer.push(Image::analyze_edit(&old_data, current_image, self.current_layer));
                     }
                 }
             }
@@ -341,6 +386,20 @@ impl Warpainter
             return layer.alpha_locked;
         }
         false
+    }
+    fn find_layer_parent_and_index(&self, layer_uuid : u128) -> Option<(u128, usize)>
+    {
+        if let Some(layer) = self.layers.find_layer_parent(self.current_layer)
+        {
+            for (i, child) in layer.children.iter().enumerate()
+            {
+                if child.uuid == layer_uuid
+                {
+                    return Some((layer.uuid, i));
+                }
+            }
+        }
+        None
     }
 }
 

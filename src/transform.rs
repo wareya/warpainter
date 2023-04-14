@@ -74,6 +74,18 @@ pub (crate) fn vec_lerp<const N: usize>(from : &[f32; N], to : &[f32; N], amount
     out
 }
 
+pub (crate) fn vec_eq<const N: usize>(a : &[f32; N], b : &[f32; N]) -> bool
+{
+    for i in 0..N
+    {
+        if a[i] != b[i]
+        {
+            return false;
+        }
+    }
+    true
+}
+
 pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
 {
     let mut out = [0.0; N];

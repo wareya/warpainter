@@ -20,31 +20,69 @@ pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
     rect_enclose_point([rect[0], rect[0]], rect[1])
 }
 
-pub(crate) struct Layer
+use bincode::{Decode, Encode};
+#[derive(Clone, Debug, Default, Decode, Encode)]
+pub (crate) struct LayerInfo
 {
-    pub(crate) name : String,
-    pub(crate) blend_mode : String,
+    pub (crate) name : String,
+    pub (crate) blend_mode : String,
     
-    pub(crate) data : Option<Image>,
-    pub(crate) children : Vec<Layer>,
+    pub (crate) opacity : f32,
+    pub (crate) visible : bool,
     
-    pub(crate) flattened_data : Option<Image>,
-    pub(crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
+    pub (crate) clipped : bool,
+    pub (crate) locked : bool,
+    pub (crate) alpha_locked : bool,
+}
+
+pub (crate) struct Layer
+{
+    pub (crate) uuid : u128,
     
-    pub(crate) uuid : u128,
+    pub (crate) data : Option<Image>,
+    pub (crate) children : Vec<Layer>,
     
-    pub(crate) offset : [f32; 2],
+    pub (crate) flattened_data : Option<Image>,
+    pub (crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
     
-    pub(crate) opacity : f32,
-    pub(crate) visible : bool,
+    pub (crate) offset : [f32; 2],
     
-    pub(crate) clipped : bool,
-    pub(crate) locked : bool,
-    pub(crate) alpha_locked : bool,
+    
+    pub (crate) name : String,
+    pub (crate) blend_mode : String,
+    
+    pub (crate) opacity : f32,
+    pub (crate) visible : bool,
+    
+    pub (crate) clipped : bool,
+    pub (crate) locked : bool,
+    pub (crate) alpha_locked : bool,
 }
 
 impl Layer
 {
+    pub (crate) fn get_info(&self) -> LayerInfo
+    {
+        LayerInfo {
+            name : self.name.clone(),
+            blend_mode : self.blend_mode.clone(),
+            opacity : self.opacity,
+            visible : self.visible,
+            clipped : self.clipped,
+            locked : self.locked,
+            alpha_locked : self.alpha_locked,
+        }
+    }
+    pub (crate) fn set_info(&mut self, info : &LayerInfo)
+    {
+        self.name = info.name.clone();
+        self.blend_mode = info.blend_mode.clone();
+        self.opacity = info.opacity;
+        self.visible = info.visible;
+        self.clipped = info.clipped;
+        self.locked = info.locked;
+        self.alpha_locked = info.alpha_locked;
+    }
     pub(crate) fn new_layer_from_image<T : ToString>(name : T, image : Image) -> Self
     {
         Layer {
@@ -149,6 +187,25 @@ impl Layer
                 if r.is_some()
                 {
                     return r;
+                }
+            }
+            None
+        }
+    }
+    pub(crate) fn find_layer_parent(&self, uuid : u128) -> Option<&Layer>
+    {
+        if self.uuid == uuid
+        {
+            None
+        }
+        else
+        {
+            for child in self.children.iter()
+            {
+                let is_some = child.find_layer(uuid).is_some();
+                if is_some
+                {
+                    return Some(self);
                 }
             }
             None

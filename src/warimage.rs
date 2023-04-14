@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::UndoEvent;
 use crate::pixelmath::*;
 
 /*
@@ -32,11 +33,20 @@ fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
     ret
 }
 
-#[derive(Debug, Clone)]
+use bincode::{Decode, Encode};
+#[derive(Clone, Debug, Decode, Encode)]
 pub (crate) enum ImageData
 {
     Float(Vec<[f32; 4]>),
     Int(Vec<[u8; 4]>),
+}
+
+impl Default for ImageData
+{
+    fn default() -> Self
+    {
+        ImageData::Int(Vec::new())
+    }
 }
 
 impl ImageData
@@ -130,7 +140,7 @@ impl ImageData
 }
 
 // always RGBA
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default, Decode, Encode)]
 pub (crate) struct Image
 {
     pub (crate) width : usize,
@@ -275,6 +285,12 @@ impl Image
     pub (crate) fn blank(w : usize, h : usize) -> Self
     {
         let data = ImageData::new_int(w as usize, h as usize);
+        let ret = Self { width : w as usize, height : h as usize, data };
+        ret
+    }
+    pub (crate) fn blank_float(w : usize, h : usize) -> Self
+    {
+        let data = ImageData::new_float(w as usize, h as usize);
         let ret = Self { width : w as usize, height : h as usize, data };
         ret
     }
@@ -504,4 +520,72 @@ impl Image
     {
         self.clear_with_color_float([0.0, 0.0, 0.0, 0.0]);
     }
+    
+    pub (crate) fn analyze_edit(old_data : &Image, new_data : &Image, uuid : u128) -> UndoEvent
+    {
+        use crate::vec_eq;
+        
+        let mut min_x = new_data.width;
+        let mut max_x = 0;
+        let mut min_y = new_data.height;
+        let mut max_y = 0;
+        macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
+        {
+            for outer in $outer_range
+            {
+                for inner in $inner_range
+                {
+                    let first = if $y_outer { inner } else { outer } as isize;
+                    let second = if $y_outer { outer } else { inner } as isize;
+                    let old_c = old_data.get_pixel_float_wrapped(first, second);
+                    let new_c = new_data.get_pixel_float_wrapped(first, second);
+                    if !vec_eq(&old_c, &new_c)
+                    {
+                        *$target = $f(*$target, outer);
+                    }
+                }
+            }
+        } }
+        do_loop!(true , 0..new_data.height            , 0..new_data.width, &mut min_y, usize::min);
+        do_loop!(true , (min_y..new_data.height).rev(), 0..new_data.width, &mut max_y, usize::max);
+        do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
+        do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
+        
+        if max_y >= min_y && max_x >= min_x
+        {
+            let w = max_x - min_x + 1;
+            let h = max_y - min_y + 1;
+            
+            let mut old_copy = if old_data.is_int() { Image::blank(w, h) } else { Image::blank_float(w, h) };
+            let mut new_copy = if old_data.is_int() { Image::blank(w, h) } else { Image::blank_float(w, h) };
+            let mut mask = vec!(false; w*h);
+            
+            for y in min_y..=max_y
+            {
+                for x in min_x..=max_x
+                {
+                    let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
+                    let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
+                    if !vec_eq(&old_c, &new_c)
+                    {
+                        let x2 = x - min_x;
+                        let y2 = y - min_y;
+                        old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
+                        new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
+                        mask[y2 * w + x] = true;
+                    }
+                }
+            }
+            
+            return UndoEvent::LayerPaint {
+                uuid,
+                rect : [[min_x, min_y], [max_x+1, max_y+1]], 
+                old : old_copy,
+                new : new_copy,
+                mask
+            };
+        }
+        UndoEvent::Null
+    }
 }
+
