@@ -71,7 +71,7 @@ impl CanvasInputState
     }
 }
 
-pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> egui::Response
+pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui::Response, CanvasInputState)
 {
     let input = ui.input().clone();
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());

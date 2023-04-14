@@ -819,12 +819,37 @@ impl eframe::App for Warpainter
             ..Default::default()
         };
         
+        
+        let mut input_state = None;
         egui::CentralPanel::default().frame(frame).show(ctx, |ui|
         {
             ui.spacing_mut().window_margin = 0.0.into();
-            ui.add(|ui : &mut egui::Ui| canvas(ui, self));
+            ui.add(|ui : &mut egui::Ui|
+            {
+                let (response, state) = canvas(ui, self);
+                input_state = Some(state);
+                response
+            });
         });
         
+        
+        ctx.set_cursor_icon(egui::CursorIcon::Default);
+        if let Some(input_state) = input_state
+        {
+            if let Some(tool) = self.get_tool()
+            {
+                if let Some((cursor, offset)) = self.get_cursor(self)
+                {
+                    ctx.set_cursor_icon(egui::CursorIcon::None);
+                    let painter = ctx.debug_painter();
+                    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
+                    let pos = [[0.0, 0.0].into(), cursor.size_vec2().into()].into();
+                    pos.translate(input_state.window_mouse_coord.into());
+                    pos.translate(offset.into());
+                    painter.image(cursor, pos, uv, egui::Color32::WHITE);
+                }
+            }
+        }
         // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui/eframe 0.19.0 at least)
         //ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
