@@ -8,10 +8,16 @@ use crate::pixelmath::*;
 use crate::egui;
 use crate::egui::Ui;
 
+enum ReferenceMode
+{
+    CurrentLayer,
+    CurrentFolder,
+    Merged,
+}
+
 pub (crate) trait Tool
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState);
-    fn edits_inplace(&self) -> bool; // whether the layer gets a full layer copy or a blank layer that gets composited on top
     fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
     fn get_gizmo(&self, app : &crate::Warpainter, focused : bool) -> Option<Box<dyn Gizmo>>;
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>;
@@ -37,7 +43,7 @@ impl Tool for Fill
     {
         if new_input.held[0] && !self.prev_input.held[0]
         {
-            app.begin_edit(self.edits_inplace());
+            app.begin_edit(false);
         }
         if new_input.held[0]
         {
@@ -103,10 +109,6 @@ impl Tool for Fill
         }
         
         self.prev_input = new_input.clone();
-    }
-    fn edits_inplace(&self) -> bool
-    {
-        false
     }
     fn is_brushlike(&self) -> bool
     {
@@ -374,7 +376,7 @@ impl Tool for Pencil
     {
         if new_input.held[0] && !self.prev_input.held[0]
         {
-            app.begin_edit(self.edits_inplace());
+            app.begin_edit(true);
         }
         if new_input.held[0]
         {
@@ -412,10 +414,6 @@ impl Tool for Pencil
         
         self.prev_input = new_input.clone();
     }
-    fn edits_inplace(&self) -> bool
-    {
-        true
-    }
     fn is_brushlike(&self) -> bool
     {
         true
@@ -436,11 +434,74 @@ impl Tool for Pencil
     {
         ui.label("Size");
         let old_size = self.size;
-        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).logarithmic(true).clamp_to_range(true));
+        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).step_by(1.0).logarithmic(true).clamp_to_range(true));
         if self.size != old_size
         {
             self.brush_shape = Pencil::generate_brush(self.size);
             self.direction_shapes = Pencil::directionalize_brush(&self.brush_shape);
         }
+    }
+}
+
+pub (crate) struct Eyedropper
+{
+    size : f32,
+    sample_source : ReferenceMode,
+    prev_input : CanvasInputState,
+    pick_alpha : bool,
+}
+
+impl Eyedropper
+{
+    pub (crate) fn new() -> Self
+    {
+        let size = 1.0;
+        Eyedropper { size, sample_source : ReferenceMode::CurrentLayer, pick_alpha : true, prev_input : CanvasInputState::default() }
+    }
+}
+
+impl Tool for Eyedropper
+{
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
+    {
+        if new_input.held[0]
+        {
+            let coord = new_input.canvas_mouse_coord;
+            // FIXME: use size, sample source
+            let image = app.get_current_layer_image();
+            if let Some(image) = image
+            {
+                let mut color = image.get_pixel_float(coord[0] as isize, coord[1] as isize);
+                if !self.pick_alpha
+                {
+                    color[3] = app.main_color_rgb[3];
+                }
+                app.set_main_color_rgb(color);
+            }
+        }
+        
+        self.prev_input = new_input.clone();
+    }
+    fn is_brushlike(&self) -> bool
+    {
+        false
+    }
+    fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
+    {
+        let mut pos = self.prev_input.canvas_mouse_coord;
+        pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
+        pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
+        let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
+        Some(Box::new(gizmo))
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    {
+        Some((app.icons.get("tool eyedropper").as_ref().unwrap(), [2.0, 20.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
+    {
+        //ui.label("Size");
+        //ui.add(egui::Slider::new(&mut self.size, 1.0..=8.0).step_by(1.0).clamp_to_range(true));
+        ui.checkbox(&mut self.pick_alpha, "Pick Alpha");
     }
 }

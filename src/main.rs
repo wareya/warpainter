@@ -105,6 +105,7 @@ impl Default for Warpainter
                 Box::new(Pencil::new()),
                 Box::new(Pencil::new().to_eraser()),
                 Box::new(Fill::new()),
+                Box::new(Eyedropper::new()),
             ),
             current_tool : 0,
             
@@ -160,6 +161,7 @@ impl Warpainter
             ("tool pencil",         include_bytes!("icons/tool pencil.png")         .to_vec()),
             ("tool eraser",         include_bytes!("icons/tool eraser.png")         .to_vec()),
             ("tool fill",           include_bytes!("icons/tool fill.png")           .to_vec()),
+            ("tool eyedropper",     include_bytes!("icons/tool eyedropper.png")     .to_vec()),
         ];
         for thing in stuff
         {
@@ -245,6 +247,17 @@ impl Warpainter
     fn get_editing_image<'a>(&'a mut self) -> Option<&'a mut Image>
     {
         (&mut self.editing_image).as_mut()
+    }
+    fn get_current_layer_image<'a>(&'a mut self) -> Option<&'a Image>
+    {
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            Some(layer.flatten(self.canvas_width, self.canvas_height, None, None))
+        }
+        else
+        {
+            None
+        }
     }
     fn flatten<'a>(&'a mut self) -> &'a Image
     {
@@ -769,19 +782,26 @@ impl eframe::App for Warpainter
             } }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
             {
-                ui.spacing_mut().button_padding = [0.0, 0.0].into();
-                if add_button!(ui, "tool pencil", "Pencil Tool", self.current_tool == 0).clicked()
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT).with_main_wrap(true), |ui|
                 {
-                    self.current_tool = 0;
-                }
-                if add_button!(ui, "tool eraser", "Eraser Tool", self.current_tool == 1).clicked()
-                {
-                    self.current_tool = 1;
-                }
-                if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 2).clicked()
-                {
-                    self.current_tool = 2;
-                }
+                    ui.spacing_mut().button_padding = [0.0, 0.0].into();
+                    if add_button!(ui, "tool pencil", "Pencil Tool", self.current_tool == 0).clicked()
+                    {
+                        self.current_tool = 0;
+                    }
+                    if add_button!(ui, "tool eraser", "Eraser Tool", self.current_tool == 1).clicked()
+                    {
+                        self.current_tool = 1;
+                    }
+                    if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 2).clicked()
+                    {
+                        self.current_tool = 2;
+                    }
+                    if add_button!(ui, "tool eyedropper", "Eyedropper Tool", self.current_tool == 3).clicked()
+                    {
+                        self.current_tool = 3;
+                    }
+                });
             });
         });
         egui::SidePanel::left("ToolSettings").show(ctx, |ui|
