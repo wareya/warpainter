@@ -1,24 +1,6 @@
 use crate::warimage::*;
 use uuid::Uuid;
-
-pub (crate) fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
-{
-    rect[0][0] = rect[0][0].min(point[0]);
-    rect[0][1] = rect[0][1].min(point[1]);
-    rect[1][0] = rect[1][0].max(point[0]);
-    rect[1][1] = rect[1][1].max(point[1]);
-    rect
-}
-pub (crate) fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32; 2]; 2]
-{
-    rect = rect_enclose_point(rect, rect_2[0]);
-    rect = rect_enclose_point(rect, rect_2[1]);
-    rect
-}
-pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
-{
-    rect_enclose_point([rect[0], rect[0]], rect[1])
-}
+use crate::transform::*;
 
 use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Default, Decode, Encode)]
@@ -35,6 +17,24 @@ pub (crate) struct LayerInfo
     pub (crate) alpha_locked : bool,
 }
 
+impl LayerInfo
+{
+    fn new(name : String) -> Self
+    {
+        Self {
+            name : name.to_string(),
+            blend_mode : "Normal".to_string(),
+            
+            opacity : 1.0,
+            visible : true,
+            
+            clipped : false,
+            locked : false,
+            alpha_locked : false,
+        }
+    }
+}
+
 pub (crate) struct Layer
 {
     pub (crate) uuid : u128,
@@ -47,7 +47,6 @@ pub (crate) struct Layer
     
     pub (crate) offset : [f32; 2],
     
-    
     pub (crate) name : String,
     pub (crate) blend_mode : String,
     
@@ -57,6 +56,8 @@ pub (crate) struct Layer
     pub (crate) clipped : bool,
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
+    
+    pub (crate) old_info_for_undo : LayerInfo,
 }
 
 impl Layer
@@ -82,6 +83,12 @@ impl Layer
         self.clipped = info.clipped;
         self.locked = info.locked;
         self.alpha_locked = info.alpha_locked;
+        
+        self.commit_info();
+    }
+    pub (crate) fn commit_info(&mut self)
+    {
+        self.old_info_for_undo = self.get_info();
     }
     pub(crate) fn new_layer_from_image<T : ToString>(name : T, image : Image) -> Self
     {
@@ -105,6 +112,8 @@ impl Layer
             clipped : false,
             locked : false,
             alpha_locked : false,
+            
+            old_info_for_undo : LayerInfo::new(name.to_string()),
         }
     }
     pub(crate) fn new_layer<T : ToString>(name : T, w : usize, h : usize) -> Self
@@ -133,6 +142,8 @@ impl Layer
             clipped : false,
             locked : false,
             alpha_locked : false,
+            
+            old_info_for_undo : LayerInfo::new(name.to_string()),
         }
     }
     pub(crate) fn is_drawable(&self) -> bool

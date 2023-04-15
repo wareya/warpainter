@@ -260,7 +260,6 @@ fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape
 
 fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
 {
-    use crate::rect_normalize;
     rect = rect_normalize(rect);
     rect[0][0] -= grow_size[0];
     rect[0][1] -= grow_size[1];
@@ -362,7 +361,7 @@ impl Pencil
             direction_shapes,
             prev_input : CanvasInputState::default(),
             cursor_memory : [0.0, 0.0],
-            smooth_mode : true,
+            smooth_mode : false,
             is_eraser : false,
         }
     }

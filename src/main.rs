@@ -396,6 +396,23 @@ impl Warpainter
         self.editing_image = None;
         self.edit_is_direct = false;
     }
+    fn log_layer_info_change(&mut self)
+    {
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            let old_info = layer.old_info_for_undo.clone();
+            let new_info = layer.get_info();
+            layer.commit_info();
+            
+            self.redo_buffer = Vec::new();
+            let event = UndoEvent::LayerInfoChange(LayerInfoChange {
+                uuid : self.current_layer,
+                old : old_info.clone(),
+                new : new_info.clone(),
+            });
+            self.undo_buffer.push(event.compress());
+        }
+    }
     fn perform_undo(&mut self)
     {
         if let Some(event) = self.undo_buffer.pop()
@@ -414,6 +431,15 @@ impl Warpainter
                         }
                         let r = event.rect;
                         layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                    }
+                }
+                UndoEvent::LayerInfoChange(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.uuid)
+                    {
+                        layer.set_info(&event.old);
+                        layer.dirtify_all();
+                        println!("info undo done");
                     }
                 }
                 _ =>
@@ -446,6 +472,15 @@ impl Warpainter
                         }
                         let r = event.rect;
                         layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                    }
+                }
+                UndoEvent::LayerInfoChange(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.uuid)
+                    {
+                        layer.set_info(&event.new);
+                        layer.dirtify_all();
+                        println!("info redo done");
                     }
                 }
                 _ =>
@@ -805,18 +840,28 @@ impl eframe::App for Warpainter
                         ui.selectable_value(&mut layer.blend_mode, "Interpolate".to_string(), "Interpolate");
                     });
                     
+                    let old_opacity = layer.opacity * 100.0;
+                    let mut opacity = old_opacity;
+                    let slider_response = ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
+                    layer.opacity = opacity/100.0;
+                    
+                    if old_blend_mode != layer.blend_mode || old_opacity != opacity
+                    {
+                        layer.dirtify_all();
+                    }
                     if old_blend_mode != layer.blend_mode
                     {
-                        layer.dirtify_all();
+                        self.log_layer_info_change();
                     }
-                    
-                    let mut opacity = layer.opacity * 100.0;
-                    ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
-                    if layer.opacity * 100.0 != opacity
+                    else if old_opacity != opacity && !slider_response.dragged()
                     {
-                        layer.dirtify_all();
+                        self.log_layer_info_change();
                     }
-                    layer.opacity = opacity/100.0;
+                    else if slider_response.drag_released()
+                    {
+                        println!("making undo for opacity");
+                        self.log_layer_info_change();
+                    }
                 }
                 else
                 {
@@ -853,6 +898,7 @@ impl eframe::App for Warpainter
                         {
                             layer.clipped = !layer.clipped;
                             layer.dirtify_all();
+                            self.log_layer_info_change();
                         }
                     }
                     if add_button!(ui, "lock", "Toggle Layer Lock", locked).clicked()
@@ -860,6 +906,7 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.locked = !layer.locked;
+                            self.log_layer_info_change();
                         }
                     }
                     if add_button!(ui, "lock alpha", "Toggle Alpha Lock", alpha_locked).clicked()
@@ -867,6 +914,7 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.alpha_locked = !layer.alpha_locked;
+                            self.log_layer_info_change();
                         }
                     }
                 });
