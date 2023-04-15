@@ -36,29 +36,38 @@ use pixelmath::*;
 
 use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Default, Decode, Encode)]
+struct LayerInfoChange
+{
+    uuid : u128,
+    old : LayerInfo,
+    new : LayerInfo,
+}
+#[derive(Clone, Debug, Default, Decode, Encode)]
+struct LayerMove
+{
+    uuid : Vec<u128>,
+    old_parent : Vec<u128>,
+    new_parent : Vec<u128>,
+    old_position : Vec<usize>,
+    new_position : Vec<usize>,
+}
+#[derive(Clone, Debug, Default, Decode, Encode)]
+struct LayerPaint
+{
+    uuid : u128,
+    rect : [[usize; 2]; 2],
+    old : Image,
+    new : Image,
+    mask : Vec<bool>,
+}
+#[derive(Clone, Debug, Default, Decode, Encode)]
 enum UndoEvent
 {
     #[default]
     Null,
-    LayerInfoChange {
-        uuid : u128,
-        old : LayerInfo,
-        new : LayerInfo,
-    },
-    LayerMove {
-        uuid : Vec<u128>,
-        old_parent : Vec<u128>,
-        new_parent : Vec<u128>,
-        old_position : Vec<usize>,
-        new_position : Vec<usize>,
-    },
-    LayerPaint {
-        uuid : u128,
-        rect : [[usize; 2]; 2],
-        old : Image,
-        new : Image,
-        mask : Vec<bool>,
-    },
+    LayerInfoChange(LayerInfoChange),
+    LayerMove(LayerMove),
+    LayerPaint(LayerPaint),
 }
 
 struct Warpainter
@@ -372,6 +381,69 @@ impl Warpainter
         self.editing_image = None;
         self.edit_is_direct = false;
     }
+    fn perform_undo(&mut self)
+    {
+        if let Some(event) = self.undo_buffer.pop()
+        {
+            match event
+            {
+                UndoEvent::LayerPaint(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.uuid)
+                    {
+                        if let Some(ref mut data) = &mut layer.data
+                        {
+                            data.undo_edit(event);
+                            println!("undo done");
+                        }
+                        let r = event.rect;
+                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                    }
+                }
+                _ =>
+                {
+                    println!("not supported yet");
+                }
+            }
+            self.redo_buffer.push(event);
+        }
+        else
+        {
+            println!("nothing to undo");
+        }
+    }
+    fn perform_redo(&mut self)
+    {
+        if let Some(event) = self.redo_buffer.pop()
+        {
+            match event
+            {
+                UndoEvent::LayerPaint(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.uuid)
+                    {
+                        if let Some(ref mut data) = &mut layer.data
+                        {
+                            data.redo_edit(event);
+                            println!("redo done");
+                        }
+                        let r = event.rect;
+                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                    }
+                }
+                _ =>
+                {
+                    println!("not supported yet");
+                }
+            }
+            self.undo_buffer.push(event);
+        }
+        else
+        {
+            println!("nothing to redo");
+        }
+    }
+    
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -541,6 +613,25 @@ impl eframe::App for Warpainter
     {
         self.load_icons(ctx);
         self.load_shaders(frame);
+        
+        ctx.input_mut(|state|
+        {
+            let shortcut_undo = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Z);
+            let shortcut_redo_a = egui::KeyboardShortcut::new(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z);
+            let shortcut_redo_b = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Y);
+            if state.consume_shortcut(&shortcut_undo)
+            {
+                self.perform_undo();
+            }
+            if state.consume_shortcut(&shortcut_redo_a)
+            {
+                self.perform_redo();
+            }
+            if state.consume_shortcut(&shortcut_redo_b)
+            {
+                self.perform_redo();
+            }
+        });
         
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
         {

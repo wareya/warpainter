@@ -1,5 +1,6 @@
 use eframe::egui;
 
+use crate::LayerPaint;
 use crate::UndoEvent;
 use crate::pixelmath::*;
 
@@ -572,20 +573,49 @@ impl Image
                         let y2 = y - min_y;
                         old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
                         new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
-                        mask[y2 * w + x] = true;
+                        mask[y2 * w + x2] = true;
                     }
                 }
             }
             
-            return UndoEvent::LayerPaint {
+            return UndoEvent::LayerPaint(LayerPaint {
                 uuid,
                 rect : [[min_x, min_y], [max_x+1, max_y+1]], 
                 old : old_copy,
                 new : new_copy,
                 mask
-            };
+            });
         }
         UndoEvent::Null
+    }
+    pub (crate) fn apply_edit(&mut self, event : &LayerPaint, is_undo : bool)
+    {
+        let rect = event.rect;
+        let w = rect[1][0] - rect[0][0];
+        
+        let source = if is_undo { &event.old } else { &event.new };
+        
+        for y in rect[0][1]..rect[1][1]
+        {
+            for x in rect[0][0]..rect[1][0]
+            {
+                let x2 = x - rect[0][0];
+                let y2 = y - rect[0][1];
+                if event.mask[y2 * w + x2]
+                {
+                    let c = source.get_pixel_float_wrapped(x2 as isize, y2 as isize);
+                    self.set_pixel_float_wrapped(x as isize, y as isize, c);
+                }
+            }
+        }
+    }
+    pub (crate) fn undo_edit(&mut self, event : &LayerPaint)
+    {
+        self.apply_edit(event, true)
+    }
+    pub (crate) fn redo_edit(&mut self, event : &LayerPaint)
+    {
+        self.apply_edit(event, false)
     }
 }
 
