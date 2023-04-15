@@ -412,36 +412,65 @@ impl Image
                             ret
                         }
                     };
-                    // FEARLESS CONCURRENCY
-                    crossbeam::scope(|s|
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        // FEARLESS CONCURRENCY
+                        crossbeam::scope(|s|
+                        {
+                            for info in infos
+                            {
+                                s.spawn(move |_|
+                                {
+                                    let bottom = info.0;
+                                    let offset = info.1;
+                                    let min_y = 0;
+                                    let max_y = bottom.len()/self_width;
+                                    for y in min_y..max_y
+                                    {
+                                        let self_index_y_part = y*self_width;
+                                        let top_index_y_part = (y+offset)*top_width;
+                                        for x in min_x..max_x
+                                        {
+                                            let bottom_index = self_index_y_part + x;
+                                            let top_index = top_index_y_part + x;
+                                            
+                                            let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                            let top_pixel = $top_read_f($top[top_index]);
+                                            let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
+                                            let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
+                                            bottom[bottom_index] = $bottom_write_f(c);
+                                        }
+                                    }
+                                });
+                            }
+                        }).unwrap();
+                    }
+                    #[cfg(target_arch = "wasm32")]
                     {
                         for info in infos
                         {
-                            s.spawn(move |_|
+                            let bottom = info.0;
+                            let offset = info.1;
+                            let min_y = 0;
+                            let max_y = bottom.len()/self_width;
+                            for y in min_y..max_y
                             {
-                                let bottom = info.0;
-                                let offset = info.1;
-                                let min_y = 0;
-                                let max_y = bottom.len()/self_width;
-                                for y in min_y..max_y
+                                let self_index_y_part = y*self_width;
+                                let top_index_y_part = (y+offset)*top_width;
+                                for x in min_x..max_x
                                 {
-                                    let self_index_y_part = y*self_width;
-                                    let top_index_y_part = (y+offset)*top_width;
-                                    for x in min_x..max_x
-                                    {
-                                        let bottom_index = self_index_y_part + x;
-                                        let top_index = top_index_y_part + x;
-                                        
-                                        let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                        let top_pixel = $top_read_f($top[top_index]);
-                                        let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
-                                        let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
-                                        bottom[bottom_index] = $bottom_write_f(c);
-                                    }
+                                    let bottom_index = self_index_y_part + x;
+                                    let top_index = top_index_y_part + x;
+                                    
+                                    let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                    let top_pixel = $top_read_f($top[top_index]);
+                                    let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
+                                    let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
+                                    bottom[bottom_index] = $bottom_write_f(c);
                                 }
-                            });
+                            }
                         }
-                    }).unwrap();
+                    }
                 }
             }
         }

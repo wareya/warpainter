@@ -67,6 +67,10 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter) -> 
     let least_vec2 = [least as f32, least as f32].into();
     let response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());
     
+    if !app.loaded_shaders
+    {
+        return response;
+    }
     let box_start = response.rect.min + [box_margin, box_margin].into();
     let box_end   = box_start + [box_size, box_size].into();
     let sv_box : egui::Rect = [box_start, box_end].into();

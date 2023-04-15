@@ -83,13 +83,17 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
 {
     let input = ui.input(|input| input.clone());
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
-    
     let painter = ui.painter_at(response.rect);
     
     // collect input
     
     let mut inputstate = CanvasInputState::default();
     inputstate.update(app, &input, &response);
+    
+    if !app.loaded_shaders
+    {
+        return (response, inputstate);
+    }
     
     // handle input
     
@@ -132,14 +136,19 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
     
     // render canvas
     
-    let start = std::time::SystemTime::now();
+    //let start = std::time::SystemTime::now();
+    
     let texture = app.flatten().clone(); // FIXME performance drain
+    
+    /*
     let elapsed = start.elapsed();
     let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
     if elapsed > 0.1
     {
         println!("time to flatten: {}", elapsed);
     }
+    */
+    
     let (w, h) = (texture.width as f32, texture.height as f32);
     
     let xform = app.xform.clone();

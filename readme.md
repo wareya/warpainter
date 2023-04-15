@@ -57,6 +57,10 @@ I expect to have all of the following features. This is sorted in order of devel
 
 # License
 
+Contains some files from the eframe template project https://github.com/emilk/eframe_template/, under the eframe template project's license.
+
+For all other files:
+
 Copyright 2022 "Wareya" (wareya@gmail.com) and any contributors
 
 Licensed under the Apache License v2.0, with LLVM Exceptions and an

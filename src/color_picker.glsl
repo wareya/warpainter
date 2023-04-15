@@ -1,4 +1,4 @@
-#version 140
+
 
 in vec2 vertex;
 out vec4 out_color;

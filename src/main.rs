@@ -128,7 +128,7 @@ impl Default for Warpainter
 {
     fn default() -> Self
     {
-        let img = image::io::Reader::open("grass4x4plus.png").unwrap().decode().unwrap().to_rgba8();
+        let img = image::io::Reader::new(std::io::Cursor::new(&include_bytes!("data/grass4x4plus.png"))).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
         let img = Image::from_rgbaimage(&img);
         let canvas_width = img.width;
         let canvas_height = img.height;
@@ -185,17 +185,29 @@ impl Warpainter
 {
     fn load_shaders(&mut self, frame : &mut eframe::Frame)
     {
-        if self.loaded_shaders
+        if self.loaded_shaders || frame.gl().is_none()
         {
             return;
         }
         self.loaded_shaders = true;
         
-        let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("color_picker.glsl"))).unwrap();
-        self.shaders.insert("colorpicker", Arc::new(Mutex::new(colorpicker_shader)));
+        if let Some(shader) = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("color_picker.glsl")))
+        {
+            self.shaders.insert("colorpicker", Arc::new(Mutex::new(shader)));
+        }
+        else
+        {
+            self.loaded_shaders = false;
+        }
         
-        let colorpicker_shader = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("canvas_background.glsl"))).unwrap();
-        self.shaders.insert("canvasbackground", Arc::new(Mutex::new(colorpicker_shader)));
+        if let Some(shader) = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("canvas_background.glsl")))
+        {
+            self.shaders.insert("canvasbackground", Arc::new(Mutex::new(shader)));
+        }
+        else
+        {
+            self.loaded_shaders = false;
+        }
     }
     fn load_icons(&mut self, ctx : &egui::Context)
     {
@@ -691,40 +703,44 @@ impl eframe::App for Warpainter
             {
                 ui.menu_button("File", |ui|
                 {
-                    if ui.button("Open...").clicked()
+                    let _ = &ui; // suppress unused warning on wasm32
+                    #[cfg(not(target_arch = "wasm32"))]
                     {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Supported Image Formats",
-                                &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds"])
-                            //.add_filter("Warpainter Project",
-                            //    &["wrp"])
-                            .pick_file()
+                        if ui.button("Open...").clicked()
                         {
-                            self.cancel_edit();
-                            
-                            // FIXME handle error
-                            let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
-                            let img = Image::from_rgbaimage(&img);
-                            self.load_from_img(img);
-                            
-                            ui.close_menu();
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Supported Image Formats",
+                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds"])
+                                //.add_filter("Warpainter Project",
+                                //    &["wrp"])
+                                .pick_file()
+                            {
+                                self.cancel_edit();
+                                
+                                // FIXME handle error
+                                let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
+                                let img = Image::from_rgbaimage(&img);
+                                self.load_from_img(img);
+                                
+                                ui.close_menu();
+                            }
                         }
-                    }
-                    if ui.button("Save Copy...").clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("PNG", &["png"])
-                            //.add_filter("Warpainter Project",
-                            //    &["wrp"])
-                            .save_file()
+                        if ui.button("Save Copy...").clicked()
                         {
-                            self.cancel_edit();
-                            
-                            let img = self.flatten().to_imagebuffer();
-                            // FIXME handle error
-                            img.save(path).unwrap();
-                            
-                            ui.close_menu();
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("PNG", &["png"])
+                                //.add_filter("Warpainter Project",
+                                //    &["wrp"])
+                                .save_file()
+                            {
+                                self.cancel_edit();
+                                
+                                let img = self.flatten().to_imagebuffer();
+                                // FIXME handle error
+                                img.save(path).unwrap();
+                                
+                                ui.close_menu();
+                            }
                         }
                     }
                 });
@@ -1098,6 +1114,7 @@ impl eframe::App for Warpainter
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main()
 {
     let mut options = eframe::NativeOptions::default();
@@ -1113,4 +1130,26 @@ fn main()
         options,
         Box::new(|_| Box::new(Warpainter::default())),
     ).unwrap();
+}
+
+// when compiling to web using trunk.
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // Make sure panics are logged using `console.error`.
+    console_error_panic_hook::set_once();
+
+    // Redirect tracing to console.log and friends:
+    tracing_wasm::set_as_global_default();
+
+    let web_options = eframe::WebOptions::default();
+
+    wasm_bindgen_futures::spawn_local(async {
+        eframe::start_web(
+            "the_canvas_id", // hardcode it
+            web_options,
+            Box::new(|_| Box::new(Warpainter::default())),
+        )
+        .await
+        .expect("failed to start eframe");
+    });
 }

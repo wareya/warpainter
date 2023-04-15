@@ -14,8 +14,6 @@ pub (crate) struct ShaderQuad
 }
 
 const VERT_SHADER : &'static str = "
-    #version 140
-    
     in vec2 in_vertex;
     in vec2 in_uv;
     
@@ -30,8 +28,6 @@ const VERT_SHADER : &'static str = "
     }
 ";
 const FRAG_SHADER : &'static str = "
-    #version 140
-    
     in vec2 vertex;
     in vec2 uv;
     
@@ -59,22 +55,33 @@ fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image)
         
         let bytes = texture.bytes();
         
+        let internal_type = if texture.is_float() { glow::RGBA16F } else { glow::RGBA8 } as i32;
         let input_type = if texture.is_float() { glow::FLOAT } else { glow::UNSIGNED_BYTE };
         
         gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
         gl.tex_image_2d (
             glow::TEXTURE_2D,
             0, // target
-            glow::RGBA16F as i32, // or SRGB_ALPHA
+            internal_type,
             texture.width as i32,
             texture.height as i32,
             0, // border
             glow::RGBA,
-            input_type, // or UNSIGNED_BYTE
+            input_type,
             Some(bytes)
         );
         gl.generate_mipmap(glow::TEXTURE_2D);
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
 }
 
 #[allow(unsafe_code)]
@@ -91,8 +98,51 @@ impl ShaderQuad
 
             let program = gl.create_program().ok()?;
 
-            let vertex_shader = VERT_SHADER;
-            let fragment_shader = shader.map(|x| x.to_string()).unwrap_or_else(|| FRAG_SHADER.to_string());
+            let mut vertex_shader = VERT_SHADER.to_string();
+            let mut fragment_shader = shader.map(|x| x.to_string()).unwrap_or_else(|| FRAG_SHADER.to_string());
+            
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                vertex_shader   = ("#version 140".to_string() + &vertex_shader).to_string();
+                fragment_shader = ("#version 140".to_string() + &fragment_shader).to_string();
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                vertex_shader   = ("#version 300 es".to_string() + &vertex_shader).to_string();
+                fragment_shader = ("#version 300 es".to_string() + &fragment_shader).to_string();
+                
+                vertex_shader = vertex_shader
+                    .replace(" float ", " highp float ")
+                    .replace(" vec2 " , " highp vec2 ")
+                    .replace(" vec3 " , " highp vec3 ")
+                    .replace(" vec4 " , " highp vec4 ")
+                    .replace("(float ", "(highp float ")
+                    .replace("(vec2 ",  "(highp vec2 ")
+                    .replace("(vec3 ",  "(highp vec3 ")
+                    .replace("(vec4 ",  "(highp vec4 ")
+                    .replace("\nfloat ", "\nhighp float ")
+                    .replace("\nvec2 " , "\nhighp vec2 ")
+                    .replace("\nvec3 " , "\nhighp vec3 ")
+                    .replace("\nvec4 " , "\nhighp vec4 ")
+                    ;
+                fragment_shader = fragment_shader
+                    .replace(" float ", " highp float ")
+                    .replace(" vec2 ",  " highp vec2 ")
+                    .replace(" vec3 ",  " highp vec3 ")
+                    .replace(" vec4 ",  " highp vec4 ")
+                    .replace("(float ", "(highp float ")
+                    .replace("(vec2 ",  "(highp vec2 ")
+                    .replace("(vec3 ",  "(highp vec3 ")
+                    .replace("(vec4 ",  "(highp vec4 ")
+                    .replace("\nfloat ", "\nhighp float ")
+                    .replace("\nvec2 " , "\nhighp vec2 ")
+                    .replace("\nvec3 " , "\nhighp vec3 ")
+                    .replace("\nvec4 " , "\nhighp vec4 ")
+                    ;
+                
+                log(&vertex_shader);
+                log(&fragment_shader);
+            }
 
             let mut shaders = vec!();
             let mut build = |shader_type, source|
@@ -102,20 +152,38 @@ impl ShaderQuad
                 gl.compile_shader(shader);
                 if !gl.get_shader_compile_status(shader)
                 {
-                    eprintln!("shader compilation failed:\n{}", gl.get_shader_info_log(shader));
+                    let err = format!("shader compilation failed:\n{}", gl.get_shader_info_log(shader));
+                    
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        eprintln!("{}", err);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        log(&err);
+                    }
                     return None;
                 }
                 gl.attach_shader(program, shader);
                 shaders.push(shader);
                 Some(())
             };
-            build(glow::VERTEX_SHADER, vertex_shader)?;
+            build(glow::VERTEX_SHADER, &vertex_shader)?;
             build(glow::FRAGMENT_SHADER, &fragment_shader)?;
 
             gl.link_program(program);
             if !gl.get_program_link_status(program)
             {
-                eprintln!("program linking failed:\n{}", gl.get_program_info_log(program));
+                let err = format!("program linking failed:\n{}", gl.get_program_info_log(program));
+                
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    eprintln!("{}", err);
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    log(&err);
+                }
                 return None;
             }
 

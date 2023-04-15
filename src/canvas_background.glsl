@@ -1,4 +1,4 @@
-#version 140
+
 
 in vec2 vertex;
 in vec2 uv;
@@ -47,7 +47,7 @@ void main()
     
     vec3 color = mix(vec3(0.8), vec3(1.0), checker);
     
-    vec4 c = texture2D(user_texture, uv);
+    vec4 c = texture(user_texture, uv);
     
     out_color = vec4(color, 1.0);
     out_color = mix_normal(c, out_color);
