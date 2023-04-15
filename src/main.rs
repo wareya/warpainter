@@ -70,6 +70,20 @@ enum UndoEvent
     LayerPaint(LayerPaint),
 }
 
+impl UndoEvent
+{
+    fn compress(&self) -> Vec<u8>
+    {
+        let encoded = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
+        snap::raw::Encoder::new().compress_vec(&encoded).unwrap()
+    }
+    fn decompress(data : &Vec<u8>) -> Self
+    {
+        let vec = snap::raw::Decoder::new().decompress_vec(&data[..]).unwrap();
+        bincode::decode_from_slice(&vec, bincode::config::standard()).unwrap().0
+    }
+}
+
 struct Warpainter
 {
     // saved to project (later...)
@@ -92,8 +106,8 @@ struct Warpainter
     
     // unsaved
     
-    redo_buffer : Vec<UndoEvent>,
-    undo_buffer : Vec<UndoEvent>,
+    redo_buffer : Vec<Vec<u8>>,
+    undo_buffer : Vec<Vec<u8>>,
     
     xform : Transform, // view/camera. FIXME: support mirroring
     debug_text : Vec<String>,
@@ -359,7 +373,8 @@ impl Warpainter
                         *current_image = image;
                         
                         self.redo_buffer = Vec::new();
-                        self.undo_buffer.push(Image::analyze_edit(&old_data, current_image, self.current_layer));
+                        let event = Image::analyze_edit(&old_data, current_image, self.current_layer);
+                        self.undo_buffer.push(event.compress());
                     }
                 }
             }
@@ -385,6 +400,7 @@ impl Warpainter
     {
         if let Some(event) = self.undo_buffer.pop()
         {
+            let event = UndoEvent::decompress(&event);
             match event
             {
                 UndoEvent::LayerPaint(ref event) =>
@@ -405,7 +421,7 @@ impl Warpainter
                     println!("not supported yet");
                 }
             }
-            self.redo_buffer.push(event);
+            self.redo_buffer.push(event.compress());
         }
         else
         {
@@ -416,6 +432,7 @@ impl Warpainter
     {
         if let Some(event) = self.redo_buffer.pop()
         {
+            let event = UndoEvent::decompress(&event);
             match event
             {
                 UndoEvent::LayerPaint(ref event) =>
@@ -436,7 +453,7 @@ impl Warpainter
                     println!("not supported yet");
                 }
             }
-            self.undo_buffer.push(event);
+            self.undo_buffer.push(event.compress());
         }
         else
         {
@@ -593,10 +610,10 @@ impl Warpainter
             return;
         }
         let mut new_uuid = self.layers.uuid_of_next(self.current_layer);
-        self.debug(format!("{} then {:?}", self.current_layer, new_uuid));
+        //self.debug(format!("{} then {:?}", self.current_layer, new_uuid));
         if new_uuid.is_none()
         {
-            self.debug("fallback...");
+            //self.debug("fallback...");
             new_uuid = self.layers.uuid_of_prev(self.current_layer);
         }
         if let Some(new_uuid) = new_uuid

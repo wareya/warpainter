@@ -50,7 +50,6 @@ impl Tool for Fill
             let prev_coord = self.prev_input.canvas_mouse_coord;
             let coord = new_input.canvas_mouse_coord;
             
-            app.debug(format!("{:?}", coord));
             let color = app.main_color_rgb;
             if let Some(Some(base)) = app.layers.find_layer_unlocked(app.current_layer).map(|x| x.data.as_ref())
             {
