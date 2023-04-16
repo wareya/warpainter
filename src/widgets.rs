@@ -143,8 +143,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter) -> 
     xform.translate([sv_box.center().x, sv_box.center().y]);
     xform_points(&xform, &mut h_points);
     
-    draw_doubled(&painter, &[&[h_points[0], h_points[1], h_points[3]],
-                             &[h_points[0], h_points[2], h_points[3]]]);
+    draw_doubled(&painter, &[&[h_points[0], h_points[1], h_points[2], h_points[3], h_points[0]]]);
     
     response
 }

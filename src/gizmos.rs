@@ -133,8 +133,7 @@ impl Gizmo for BrushGizmo
             *point = &xform * &*point;
         }
         
-        draw_doubled(painter, &[&[points[0], points[1], points[3]],
-                                &[points[0], points[2], points[3]]]);
+        draw_doubled(painter, &[&[points[0], points[1], points[2], points[3], points[0]]])
     }
 }
 
