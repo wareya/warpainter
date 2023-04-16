@@ -43,24 +43,30 @@ pub (crate) fn draw_dotted(painter : &egui::Painter, from : [f32; 2], to : [f32;
     }
 }
 
-pub (crate) fn draw_doubled(painter : &egui::Painter, points : &[[[f32; 2]; 2]])
+pub (crate) fn draw_doubled(painter : &egui::Painter, point_lists : &[&[[f32; 2]]])
 {
     let white = egui::Stroke::new(3.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255));
     let black = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 255));
     
     // white section for outline
-    for pair in points.iter()
+    for points in point_lists.iter()
     {
-        painter.line_segment([pair[0].into(), pair[1].into()].into(), white);
+        for i in 0..points.len()-1
+        {
+            painter.line_segment([points[i].into(), points[i+1].into()].into(), white);
+        }
     }
     // black section for inner line
-    for pair in points.iter()
+    for points in point_lists.iter()
     {
-        painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
-        
-        //// counteract bad linear-color-space AA by drawing twice
-        //painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
-        // not needed in egui 0.21.0
+        for i in 0..points.len()-1
+        {
+            painter.line_segment([points[i].into(), points[i+1].into()].into(), black);
+            
+            //// counteract bad linear-color-space AA by drawing twice
+            //painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
+            // not needed in egui 0.21.0
+        }
     }
 }
 
@@ -127,11 +133,38 @@ impl Gizmo for BrushGizmo
             *point = &xform * &*point;
         }
         
-        draw_doubled(painter, &[
-            [points[0], points[1]],
-            [points[0], points[2]],
-            [points[1], points[3]],
-            [points[2], points[3]],
-        ]);
+        draw_doubled(painter, &[&[points[0], points[1], points[3]],
+                                &[points[0], points[2], points[3]]]);
+    }
+}
+
+pub (crate) struct OutlineGizmo
+{
+    pub (crate) loops : Vec<Vec<[f32; 2]>>, // vec of loops, each loop is a closed list of points
+    pub (crate) filled : bool, // whether the outline should be drawn "filled"
+}
+
+impl Gizmo for OutlineGizmo
+{
+    fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter)
+    {
+        let mut xform = app.xform.clone();
+        let center = response.rect.center();
+        xform.translate([center.x, center.y]);
+        
+        for mut points in self.loops.clone()
+        {
+            for point in points.iter_mut()
+            {
+                *point = &xform * &*point;
+            }
+            
+            points.push(*points.last().unwrap());
+            
+            for i in 0..points.len()-1
+            {
+                draw_dotted(painter, points[i].into(), points[i+1].into(), 2.0);
+            }
+        }
     }
 }

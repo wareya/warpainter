@@ -49,92 +49,6 @@ impl<'a, 'b> core::ops::Mul<&'b [f32; 2]> for &'a Transform
     }
 }
 
-pub (crate) fn length(vec : &[f32]) -> f32
-{
-    let mut r = 0.0;
-    for x in vec.iter()
-    {
-        r += x*x;
-    }
-    r.sqrt()
-}
-
-pub (crate) fn lerp(from : f32, to : f32, amount : f32) -> f32
-{
-    from * (1.0-amount) + to * amount
-}
-
-pub (crate) fn vec_lerp<const N: usize>(from : &[f32; N], to : &[f32; N], amount : f32) -> [f32; N]
-{
-    let mut out = [0.0; N];
-    for i in 0..N
-    {
-        out[i] = lerp(from[i], to[i], amount);
-    }
-    out
-}
-
-pub (crate) fn vec_eq<const N: usize>(a : &[f32; N], b : &[f32; N]) -> bool
-{
-    for i in 0..N
-    {
-        if a[i] != b[i]
-        {
-            return false;
-        }
-    }
-    true
-}
-
-pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
-{
-    let mut out = [0.0; N];
-    for i in 0..N
-    {
-        out[i] = from[i] - to[i];
-    }
-    out
-}
-
-pub (crate) fn vec_add<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
-{
-    let mut out = [0.0; N];
-    for i in 0..N
-    {
-        out[i] = from[i] + to[i];
-    }
-    out
-}
-
-pub (crate) fn vec_floor<const N: usize>(a : &[f32; N]) -> [f32; N]
-{
-    let mut out = [0.0; N];
-    for i in 0..N
-    {
-        out[i] = a[i].floor();
-    }
-    out
-}
-
-pub (crate) fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
-{
-    rect[0][0] = rect[0][0].min(point[0]);
-    rect[0][1] = rect[0][1].min(point[1]);
-    rect[1][0] = rect[1][0].max(point[0]);
-    rect[1][1] = rect[1][1].max(point[1]);
-    rect
-}
-pub (crate) fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32; 2]; 2]
-{
-    rect = rect_enclose_point(rect, rect_2[0]);
-    rect = rect_enclose_point(rect, rect_2[1]);
-    rect
-}
-pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
-{
-    rect_enclose_point([rect[0], rect[0]], rect[1])
-}
-
 pub (crate) fn xform_points(xform : &Transform, points : &mut [[f32; 2]])
 {
     for point in points.iter_mut()
@@ -227,17 +141,121 @@ impl Transform {
         let _other = Self::ident();
         // FIXME / TODO
     }
-    // FIXME replace with actual matrix inversion
     pub (crate) fn inverse(&self) -> Self
     {
-        let mut other = Self::ident();
+        let mut m = [[0.0f64; 3]; 3];
+        for y in 0..3
+        {
+            for x in 0..3
+            {
+                m[x][y] = self.rows[x][y] as f64;
+            }
+        }
+        // computes the inverse of a matrix m
+        let det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+                  m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                  m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+        let invdet = 1.0 / det;
+
+        let mut inverted = [[0.0f32; 3]; 3];
         
-        let trans = self.get_translation();
+        inverted[0][0] = ((m[1][1] * m[2][2] - m[2][1] * m[1][2]) * invdet) as f32;
+        inverted[0][1] = ((m[0][2] * m[2][1] - m[0][1] * m[2][2]) * invdet) as f32;
+        inverted[0][2] = ((m[0][1] * m[1][2] - m[0][2] * m[1][1]) * invdet) as f32;
+        inverted[1][0] = ((m[1][2] * m[2][0] - m[1][0] * m[2][2]) * invdet) as f32;
+        inverted[1][1] = ((m[0][0] * m[2][2] - m[0][2] * m[2][0]) * invdet) as f32;
+        inverted[1][2] = ((m[1][0] * m[0][2] - m[0][0] * m[1][2]) * invdet) as f32;
+        inverted[2][0] = ((m[1][0] * m[2][1] - m[2][0] * m[1][1]) * invdet) as f32;
+        inverted[2][1] = ((m[2][0] * m[0][1] - m[0][0] * m[2][1]) * invdet) as f32;
+        inverted[2][2] = ((m[0][0] * m[1][1] - m[1][0] * m[0][1]) * invdet) as f32;
         
-        other.translate([-trans[0], -trans[1]]);
-        other.scale(1.0/self.get_scale());
-        other.rotate(-self.get_rotation());
-        
-        other
+        Self { rows : inverted }
     }
+}
+
+pub (crate) fn length(vec : &[f32]) -> f32
+{
+    let mut r = 0.0;
+    for x in vec.iter()
+    {
+        r += x*x;
+    }
+    r.sqrt()
+}
+
+pub (crate) fn lerp(from : f32, to : f32, amount : f32) -> f32
+{
+    from * (1.0-amount) + to * amount
+}
+
+pub (crate) fn vec_lerp<const N: usize>(from : &[f32; N], to : &[f32; N], amount : f32) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = lerp(from[i], to[i], amount);
+    }
+    out
+}
+
+pub (crate) fn vec_eq<const N: usize>(a : &[f32; N], b : &[f32; N]) -> bool
+{
+    for i in 0..N
+    {
+        if a[i] != b[i]
+        {
+            return false;
+        }
+    }
+    true
+}
+
+pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = from[i] - to[i];
+    }
+    out
+}
+
+pub (crate) fn vec_add<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = from[i] + to[i];
+    }
+    out
+}
+
+pub (crate) fn vec_floor<const N: usize>(a : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = a[i].floor();
+    }
+    out
+}
+
+pub (crate) fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
+{
+    rect[0][0] = rect[0][0].min(point[0]);
+    rect[0][1] = rect[0][1].min(point[1]);
+    rect[1][0] = rect[1][0].max(point[0]);
+    rect[1][1] = rect[1][1].max(point[1]);
+    rect
+}
+pub (crate) fn rect_enclose_rect(mut rect : [[f32; 2]; 2], rect_2 : [[f32; 2]; 2]) -> [[f32; 2]; 2]
+{
+    rect = rect_enclose_point(rect, rect_2[0]);
+    rect = rect_enclose_point(rect, rect_2[1]);
+    rect
+}
+pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
+{
+    rect_enclose_point([rect[0], rect[0]], rect[1])
 }
