@@ -106,14 +106,14 @@ impl Gizmo for BoxGizmo
     }
 }
 
-pub (crate) struct BrushGizmo
+pub (crate) struct SquareGizmo
 {
     pub (crate) x : f32,
     pub (crate) y : f32,
     pub (crate) r : f32,
 }
 
-impl Gizmo for BrushGizmo
+impl Gizmo for SquareGizmo
 {
     fn draw(&mut self, _ui : &mut egui::Ui, app : &mut crate::Warpainter, response : &mut egui::Response, painter : &egui::Painter)
     {
@@ -133,7 +133,7 @@ impl Gizmo for BrushGizmo
             *point = &xform * &*point;
         }
         
-        draw_doubled(painter, &[&[points[0], points[1], points[2], points[3], points[0]]])
+        draw_doubled(painter, &[&[points[0], points[1], points[3], points[2], points[0]]])
     }
 }
 
@@ -160,10 +160,7 @@ impl Gizmo for OutlineGizmo
             
             points.push(*points.last().unwrap());
             
-            for i in 0..points.len()-1
-            {
-                draw_dotted(painter, points[i].into(), points[i+1].into(), 2.0);
-            }
+            draw_doubled(painter, &[&points]);
         }
     }
 }

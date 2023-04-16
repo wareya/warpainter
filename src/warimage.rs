@@ -3,6 +3,7 @@ use eframe::egui;
 use crate::LayerPaint;
 use crate::UndoEvent;
 use crate::pixelmath::*;
+use crate::transform::*;
 
 /*
 // for flattened slices. not used right now
@@ -551,10 +552,173 @@ impl Image
         self.clear_with_color_float([0.0, 0.0, 0.0, 0.0]);
     }
     
+    pub (crate) fn analyze_outline(&self) -> Vec<Vec<[f32; 2]>>
+    {
+        // find bounds of opaque section
+        
+        let mut min_x = self.width;
+        let mut max_x = 0;
+        let mut min_y = self.height;
+        let mut max_y = 0;
+        macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
+        {
+            for outer in $outer_range
+            {
+                for inner in $inner_range
+                {
+                    let first = if $y_outer { inner } else { outer } as isize;
+                    let second = if $y_outer { outer } else { inner } as isize;
+                    let c = self.get_pixel_float_wrapped(first, second);
+                    //println!("testing... {:?}", c);
+                    if c[3] > 0.0
+                    {
+                        //println!("updating...");
+                        *$target = $f(*$target, outer);
+                    }
+                }
+            }
+        } }
+        do_loop!(true , 0..self.height            , 0..self.width, &mut min_y, usize::min);
+        do_loop!(true , (min_y..self.height).rev(), 0..self.width, &mut max_y, usize::max);
+        do_loop!(false, 0..self.width             , min_y..=max_y, &mut min_x, usize::min);
+        do_loop!(false, (min_x..self.width).rev() , min_y..=max_y, &mut max_x, usize::max);
+        
+        max_x += 1;
+        max_y += 1;
+        
+        let w = max_x - min_x;
+        let h = max_y - min_y;
+        
+        let mut islands = Vec::new();
+        
+        // pixels that have already been added to an island
+        let mut mask = vec!(false; w*h);
+        
+        //println!("running island analysis... {} {} {} {}", min_x, max_x, min_y, max_y);
+        for y in min_y..max_y
+        {
+            for x in min_x..max_x
+            {
+                let not_clear = self.get_pixel_float(x as isize, y as isize)[3] > 0.0;
+                let not_visited = !mask[(y-min_y)*w + x];
+                // if already added to an island, skip
+                if !not_clear || !not_visited
+                {
+                    //println!("continuing, because... {}, {}", not_clear, not_visited);
+                    continue;
+                }
+                
+                // we know this coord is part of an island now, identify the island by it
+                islands.push([x as isize, y as isize]);
+                
+                // depth-first island traversal
+                let mut frontier = Vec::new();
+                let mut process_coord = |coord : [usize; 2], frontier : &mut Vec<_>|
+                {
+                    let x = coord[0];
+                    let y = coord[1];
+                    mask[(y-min_y)*w + x] = true;
+                    //for add in [[0, -1], [0, 1], [1, 0], [-1, 0]]
+                    for add in [[1, 0], [0, 1], [-1, 0], [0, -1]]
+                    {
+                        let coord = vec_add(&[x as isize, y as isize], &add);
+                        if coord[0] < min_x as isize || coord[0] >= max_x as isize
+                        || coord[1] < min_y as isize || coord[1] >= max_y as isize
+                        {
+                            continue;
+                        }
+                        
+                        let x = coord[0] as usize;
+                        let y = coord[1] as usize;
+                        
+                        let not_clear = self.get_pixel_float(x as isize, y as isize)[3] > 0.0;
+                        let not_visited = !mask[(y-min_y)*w + x];
+                        
+                        if not_clear && not_visited
+                        {
+                            frontier.push([x, y]);
+                        }
+                    }
+                };
+                
+                process_coord([x, y], &mut frontier);
+                while let Some(coord) = frontier.pop()
+                {
+                    process_coord(coord, &mut frontier);
+                }
+            }
+        }
+        
+        let mut loops = Vec::new();
+        
+        // the point that identifies an island is always open to both the top and left
+        for coord in &islands
+        {
+            let mut coord = *coord;
+            let occupied = |coord : [isize; 2]| -> bool
+            {
+                let x = coord[0];
+                let y = coord[1];
+                x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h && mask[(y as usize-min_y)*w + x as usize]
+            };
+            let start = coord;
+            
+            let mut points = vec!(coord);
+            
+            // walk around the perimeter of the island
+            // first dir in list is next dir, second is turning right, last is turning left
+            // we navigate by rotating the dirs vector by moving its back to its front or vice versa
+            let mut dirs = vec!([1, 0], [0, 1], [-1, 0], [0, -1]);
+            // used to properly offset the coords in the loops vector
+            let mut offset = vec!([0, 0], [1, 0], [1, 1], [0, 1]);
+            let mut first = true;
+            while first || coord != start || offset[0] != [0, 0]
+            {
+                //println!("at {:?} going in direction {:?}", coord, dirs[0]);
+                first = false;
+                // see if we can turn left; if we can, do so
+                let left = vec_add(&coord, &dirs[3]);
+                if occupied(left)
+                {
+                    //println!("going left");
+                    coord = left;
+                    dirs.rotate_right(1);
+                    offset.rotate_right(1);
+                    points.push(vec_add(&coord, &offset[0]));
+                    continue;
+                }
+                // see if we can move straight; if not, do a right turn
+                let straight = vec_add(&coord, &dirs[0]);
+                if !occupied(straight)
+                {
+                    //println!("going right");
+                    dirs.rotate_left(1);
+                    offset.rotate_left(1);
+                    points.push(vec_add(&coord, &offset[0]));
+                    continue;
+                }
+                // otherwise go straight
+                //println!("going straight");
+                coord = straight;
+            }
+            loops.push(points);
+        }
+        
+        let mut loops : Vec<Vec<_>> = loops.into_iter().map(|points| points.into_iter().map(|coord| [coord[0] as f32, coord[1] as f32]).collect::<_>()).collect::<_>();
+        for points in loops.iter_mut()
+        {
+            points.push(points[0]);
+        }
+        
+        //println!("{:?}", mask);
+        //println!("{:?}", islands);
+        //println!("{:?}", loops);
+        
+        loops
+    }
+    
     pub (crate) fn analyze_edit(old_data : &Image, new_data : &Image, uuid : u128) -> UndoEvent
     {
-        use crate::vec_eq;
-        
         let mut min_x = new_data.width;
         let mut max_x = 0;
         let mut min_y = new_data.height;

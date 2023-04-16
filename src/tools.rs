@@ -72,6 +72,7 @@ impl Tool for Fill
                         let mut process_coord = |coord : [f32; 2], frontier : &mut Vec<_>|
                         {
                             image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
+                            //for add in [[0.0, -1.0], [0.0, 1.0], [1.0, 0.0], [-1.0, 0.0]]
                             for add in [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]]
                             {
                                 let coord = vec_add(&coord, &add);
@@ -278,7 +279,7 @@ fn generate_brush(size : f32) -> Image
         for ux in 0..img_size as isize
         {
             let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
-            if y*y + x*x < size*size/4.0
+            if y*y + x*x < size*size/4.0// && x != 0.0 // <- for testing outline analysis
             {
                 shape.set_pixel(ux, uy, [255, 255, 255, 255]);
             }
@@ -341,6 +342,7 @@ pub (crate) struct Pencil
 {
     size : f32,
     brush_shape : Image,
+    outline_data : Vec<Vec<[f32; 2]>>,
     direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
     prev_input : CanvasInputState,
     cursor_memory : [f32; 2],
@@ -354,10 +356,12 @@ impl Pencil
     {
         let size = 1.0;
         let brush_shape = generate_brush(size);
+        let outline_data = brush_shape.analyze_outline();
         let direction_shapes = directionalize_brush(&brush_shape);
         Pencil {
             size,
             brush_shape,
+            outline_data,
             direction_shapes,
             prev_input : CanvasInputState::default(),
             cursor_memory : [0.0, 0.0],
@@ -373,6 +377,7 @@ impl Pencil
     pub (crate) fn update_brush(&mut self)
     {
         self.brush_shape = generate_brush(self.size);
+        self.outline_data = self.brush_shape.analyze_outline();
         self.direction_shapes = directionalize_brush(&self.brush_shape);
     }
 }
@@ -381,6 +386,12 @@ impl Tool for Pencil
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
+        let mut new_input = new_input.clone();
+        let a = if self.brush_shape.width  & 1 == 0 { 0.5 } else { 0.0 };
+        let b = if self.brush_shape.height & 1 == 0 { 0.5 } else { 0.0 };
+        new_input.canvas_mouse_coord[0] += a;
+        new_input.canvas_mouse_coord[1] += b;
+        
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(true);
@@ -464,13 +475,19 @@ impl Tool for Pencil
     }
     fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
-        //let mut pos = self.prev_input.canvas_mouse_coord;
-        //pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
-        //pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
         let mut pos = self.cursor_memory;
         pos[0] = pos[0] - app.canvas_width as f32 / 2.0;
         pos[1] = pos[1] - app.canvas_height as f32 / 2.0;
-        let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
+        let mut loops = self.outline_data.clone();
+        for points in loops.iter_mut()
+        {
+            for point in points.iter_mut()
+            {
+                *point = vec_add(point, &[pos[0], pos[1]]);
+                *point = vec_sub(point, &[(self.brush_shape.width as f32/2.0).floor(), (self.brush_shape.height as f32/2.0).floor()]);
+            }
+        }
+        let gizmo = OutlineGizmo { loops, filled : false };
         Some(Box::new(gizmo))
     }
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
@@ -538,7 +555,7 @@ impl Tool for Eyedropper
         let mut pos = self.prev_input.canvas_mouse_coord;
         pos[0] = pos[0].floor() - app.canvas_width as f32 / 2.0;
         pos[1] = pos[1].floor() - app.canvas_height as f32 / 2.0;
-        let gizmo = BrushGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
+        let gizmo = SquareGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
     }
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>

@@ -221,9 +221,12 @@ pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32
     out
 }
 
-pub (crate) fn vec_add<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32; N]
+pub (crate) fn vec_add
+    <const N: usize,
+     T : core::ops::Add<Output = T> + std::marker::Copy + Default>
+    (from : &[T; N], to : &[T; N]) -> [T; N]
 {
-    let mut out = [0.0; N];
+    let mut out = [T::default(); N];
     for i in 0..N
     {
         out[i] = from[i] + to[i];
