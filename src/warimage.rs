@@ -547,6 +547,16 @@ impl Image
             }
         }
     }
+    pub (crate) fn clear_with_color(&mut self, color : [u8; 4])
+    {
+        for y in 0..self.height as isize
+        {
+            for x in 0..self.width as isize
+            {
+                self.set_pixel_wrapped(x, y, color);
+            }
+        }
+    }
     pub (crate) fn clear(&mut self)
     {
         self.clear_with_color_float([0.0, 0.0, 0.0, 0.0]);

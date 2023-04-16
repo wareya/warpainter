@@ -174,14 +174,19 @@ impl Transform {
     }
 }
 
-pub (crate) fn length(vec : &[f32]) -> f32
+pub (crate) fn length_sq(vec : &[f32]) -> f32
 {
     let mut r = 0.0;
     for x in vec.iter()
     {
         r += x*x;
     }
-    r.sqrt()
+    r
+}
+
+pub (crate) fn length(vec : &[f32]) -> f32
+{
+    length_sq(vec).sqrt()
 }
 
 pub (crate) fn lerp(from : f32, to : f32, amount : f32) -> f32

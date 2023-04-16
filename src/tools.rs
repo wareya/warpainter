@@ -44,9 +44,9 @@ impl Tool for Fill
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(false);
-        }
-        if new_input.held[0]
-        {
+            
+            let start = std::time::SystemTime::now();
+            
             let prev_coord = self.prev_input.canvas_mouse_coord;
             let coord = new_input.canvas_mouse_coord;
             
@@ -57,55 +57,104 @@ impl Tool for Fill
                 {
                     if !self.prev_input.held[0] || prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                     {
-                        let ref_color = base.get_pixel_float(coord[0] as isize, coord[1] as isize);
-                        let get_dist = |a, r| length(&vec_sub(&r, &a));
+                        let coord = [coord[0] as isize, coord[1] as isize];
+                        let ref_color = base.get_pixel_float(coord[0], coord[1]);
                         
-                        // clear draw buffer with a color that the tool isn't using
-                        let mut dum_color = [0.0, 0.0, 0.0, 0.0];
-                        if get_dist(dum_color, color) < 0.5
+                        fn compare_dist(a : [f32; 4], b : [f32; 4], r : f32) -> bool
                         {
-                            dum_color = [1.0, 1.0, 1.0, 0.0];
+                            let mut d = 0.0;
+                            for i in 0..4
+                            {
+                                d += (b[i]-a[i]).abs();
+                            }
+                            d <= r
                         }
-                        image.clear_with_color_float(dum_color);
                         
+                        let mut visited = vec!(false; base.width*base.height);
                         let mut frontier = vec!();
-                        let mut process_coord = |coord : [f32; 2], frontier : &mut Vec<_>|
+                        let mut max_f_size = 0;
+                        
+                        if coord[0] >= 0 && coord[0] < base.width as isize
+                        && coord[1] >= 0 && coord[1] < base.height as isize
                         {
-                            image.set_pixel_float(coord[0] as isize, coord[1] as isize, color);
-                            //for add in [[0.0, -1.0], [0.0, 1.0], [1.0, 0.0], [-1.0, 0.0]]
-                            for add in [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]]
+                            frontier.push(coord);
+                        }
+                        
+                        
+                        let mut streak_up = false;
+                        let mut streak_down = false;
+                        let mut last_coord = coord;
+                        while let Some(coord) = frontier.pop()
+                        {
+                            max_f_size = max_f_size.max(frontier.len());
+                            
+                            if last_coord[1] != coord[1]
+                            {
+                                streak_up = false;
+                                streak_down = false;
+                            }
+                            last_coord = coord;
+                            
+                            let x = coord[0];
+                            let y = coord[1];
+                            visited[y as usize*base.width + x as usize] = true;
+                            image.set_pixel_float_wrapped(x, y, color);
+                            for add in [[0, -1], [0, 1], [1, 0], [-1, 0]]
+                            //for add in [[1, 0], [0, 1], [-1, 0], [0, -1]]
                             {
                                 let coord = vec_add(&coord, &add);
-                                if coord[0] < 0.0 || coord[0] >= app.canvas_width as f32
-                                || coord[1] < 0.0 || coord[1] >= app.canvas_height as f32
+                                let x = coord[0];
+                                let y = coord[1];
+                                if x < 0 || x >= base.width as isize
+                                || y < 0 || y >= base.height as isize
                                 {
                                     continue;
                                 }
-                                let cond1 = get_dist(image.get_pixel_float(coord[0] as isize, coord[1] as isize), dum_color) <= 0.001;
-                                let cond2 = get_dist(base .get_pixel_float(coord[0] as isize, coord[1] as isize), ref_color) <= self.threshold;
+                                let cond1 = !visited[y as usize*image.width + x as usize];
+                                let cond2 = compare_dist(base.get_pixel_float_wrapped(coord[0], coord[1]), ref_color, self.threshold);
                                 if cond1 && cond2
                                 {
-                                    frontier.push(coord);
+                                    if add[1] == 0
+                                    {
+                                        frontier.push(coord);
+                                    }
+                                    if add[1] == 1 && !streak_up
+                                    {
+                                        frontier.push(coord);
+                                        streak_up = true;
+                                    }
+                                    if add[1] == -1 && !streak_down
+                                    {
+                                        frontier.push(coord);
+                                        streak_down = true;
+                                    }
+                                }
+                                else
+                                {
+                                    if add[1] == 1
+                                    {
+                                        streak_up = false;
+                                    }
+                                    else if add[1] == -1
+                                    {
+                                        streak_down = false;
+                                    }
                                 }
                             }
-                        };
-                        
-                        process_coord(coord, &mut frontier);
-                        while let Some(coord) = frontier.pop()
-                        {
-                            process_coord(coord, &mut frontier);
                         }
+                        println!("max frontier size... {}", max_f_size);
                     }
                 }
+                
+                let elapsed = start.elapsed();
+                let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
+                if elapsed > 0.01
+                {
+                    println!("time to flood fill: {}", elapsed);
+                }
             }
-        }
-        else if self.prev_input.held[0]
-        {
+            
             app.commit_edit();
-        }
-        if new_input.held[1] && !self.prev_input.held[1]
-        {
-            app.cancel_edit();
         }
         
         self.prev_input = new_input.clone();
