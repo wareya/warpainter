@@ -188,6 +188,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
         ("canvas_height", h),
         ("minima_x", minima_x),
         ("minima_y", minima_y),
+        ("zoom_level", xform.get_scale()),
     ];
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
@@ -212,6 +213,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
         }
     }
     
+    /*
     let grid_size = 16.0;
     
     if grid_size * app.get_zoom() > 8.49
@@ -246,6 +248,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
             }
         }
     }
+    */
     
     (response, inputstate)
 }

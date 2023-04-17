@@ -80,7 +80,6 @@ impl Tool for Fill
                             frontier.push(coord);
                         }
                         
-                        
                         let mut streak_up = false;
                         let mut streak_down = false;
                         let mut last_coord = coord;
@@ -328,7 +327,7 @@ fn generate_brush(size : f32) -> Image
         for ux in 0..img_size as isize
         {
             let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
-            if y*y + x*x < size*size/4.0// && x != 0.0 // <- for testing outline analysis
+            if y*y + x*x < size*size/4.0 && (x != 0.0 || img_size == 1) // <- for testing outline analysis
             {
                 shape.set_pixel(ux, uy, [255, 255, 255, 255]);
             }

@@ -128,9 +128,9 @@ impl Default for Warpainter
 {
     fn default() -> Self
     {
-        //let img = image::io::Reader::new(std::io::Cursor::new(&include_bytes!("data/grass4x4plus.png"))).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
-        //let img = Image::from_rgbaimage(&img);
-        let img = Image::blank(1024, 1024);
+        let img = image::io::Reader::new(std::io::Cursor::new(&include_bytes!("data/grass4x4plus.png"))).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
+        let img = Image::from_rgbaimage(&img);
+        //let img = Image::blank(1024, 1024);
         let canvas_width = img.width;
         let canvas_height = img.height;
         
