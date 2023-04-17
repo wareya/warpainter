@@ -10,7 +10,7 @@ pub (crate) struct ShaderQuad
     vertices : Vec<f32>,
     uvs : Vec<f32>,
     need_to_delete : bool,
-    texture_handle : Option<glow::Texture>,
+    texture_handle : [Option<glow::Texture>; 8],
 }
 
 const VERT_SHADER : &'static str = "
@@ -71,6 +71,33 @@ fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image)
             Some(bytes)
         );
         gl.generate_mipmap(glow::TEXTURE_2D);
+    }
+}
+fn upload_data(gl : &glow::Context, handle : glow::Texture, data : &[[f32; 4]])
+{
+    unsafe
+    {
+        gl.bind_texture(glow::TEXTURE_2D, Some(handle));
+        
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        
+        let bytes = data.iter().map(|x| x.iter().map(|x| x.to_le_bytes()).flatten()).flatten().collect::<Vec<_>>();
+        
+        gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+        gl.tex_image_2d (
+            glow::TEXTURE_2D,
+            0, // target
+            glow::RGBA16F as i32,
+            data.len() as i32, // width
+            1, // height
+            0, // border
+            glow::RGBA,
+            glow::FLOAT,
+            Some(&bytes)
+        );
     }
 }
 
@@ -206,21 +233,38 @@ impl ShaderQuad
                 1.0, 1.0
             );
 
-            Some(ShaderQuad { program, vertex_array, vertex_buffer, vertices, uvs, need_to_delete : true, texture_handle : None } )
+            Some(ShaderQuad { program, vertex_array, vertex_buffer, vertices, uvs, need_to_delete : true, texture_handle : [None; 8] } )
         }
     }
-    pub (crate) fn add_texture(&mut self, gl : &glow::Context, texture : &Image)
+    pub (crate) fn add_texture(&mut self, gl : &glow::Context, texture : &Image, which : usize)
     {
         unsafe
         {
             eframe::egui_glow::check_for_gl_error!(gl, "before texture upload");
-            gl.active_texture(glow::TEXTURE0);
-            if self.texture_handle.is_none()
+            let which = which.clamp(0, 7);
+            gl.active_texture(glow::TEXTURE0 + which as u32);
+            if self.texture_handle[which].is_none()
             {
-                self.texture_handle = gl.create_texture().ok();
+                self.texture_handle[which] = gl.create_texture().ok();
             }
-            let handle = self.texture_handle.unwrap();
+            let handle = self.texture_handle[which].unwrap();
             upload_texture(gl, handle, &texture);
+            eframe::egui_glow::check_for_gl_error!(gl, "after texture upload");
+        }
+    }
+    pub (crate) fn add_data(&mut self, gl : &glow::Context, data : &[[f32; 4]], which : usize)
+    {
+        unsafe
+        {
+            eframe::egui_glow::check_for_gl_error!(gl, "before texture upload");
+            let which = which.clamp(0, 7);
+            gl.active_texture(glow::TEXTURE0 + which as u32);
+            if self.texture_handle[which].is_none()
+            {
+                self.texture_handle[which] = gl.create_texture().ok();
+            }
+            let handle = self.texture_handle[which].unwrap();
+            upload_data(gl, handle, &data);
             eframe::egui_glow::check_for_gl_error!(gl, "after texture upload");
         }
     }
@@ -274,9 +318,15 @@ impl ShaderQuad
                 gl.uniform_1_f32(location.as_ref(), uniform.1);
             }
             
-            gl.uniform_1_i32(gl.get_uniform_location(self.program, "user_texture").as_ref(), 0);
-            gl.active_texture(glow::TEXTURE0);
-            gl.bind_texture(glow::TEXTURE_2D, self.texture_handle);
+            for (i, handle) in self.texture_handle.iter().enumerate()
+            {
+                if let Some(handle) = handle
+                {
+                    gl.uniform_1_i32(gl.get_uniform_location(self.program, &format!("user_texture_{}", i)).as_ref(), i as i32);
+                    gl.active_texture(glow::TEXTURE0 + i as u32);
+                    gl.bind_texture(glow::TEXTURE_2D, Some(*handle));
+                }
+            }
             
             gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
             eframe::egui_glow::check_for_gl_error!(gl, "after render");

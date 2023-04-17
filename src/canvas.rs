@@ -194,7 +194,10 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
         let mut shader = colorpicker_shader.lock();
-        shader.add_texture(glow_painter.gl(), &texture); // FIXME need to clone texture to move into here
+        shader.add_texture(glow_painter.gl(), &texture, 0); // FIXME need to clone texture to move into here
+        
+        shader.add_data(glow_painter.gl(), &[[0.0, 0.0, 0.0, 0.0], [5.0, 16.0, 0.0, 0.0], [16.0, 9.0, 0.0, 0.0]], 1);
+        
         shader.add_vertices(&vertices, &uvs);
         shader.render(glow_painter.gl(), &uniforms);
     });
