@@ -24,26 +24,50 @@ float dist_sq(vec2 a, vec2 b)
     return dot(d, d);
 }
 
-float coord_to_grand_sdf(vec2 c, float width)
+vec3 coord_to_poly_sdf(vec2 c, float width)
 {
     float len = textureSize(user_texture_1, 0).x;
     float closest = 10000000.0 / zoom_level;
     vec2 a = texture(user_texture_1, vec2(0.0, 0.0)).xy;
+    
+    bool inside = false;
+    float total_length = 0.0;
+    float progress = 0.0;
+    
     for(int i = 0; i < len; i += 1)
     {
-        float x = (float((i+1) % int(len)) + 0.5) / float(len);
-        vec2 b = texture(user_texture_1, vec2(x, 0.0)).xy;
+        float tex_x = (float((i+1) % int(len)) + 0.5) / float(len);
+        vec2 b = texture(user_texture_1, vec2(tex_x, 0.0)).xy;
         vec2 u = b - a;
         vec2 v = a - c;
+        float len = length(u);
+        
         float t = -(dot(v, u)/dot(u, u));
         if (t > 0.0 && t < 1.0)
-            closest = min(closest, dist_sq(mix(a, b, t), c));
+        {
+            float new = dist_sq(mix(a, b, t), c);
+            if (new < closest)
+            {
+                closest = new;
+                progress = total_length + t*len;
+            }
+        }
         closest = min(closest, dist_sq(a, c));
-        closest = min(closest, dist_sq(b, c));
+        
+        if ((a.y > c.y) != (b.y > c.y))
+        {
+            vec2 cb = c - b;
+            vec2 ab = a - b;
+            float s = cb.x * ab.y - cb.y * ab.x;
+            inside = inside != ((s < 0.0) == (ab.y < 0.0));
+        }
+        
+        total_length += len;
         
         a = b;
     }
-    return (sqrt(closest)) * zoom_level - width;
+    
+    return vec3((sqrt(closest)) * zoom_level - width, float(inside), progress * zoom_level);
 }
 
 vec2 coord_to_sdf(vec2 c, float scale, float width)
@@ -73,6 +97,11 @@ vec4 to_linear(vec4 srgb)
     vec4 lower = srgb/vec4(12.92);
 
     return vec4(mix(higher, lower, cutoff).rgb, srgb.a);
+}
+
+float soft_square(float x, float hardness)
+{
+    return clamp(((1.0 - abs(mod(x/2.0, 1.0) * 2.0 - 1.0)) - 0.5) * hardness * 2.0, -1.0, 1.0) * 0.5 + 0.5;
 }
 
 void main()
@@ -105,14 +134,21 @@ void main()
         if (abs(zoom_level-1.0) < 0.01)
             texcoord = floor(texcoord);
         
+        // sdf-related stuff
         vec2 sv = coord_to_sdf(texcoord, grid_size, 1.0);
         float s = min(sv.x, sv.y);
-        float n = coord_to_grand_sdf(texcoord, 1.0); // FIXME unfinished / not used properly
+        vec3 info = coord_to_poly_sdf(texcoord, 1.0);
+        float n = info.x;
         s = min(s, n);
         
-        float canvas_x_checker = floor(texcoord.x * zoom_level / 3.0 + 0.5);
-        float canvas_y_checker = floor(texcoord.y * zoom_level / 3.0 + 0.5);
-        float canvas_checker = mod((sv.x > sv.y) ? canvas_x_checker : canvas_y_checker, 2.0);
+        // outline pattern for grid
+        float a = soft_square(texcoord.x * zoom_level / 3.0, 3.0);
+        float b = soft_square(texcoord.y * zoom_level / 3.0, 3.0);
+        float outline_checker = (sv.x > sv.y) ? a : b;
+        
+        // switch with selection outline if needed
+        if (s == n)
+            outline_checker = soft_square(info.z/4.0, 4.0);
         
         // don't draw grid on edge of image
         s *= clamp((              raw_texcoord.x) * zoom_level - 0.5, 0.0, 1.0);
@@ -122,16 +158,20 @@ void main()
         
         float grid_strength = clamp(-s, 0.0, 1.0);
         
-        if (abs(zoom_level-1.0) < 0.01)
-            grid_strength = round(grid_strength);
+        if (n != s)
+        {
+            if (abs(zoom_level-1.0) < 0.01)
+                grid_strength = round(grid_strength);
+            grid_strength *= 0.5;
+        }
         
-        vec3 grid_color = mix(vec3(0.0), vec3(1.0), canvas_checker);
-        vec4 grid = vec4(grid_color, grid_strength*0.5);
+        vec3 grid_color = mix(vec3(0.0), vec3(1.0), outline_checker);
+        vec4 grid = vec4(grid_color, grid_strength);
+        
+        if(info.y > 0.5)
+            out_color = mix_normal(vec4(0.0, 0.45, 0.85, 0.2), out_color);
         
         out_color = mix_normal(grid, out_color);
-        
-        //out_color.rgb = vec3(-s/grid_size*0.5 + 0.5);
-        //out_color.rgb = vec3(-n/grid_size*0.5 + 0.5);
     }
     
     //out_color = to_linear(out_color);
