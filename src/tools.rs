@@ -179,7 +179,7 @@ impl Tool for Fill
     }
 }
 
-fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4])
+fn draw_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4])
 {
     from[0] = from[0].floor();
     from[1] = from[1].floor();
@@ -196,12 +196,12 @@ fn draw_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f
         image.set_pixel_float(x, y, color);
     }
 }
-fn draw_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4])
+fn draw_line_no_start(image : &mut Image<4>, from : [f32; 2], to : [f32; 2], color : [u8; 4])
 {
     draw_line_no_start_float(image, from, to, px_to_float(color))
 }
 
-fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
+fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
 {
     fn dir_index(x_d : isize, y_d : isize) -> usize
     {
@@ -264,11 +264,11 @@ fn draw_brush_line_no_start_float(image : &mut Image, mut from : [f32; 2], mut t
         prev_y = y;
     }
 }
-fn draw_brush_line_no_start(image : &mut Image, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
+fn draw_brush_line_no_start(image : &mut Image<4>, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
 {
     draw_brush_line_no_start_float(image, from, to, px_to_float(color), brush, offset, erase, alpha_lock)
 }
-fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brush_shape : &Image, erase : bool, alpha_lock : bool)
+fn draw_brush_at_float(image : &mut Image<4>, at : [f32; 2], color : [f32; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool)
 {
     let x = at[0].floor() as isize;
     let y = at[1].floor() as isize;
@@ -302,7 +302,7 @@ fn draw_brush_at_float(image : &mut Image, at : [f32; 2], color : [f32; 4], brus
         }
     }
 }
-fn draw_brush_at(image : &mut Image, at : [f32; 2], color : [u8; 4], brush_shape : &Image, erase : bool, alpha_lock : bool)
+fn draw_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool)
 {
     draw_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock)
 }
@@ -317,7 +317,7 @@ fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
     rect
 }
 
-fn generate_brush(size : f32) -> Image
+fn generate_brush(size : f32) -> Image<4>
 {
     let img_size = size.ceil() as usize;
     let mut shape = Image::blank(img_size, img_size);
@@ -335,7 +335,7 @@ fn generate_brush(size : f32) -> Image
     }
     shape
 }
-fn directionalize_brush(brush_shape : &Image) -> Vec<Vec<((isize, isize), [f32; 4])>>
+fn directionalize_brush(brush_shape : &Image<4>) -> Vec<Vec<((isize, isize), [f32; 4])>>
 {
     let mut ret = Vec::new();
     let dirs = [
@@ -389,7 +389,7 @@ fn directionalize_brush(brush_shape : &Image) -> Vec<Vec<((isize, isize), [f32; 
 pub (crate) struct Pencil
 {
     size : f32,
-    brush_shape : Image,
+    brush_shape : Image<4>,
     outline_data : Vec<Vec<[f32; 2]>>,
     direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
     prev_input : CanvasInputState,
@@ -577,7 +577,7 @@ impl Selection
 }
 impl Tool for Selection
 {
-    fn think(&mut self, _app : &mut crate::Warpainter, new_input : &CanvasInputState)
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
         // press
         if new_input.held[0] && !self.prev_input.held[0]
@@ -596,15 +596,27 @@ impl Tool for Selection
         // release
         if !new_input.held[0] && self.prev_input.held[0]
         {
+            let mut loops = Vec::new();
+            if let (Some(a), Some(b)) = (self.start_point, self.current_point)
+            {
+                let mut rect = rect_normalize([a, b]);
+                rect[1][0] += 1.0;
+                rect[1][1] += 1.0;
+                rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
+                loops = vec!(vec!(
+                    rect[0],
+                    [rect[1][0], rect[0][1]],
+                    rect[1],
+                    [rect[0][0], rect[1][1]],
+                    rect[0],
+                ));
+                
+                //app.commit_selection(loops);
+            }
+            
             self.start_point = None;
             self.current_point = None;
         }
-        if new_input.held[1] && !self.prev_input.held[1]
-        {
-            self.start_point = None;
-            self.current_point = None;
-        }
-        
         self.prev_input = new_input.clone();
     }
     fn is_brushlike(&self) -> bool

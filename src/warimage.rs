@@ -37,13 +37,13 @@ fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
 
 use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Decode, Encode)]
-pub (crate) enum ImageData
+pub (crate) enum ImageData<const N : usize>
 {
-    Float(Vec<[f32; 4]>),
-    Int(Vec<[u8; 4]>),
+    Float(Vec<[f32; N]>),
+    Int(Vec<[u8; N]>),
 }
 
-impl Default for ImageData
+impl<const N: usize> Default for ImageData<N>
 {
     fn default() -> Self
     {
@@ -51,73 +51,15 @@ impl Default for ImageData
     }
 }
 
-impl ImageData
+impl<const N : usize> ImageData<N>
 {
-    fn premultiply(mut self) -> Self
-    {
-        match &mut self
-        {
-            Self::Int(ref mut data) =>
-            {
-                for i in 0..data.len()
-                {
-                    data[i][0] = to_int(to_float(data[i][0]) * to_float(data[i][3]));
-                    data[i][1] = to_int(to_float(data[i][1]) * to_float(data[i][3]));
-                    data[i][2] = to_int(to_float(data[i][2]) * to_float(data[i][3]));
-                }
-            }
-            Self::Float(ref mut data) =>
-            {
-                for i in 0..data.len()
-                {
-                    data[i][0] = data[i][0] * data[i][3];
-                    data[i][1] = data[i][1] * data[i][3];
-                    data[i][2] = data[i][2] * data[i][3];
-                }
-            }
-        }
-        self
-    }
-    fn unpremultiply(mut self) -> Self
-    {
-        match &mut self
-        {
-            Self::Int(ref mut data) =>
-            {
-                for i in 0..data.len()
-                {
-                    if data[i][3] == 0
-                    {
-                        continue;
-                    }
-                    data[i][0] = to_int(to_float(data[i][0]) / to_float(data[i][3]));
-                    data[i][1] = to_int(to_float(data[i][1]) / to_float(data[i][3]));
-                    data[i][2] = to_int(to_float(data[i][2]) / to_float(data[i][3]));
-                }
-            }
-            Self::Float(ref mut data) =>
-            {
-                for i in 0..data.len()
-                {
-                    if data[i][3] == 0.0
-                    {
-                        continue;
-                    }
-                    data[i][0] = data[i][0] / data[i][3];
-                    data[i][1] = data[i][1] / data[i][3];
-                    data[i][2] = data[i][2] / data[i][3];
-                }
-            }
-        }
-        self
-    }
     fn new_float(w : usize, h : usize) -> Self
     {
-        Self::Float(vec!([0.0; 4]; w*h))
+        Self::Float(vec!([0.0; N]; w*h))
     }
     fn new_int(w : usize, h : usize) -> Self
     {
-        Self::Int(vec!([0; 4]; w*h))
+        Self::Int(vec!([0; N]; w*h))
     }
     fn to_int(&self) -> Vec<u8>
     {
@@ -126,7 +68,7 @@ impl ImageData
             Self::Int(data) => flatten(data),
             Self::Float(data) =>
             {
-                let mut out = vec!([0; 4]; data.len());
+                let mut out = vec!([0; N]; data.len());
                 for i in 0..data.len()
                 {
                     out[i] = px_to_int(data[i]);
@@ -143,14 +85,14 @@ impl ImageData
 
 // always RGBA
 #[derive(Clone, Debug, Default, Decode, Encode)]
-pub (crate) struct Image
+pub (crate) struct Image<const N : usize>
 {
     pub (crate) width : usize,
     pub (crate) height : usize,
-    data : ImageData,
+    data : ImageData<N>,
 }
 
-impl Image
+impl<const N : usize> Image<N>
 {
     #[inline]
     pub (crate) fn bytes(&self) -> &[u8]
@@ -183,10 +125,10 @@ impl Image
     }
 }
 
-impl Image
+impl<const N : usize> Image<N>
 {
     #[inline]
-    pub (crate) fn set_pixel_wrapped(&mut self, x : isize, y : isize, px : [u8; 4])
+    pub (crate) fn set_pixel_wrapped(&mut self, x : isize, y : isize, px : [u8; N])
     {
         let x = (x % self.width as isize) as usize;
         let y = (y % self.height as isize) as usize;
@@ -200,7 +142,7 @@ impl Image
         }
     }
     #[inline]
-    pub (crate) fn set_pixel(&mut self, x : isize, y : isize, px : [u8; 4])
+    pub (crate) fn set_pixel(&mut self, x : isize, y : isize, px : [u8; N])
     {
         if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
         {
@@ -209,7 +151,7 @@ impl Image
         self.set_pixel_wrapped(x, y, px)
     }
     #[inline]
-    pub (crate) fn set_pixel_float_wrapped(&mut self, x : isize, y : isize, px : [f32; 4])
+    pub (crate) fn set_pixel_float_wrapped(&mut self, x : isize, y : isize, px : [f32; N])
     {
         let x = (x % self.width as isize) as usize;
         let y = (y % self.height as isize) as usize;
@@ -223,7 +165,7 @@ impl Image
         }
     }
     #[inline]
-    pub (crate) fn set_pixel_float(&mut self, x : isize, y : isize, px : [f32; 4])
+    pub (crate) fn set_pixel_float(&mut self, x : isize, y : isize, px : [f32; N])
     {
         if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
         {
@@ -234,7 +176,7 @@ impl Image
     
     
     #[inline]
-    pub (crate) fn get_pixel_wrapped(&self, x : isize, y : isize) -> [u8; 4]
+    pub (crate) fn get_pixel_wrapped(&self, x : isize, y : isize) -> [u8; N]
     {
         let x = (x % self.width as isize) as usize;
         let y = (y % self.height as isize) as usize;
@@ -246,16 +188,16 @@ impl Image
         }
     }
     #[inline]
-    pub (crate) fn get_pixel(&self, x : isize, y : isize) -> [u8; 4]
+    pub (crate) fn get_pixel(&self, x : isize, y : isize) -> [u8; N]
     {
         if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
         {
-            return [0; 4];
+            return [0; N];
         }
         self.get_pixel_wrapped(x, y)
     }
     #[inline]
-    pub (crate) fn get_pixel_float_wrapped(&self, x : isize, y : isize) -> [f32; 4]
+    pub (crate) fn get_pixel_float_wrapped(&self, x : isize, y : isize) -> [f32; N]
     {
         let x = (x % self.width as isize) as usize;
         let y = (y % self.height as isize) as usize;
@@ -267,11 +209,11 @@ impl Image
         }
     }
     #[inline]
-    pub (crate) fn get_pixel_float(&self, x : isize, y : isize) -> [f32; 4]
+    pub (crate) fn get_pixel_float(&self, x : isize, y : isize) -> [f32; N]
     {
         if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
         {
-            return [0.0; 4];
+            return [0.0; N];
         }
         self.get_pixel_float_wrapped(x, y)
     }
@@ -282,24 +224,12 @@ fn nop<T>(t : T) -> T
     t
 }
 
-impl Image
+impl Image<4>
 {
-    pub (crate) fn blank(w : usize, h : usize) -> Self
-    {
-        let data = ImageData::new_int(w as usize, h as usize);
-        let ret = Self { width : w as usize, height : h as usize, data };
-        ret
-    }
-    pub (crate) fn blank_float(w : usize, h : usize) -> Self
-    {
-        let data = ImageData::new_float(w as usize, h as usize);
-        let ret = Self { width : w as usize, height : h as usize, data };
-        ret
-    }
     pub (crate) fn from_rgbaimage(input : &image::RgbaImage) -> Self
     {
         let (w, h) = input.dimensions();
-        let data = ImageData::new_int(w as usize, h as usize);
+        let data = ImageData::<4>::new_int(w as usize, h as usize);
         let mut ret = Self { width : w as usize, height : h as usize, data };
         for y in 0..ret.height
         {
@@ -310,10 +240,6 @@ impl Image
             }
         }
         ret
-    }
-    pub (crate) fn blank_with_same_size(&self) -> Self
-    {
-        Self::blank(self.width, self.height)
     }
     pub (crate) fn blank_white_transparent(w : usize, h : usize) -> Self
     {
@@ -338,31 +264,9 @@ impl Image
         let ret = Self { width : w as usize, height : h as usize, data };
         ret
     }
-    // for icons etc. too slow to use for anything else.
-    pub (crate) fn to_egui(&self) -> egui::ColorImage
-    {
-        egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.clone().to_int())
-    }
-    pub (crate) fn to_imagebuffer(&self) -> image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>
-    {
-        match &self.data
-        {
-            ImageData::Int(data) =>
-            {
-                type T = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>;
-                let img = T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap();
-                img
-            }
-            ImageData::Float(data) =>
-            {
-                type T = image::ImageBuffer::<image::Rgba<f32>, Vec<f32>>;
-                let img = T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap();
-                image::DynamicImage::from(img).to_rgba8()
-            }
-        }
-    }
+    
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image, top_opacity : f32, blend_mode : &String)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, top_opacity : f32, blend_mode : &String)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width.min(top.width) as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -484,22 +388,159 @@ impl Image
         
         match (&mut self.data, &top.data)
         {
-            (ImageData::Float(bottom), ImageData::Float(top)) =>
+            (ImageData::<4>::Float(bottom), ImageData::<4>::Float(top)) =>
                 do_loop!(bottom, top, nop, nop, nop, blend_float, post_float),
-            (ImageData::Float(bottom), ImageData::Int(top)) =>
+            (ImageData::<4>::Float(bottom), ImageData::<4>::Int(top)) =>
                 do_loop!(bottom, top, nop, px_to_float, nop, blend_float, post_float),
-            (ImageData::Int(bottom), ImageData::Float(top)) =>
+            (ImageData::<4>::Int(bottom), ImageData::<4>::Float(top)) =>
                 do_loop!(bottom, top, px_to_float, nop, px_to_int, blend_float, post_float),
-            (ImageData::Int(bottom), ImageData::Int(top)) =>
+            (ImageData::<4>::Int(bottom), ImageData::<4>::Int(top)) =>
                 do_loop!(bottom, top, nop, nop, nop, blend_int, post_int),
         }
     }
-    pub (crate) fn blend_from(&mut self, top : &Image, top_opacity : f32, blend_mode : &String)
+    pub (crate) fn blend_from(&mut self, top : &Image<4>, top_opacity : f32, blend_mode : &String)
     {
         self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, top_opacity, blend_mode)
     }
     
-    pub (crate) fn resized(&mut self, new_w : usize, new_h : usize) -> Image
+    pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128) -> UndoEvent
+    {
+        let mut min_x = new_data.width;
+        let mut max_x = 0;
+        let mut min_y = new_data.height;
+        let mut max_y = 0;
+        macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
+        {
+            for outer in $outer_range
+            {
+                for inner in $inner_range
+                {
+                    let first = if $y_outer { inner } else { outer } as isize;
+                    let second = if $y_outer { outer } else { inner } as isize;
+                    let old_c = old_data.get_pixel_float_wrapped(first, second);
+                    let new_c = new_data.get_pixel_float_wrapped(first, second);
+                    if !vec_eq(&old_c, &new_c)
+                    {
+                        *$target = $f(*$target, outer);
+                    }
+                }
+            }
+        } }
+        do_loop!(true , 0..new_data.height            , 0..new_data.width, &mut min_y, usize::min);
+        do_loop!(true , (min_y..new_data.height).rev(), 0..new_data.width, &mut max_y, usize::max);
+        do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
+        do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
+        
+        if max_y >= min_y && max_x >= min_x
+        {
+            let w = max_x - min_x + 1;
+            let h = max_y - min_y + 1;
+            
+            let mut old_copy = if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) };
+            let mut new_copy = if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) };
+            let mut mask = vec!(false; w*h);
+            
+            for y in min_y..=max_y
+            {
+                for x in min_x..=max_x
+                {
+                    let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
+                    let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
+                    if !vec_eq(&old_c, &new_c)
+                    {
+                        let x2 = x - min_x;
+                        let y2 = y - min_y;
+                        old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
+                        new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
+                        mask[y2 * w + x2] = true;
+                    }
+                }
+            }
+            
+            return UndoEvent::LayerPaint(LayerPaint {
+                uuid,
+                rect : [[min_x, min_y], [max_x+1, max_y+1]], 
+                old : old_copy,
+                new : new_copy,
+                mask
+            });
+        }
+        UndoEvent::Null
+    }
+    pub (crate) fn apply_edit(&mut self, event : &LayerPaint, is_undo : bool)
+    {
+        let rect = event.rect;
+        let w = rect[1][0] - rect[0][0];
+        
+        let source = if is_undo { &event.old } else { &event.new };
+        
+        for y in rect[0][1]..rect[1][1]
+        {
+            for x in rect[0][0]..rect[1][0]
+            {
+                let x2 = x - rect[0][0];
+                let y2 = y - rect[0][1];
+                if event.mask[y2 * w + x2]
+                {
+                    let c = source.get_pixel_float_wrapped(x2 as isize, y2 as isize);
+                    self.set_pixel_float_wrapped(x as isize, y as isize, c);
+                }
+            }
+        }
+    }
+    pub (crate) fn undo_edit(&mut self, event : &LayerPaint)
+    {
+        self.apply_edit(event, true)
+    }
+    pub (crate) fn redo_edit(&mut self, event : &LayerPaint)
+    {
+        self.apply_edit(event, false)
+    }
+}
+
+impl<const N : usize> Image<N>
+{
+    pub (crate) fn blank(w : usize, h : usize) -> Self
+    {
+        let data = ImageData::new_int(w as usize, h as usize);
+        let ret = Self { width : w as usize, height : h as usize, data };
+        ret
+    }
+    pub (crate) fn blank_float(w : usize, h : usize) -> Self
+    {
+        let data = ImageData::new_float(w as usize, h as usize);
+        let ret = Self { width : w as usize, height : h as usize, data };
+        ret
+    }
+    pub (crate) fn blank_with_same_size(&self) -> Self
+    {
+        Self::blank(self.width, self.height)
+    }
+    // for icons etc. too slow to use for anything else.
+    pub (crate) fn to_egui(&self) -> egui::ColorImage
+    {
+        egui::ColorImage::from_rgba_unmultiplied([self.width, self.height], &self.data.clone().to_int())
+    }
+    pub (crate) fn to_imagebuffer(&self) -> image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>
+    {
+        match &self.data
+        {
+            ImageData::Int(data) =>
+            {
+                type T = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>;
+                let img = T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap();
+                img
+            }
+            ImageData::Float(data) =>
+            {
+                type T = image::ImageBuffer::<image::Rgba<f32>, Vec<f32>>;
+                let img = T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap();
+                image::DynamicImage::from(img).to_rgba8()
+            }
+        }
+    }
+    
+    pub (crate) fn resized(&mut self, new_w : usize, new_h : usize) -> Image<N>
     {
         let mut ret = Self::blank(new_w, new_h);
         
@@ -515,7 +556,7 @@ impl Image
         }
         ret
     }
-    pub (crate) fn clear_rect_with_color_float(&mut self, rect : [[f32; 2]; 2], color : [f32; 4])
+    pub (crate) fn clear_rect_with_color_float(&mut self, rect : [[f32; 2]; 2], color : [f32; N])
     {
         for y in rect[0][1].floor().max(0.0) as isize..=(rect[1][1].ceil() as isize).min(self.height as isize - 1)
         {
@@ -537,7 +578,7 @@ impl Image
             }
         }
     }
-    pub (crate) fn clear_with_color_float(&mut self, color : [f32; 4])
+    pub (crate) fn clear_with_color_float(&mut self, color : [f32; N])
     {
         for y in 0..self.height as isize
         {
@@ -547,7 +588,7 @@ impl Image
             }
         }
     }
-    pub (crate) fn clear_with_color(&mut self, color : [u8; 4])
+    pub (crate) fn clear_with_color(&mut self, color : [u8; N])
     {
         for y in 0..self.height as isize
         {
@@ -559,7 +600,7 @@ impl Image
     }
     pub (crate) fn clear(&mut self)
     {
-        self.clear_with_color_float([0.0, 0.0, 0.0, 0.0]);
+        self.clear_with_color_float([0.0; N]);
     }
     
     pub (crate) fn analyze_outline(&self) -> Vec<Vec<[f32; 2]>>
@@ -727,98 +768,5 @@ impl Image
         loops
     }
     
-    pub (crate) fn analyze_edit(old_data : &Image, new_data : &Image, uuid : u128) -> UndoEvent
-    {
-        let mut min_x = new_data.width;
-        let mut max_x = 0;
-        let mut min_y = new_data.height;
-        let mut max_y = 0;
-        macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
-        {
-            for outer in $outer_range
-            {
-                for inner in $inner_range
-                {
-                    let first = if $y_outer { inner } else { outer } as isize;
-                    let second = if $y_outer { outer } else { inner } as isize;
-                    let old_c = old_data.get_pixel_float_wrapped(first, second);
-                    let new_c = new_data.get_pixel_float_wrapped(first, second);
-                    if !vec_eq(&old_c, &new_c)
-                    {
-                        *$target = $f(*$target, outer);
-                    }
-                }
-            }
-        } }
-        do_loop!(true , 0..new_data.height            , 0..new_data.width, &mut min_y, usize::min);
-        do_loop!(true , (min_y..new_data.height).rev(), 0..new_data.width, &mut max_y, usize::max);
-        do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
-        do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
-        
-        if max_y >= min_y && max_x >= min_x
-        {
-            let w = max_x - min_x + 1;
-            let h = max_y - min_y + 1;
-            
-            let mut old_copy = if old_data.is_int() { Image::blank(w, h) } else { Image::blank_float(w, h) };
-            let mut new_copy = if old_data.is_int() { Image::blank(w, h) } else { Image::blank_float(w, h) };
-            let mut mask = vec!(false; w*h);
-            
-            for y in min_y..=max_y
-            {
-                for x in min_x..=max_x
-                {
-                    let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
-                    let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
-                    if !vec_eq(&old_c, &new_c)
-                    {
-                        let x2 = x - min_x;
-                        let y2 = y - min_y;
-                        old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
-                        new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
-                        mask[y2 * w + x2] = true;
-                    }
-                }
-            }
-            
-            return UndoEvent::LayerPaint(LayerPaint {
-                uuid,
-                rect : [[min_x, min_y], [max_x+1, max_y+1]], 
-                old : old_copy,
-                new : new_copy,
-                mask
-            });
-        }
-        UndoEvent::Null
-    }
-    pub (crate) fn apply_edit(&mut self, event : &LayerPaint, is_undo : bool)
-    {
-        let rect = event.rect;
-        let w = rect[1][0] - rect[0][0];
-        
-        let source = if is_undo { &event.old } else { &event.new };
-        
-        for y in rect[0][1]..rect[1][1]
-        {
-            for x in rect[0][0]..rect[1][0]
-            {
-                let x2 = x - rect[0][0];
-                let y2 = y - rect[0][1];
-                if event.mask[y2 * w + x2]
-                {
-                    let c = source.get_pixel_float_wrapped(x2 as isize, y2 as isize);
-                    self.set_pixel_float_wrapped(x as isize, y as isize, c);
-                }
-            }
-        }
-    }
-    pub (crate) fn undo_edit(&mut self, event : &LayerPaint)
-    {
-        self.apply_edit(event, true)
-    }
-    pub (crate) fn redo_edit(&mut self, event : &LayerPaint)
-    {
-        self.apply_edit(event, false)
-    }
 }
 

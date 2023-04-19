@@ -42,7 +42,7 @@ const FRAG_SHADER : &'static str = "
     }
 ";
 
-fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image)
+fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>)
 {
     unsafe
     {
@@ -236,7 +236,7 @@ impl ShaderQuad
             Some(ShaderQuad { program, vertex_array, vertex_buffer, vertices, uvs, need_to_delete : true, texture_handle : [None; 8] } )
         }
     }
-    pub (crate) fn add_texture(&mut self, gl : &glow::Context, texture : &Image, which : usize)
+    pub (crate) fn add_texture(&mut self, gl : &glow::Context, texture : &Image<4>, which : usize)
     {
         unsafe
         {

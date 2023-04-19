@@ -39,10 +39,10 @@ pub (crate) struct Layer
 {
     pub (crate) uuid : u128,
     
-    pub (crate) data : Option<Image>,
+    pub (crate) data : Option<Image<4>>,
     pub (crate) children : Vec<Layer>,
     
-    pub (crate) flattened_data : Option<Image>,
+    pub (crate) flattened_data : Option<Image<4>>,
     pub (crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
     
     pub (crate) offset : [f32; 2],
@@ -90,7 +90,7 @@ impl Layer
     {
         self.old_info_for_undo = self.get_info();
     }
-    pub(crate) fn new_layer_from_image<T : ToString>(name : T, image : Image) -> Self
+    pub(crate) fn new_layer_from_image<T : ToString>(name : T, image : Image<4>) -> Self
     {
         Layer {
             name : name.to_string(),
@@ -309,7 +309,7 @@ impl Layer
         });
         self.dirtify_rect([[0.0, 0.0], size]);
     }
-    pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image>) -> &'b Image where 'a: 'b
+    pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>) -> &'b Image<4> where 'a: 'b
     {
         if Some(self.uuid) == override_uuid && override_data.is_some()
         {
@@ -324,7 +324,7 @@ impl Layer
             self.flatten_as_root(canvas_width, canvas_height, override_uuid, override_data)
         }
     }
-    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image>) -> &'a Image
+    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>) -> &'a Image<4>
     {
         let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()

@@ -56,8 +56,8 @@ struct LayerPaint
 {
     uuid : u128,
     rect : [[usize; 2]; 2],
-    old : Image,
-    new : Image,
+    old : Image<4>,
+    new : Image<4>,
     mask : Vec<bool>,
 }
 #[derive(Clone, Debug, Default, Decode, Encode)]
@@ -115,7 +115,7 @@ struct Warpainter
     tools : Vec<Box<dyn Tool>>, // FIXME change to VecMap<&'static str, ....
     
     edit_is_direct : bool,
-    editing_image : Option<Image>,
+    editing_image : Option<Image<4>>,
     
     loaded_shaders : bool,
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
@@ -123,6 +123,7 @@ struct Warpainter
     loaded_icons : bool,
     icons : VecMap<&'static str, egui::TextureHandle>,
     
+    selection_mask : Option<Image<1>>,
     selection_poly : Vec<Vec<[f32; 2]>>,
 }
 
@@ -131,7 +132,7 @@ impl Default for Warpainter
     fn default() -> Self
     {
         let img = image::io::Reader::new(std::io::Cursor::new(&include_bytes!("data/grass4x4plus.png"))).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
-        let img = Image::from_rgbaimage(&img);
+        let img = Image::<4>::from_rgbaimage(&img);
         //let img = Image::blank(1024, 1024);
         let canvas_width = img.width;
         let canvas_height = img.height;
@@ -180,6 +181,7 @@ impl Default for Warpainter
             loaded_icons : false,
             icons : VecMap::new(),
             
+            selection_mask : None,
             selection_poly : Vec::new(),
         };
         
@@ -261,7 +263,7 @@ impl Warpainter
 
 impl Warpainter
 {
-    fn load_from_img(&mut self, img : Image)
+    fn load_from_img(&mut self, img : Image<4>)
     {
         self.layers = Layer::new_group("___root___");
         
@@ -326,11 +328,11 @@ impl Warpainter
         }
     }
     
-    fn get_editing_image<'a>(&'a mut self) -> Option<&'a mut Image>
+    fn get_editing_image<'a>(&'a mut self) -> Option<&'a mut Image<4>>
     {
         (&mut self.editing_image).as_mut()
     }
-    fn get_current_layer_image<'a>(&'a mut self) -> Option<&'a Image>
+    fn get_current_layer_image<'a>(&'a mut self) -> Option<&'a Image<4>>
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
@@ -341,7 +343,7 @@ impl Warpainter
             None
         }
     }
-    fn flatten<'a>(&'a mut self) -> &'a Image
+    fn flatten<'a>(&'a mut self) -> &'a Image<4>
     {
         if let Some(override_image) = self.get_temp_edit_image()
         {
@@ -352,7 +354,7 @@ impl Warpainter
             self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None)
         }
     }
-    fn get_temp_edit_image(&self) -> Option<Image>
+    fn get_temp_edit_image(&self) -> Option<Image<4>>
     {
         if let Some(edit_image) = &self.editing_image
         {
@@ -393,7 +395,7 @@ impl Warpainter
                         *current_image = image;
                         
                         self.redo_buffer = Vec::new();
-                        let event = Image::analyze_edit(&old_data, current_image, self.current_layer);
+                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer);
                         self.undo_buffer.push(event.compress());
                     }
                 }
@@ -727,7 +729,7 @@ impl eframe::App for Warpainter
                                 
                                 // FIXME handle error
                                 let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
-                                let img = Image::from_rgbaimage(&img);
+                                let img = Image::<4>::from_rgbaimage(&img);
                                 self.load_from_img(img);
                                 
                                 ui.close_menu();

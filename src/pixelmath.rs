@@ -831,24 +831,24 @@ pub (crate) fn to_int(x : f32) -> u8
     (x.clamp(0.0, 1.0)*255.0 + 0.5) as u8 // correct rounding is too slow
 }
 #[inline]
-pub (crate) fn px_to_float(x : [u8; 4]) -> [f32; 4]
+pub (crate) fn px_to_float<const N : usize>(x : [u8; N]) -> [f32; N]
 {
-    [
-        to_float(x[0]),
-        to_float(x[1]),
-        to_float(x[2]),
-        to_float(x[3]),
-    ]
+    let mut ret = [0.0; N];
+    for i in 0..N
+    {
+        ret[i] = to_float(x[i]);
+    }
+    ret
 }
 #[inline]
-pub (crate) fn px_to_int(x : [f32; 4]) -> [u8; 4]
+pub (crate) fn px_to_int<const N : usize>(x : [f32; N]) -> [u8; N]
 {
-    [
-        to_int(x[0]),
-        to_int(x[1]),
-        to_int(x[2]),
-        to_int(x[3]),
-    ]
+    let mut ret = [0; N];
+    for i in 0..N
+    {
+        ret[i] = to_int(x[i]);
+    }
+    ret
 }
 
 #[inline]
