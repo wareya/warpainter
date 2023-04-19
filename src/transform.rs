@@ -267,3 +267,7 @@ pub (crate) fn rect_normalize(rect : [[f32; 2]; 2]) -> [[f32; 2]; 2]
 {
     rect_enclose_point([rect[0], rect[0]], rect[1])
 }
+pub (crate) fn rect_translate(rect : [[f32; 2]; 2], vec : [f32; 2]) -> [[f32; 2]; 2]
+{
+    [[rect[0][0] + vec[0], rect[0][1] + vec[1]], [rect[1][0] + vec[0], rect[1][1] + vec[1]]]
+}

@@ -84,7 +84,7 @@ fn upload_data(gl : &glow::Context, handle : glow::Texture, data : &[[f32; 4]])
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
         
-        let bytes = data.iter().map(|x| x.iter().map(|x| x.to_le_bytes()).flatten()).flatten().collect::<Vec<_>>();
+        let bytes = data.iter().map(|x| x.iter().map(|x| x.to_ne_bytes()).flatten()).flatten().collect::<Vec<_>>();
         
         gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
         gl.tex_image_2d (
@@ -139,32 +139,32 @@ impl ShaderQuad
                 fragment_shader = ("#version 300 es".to_string() + &fragment_shader).to_string();
                 
                 vertex_shader = vertex_shader
-                    .replace(" float ", " highp float ")
-                    .replace(" vec2 " , " highp vec2 ")
-                    .replace(" vec3 " , " highp vec3 ")
-                    .replace(" vec4 " , " highp vec4 ")
-                    .replace("(float ", "(highp float ")
-                    .replace("(vec2 ",  "(highp vec2 ")
-                    .replace("(vec3 ",  "(highp vec3 ")
-                    .replace("(vec4 ",  "(highp vec4 ")
+                    .replace( " float ",  " highp float ")
+                    .replace( " vec2 " ,  " highp vec2 " )
+                    .replace( " vec3 " ,  " highp vec3 " )
+                    .replace( " vec4 " ,  " highp vec4 " )
+                    .replace( "(float ",  "(highp float ")
+                    .replace( "(vec2 " ,  "(highp vec2 " )
+                    .replace( "(vec3 " ,  "(highp vec3 " )
+                    .replace( "(vec4 " ,  "(highp vec4 " )
                     .replace("\nfloat ", "\nhighp float ")
-                    .replace("\nvec2 " , "\nhighp vec2 ")
-                    .replace("\nvec3 " , "\nhighp vec3 ")
-                    .replace("\nvec4 " , "\nhighp vec4 ")
+                    .replace("\nvec2 " , "\nhighp vec2 " )
+                    .replace("\nvec3 " , "\nhighp vec3 " )
+                    .replace("\nvec4 " , "\nhighp vec4 " )
                     ;
                 fragment_shader = fragment_shader
-                    .replace(" float ", " highp float ")
-                    .replace(" vec2 ",  " highp vec2 ")
-                    .replace(" vec3 ",  " highp vec3 ")
-                    .replace(" vec4 ",  " highp vec4 ")
-                    .replace("(float ", "(highp float ")
-                    .replace("(vec2 ",  "(highp vec2 ")
-                    .replace("(vec3 ",  "(highp vec3 ")
-                    .replace("(vec4 ",  "(highp vec4 ")
+                    .replace( " float ",  " highp float ")
+                    .replace( " vec2 " ,  " highp vec2 " )
+                    .replace( " vec3 " ,  " highp vec3 " )
+                    .replace( " vec4 " ,  " highp vec4 " )
+                    .replace( "(float ",  "(highp float ")
+                    .replace( "(vec2 " ,  "(highp vec2 " )
+                    .replace( "(vec3 " ,  "(highp vec3 " )
+                    .replace( "(vec4 " ,  "(highp vec4 " )
                     .replace("\nfloat ", "\nhighp float ")
-                    .replace("\nvec2 " , "\nhighp vec2 ")
-                    .replace("\nvec3 " , "\nhighp vec3 ")
-                    .replace("\nvec4 " , "\nhighp vec4 ")
+                    .replace("\nvec2 " , "\nhighp vec2 " )
+                    .replace("\nvec3 " , "\nhighp vec3 " )
+                    .replace("\nvec4 " , "\nhighp vec4 " )
                     ;
                 
                 log(&vertex_shader);

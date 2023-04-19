@@ -42,6 +42,7 @@ vec3 coord_to_poly_sdf(vec2 c, float width)
         vec2 v = a - c;
         float len = length(u);
         
+        // check if this is the closest line segment to our coord
         float t = -(dot(v, u)/dot(u, u));
         if (t > 0.0 && t < 1.0)
         {
@@ -49,11 +50,12 @@ vec3 coord_to_poly_sdf(vec2 c, float width)
             if (new < closest)
             {
                 closest = new;
-                progress = total_length + t*len;
+                progress = total_length + t*len; // for dotted line
             }
         }
         closest = min(closest, dist_sq(a, c));
         
+        // even-odd rule rasterization for the fill
         if ((a.y > c.y) != (b.y > c.y))
         {
             vec2 cb = c - b;

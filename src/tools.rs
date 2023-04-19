@@ -555,6 +555,94 @@ impl Tool for Pencil
     }
 }
 
+pub (crate) struct Selection
+{
+    start_point : Option<[f32; 2]>,
+    current_point : Option<[f32; 2]>,
+    outline_data : Vec<Vec<[f32; 2]>>,
+    prev_input : CanvasInputState,
+}
+
+impl Selection
+{
+    pub (crate) fn new() -> Self
+    {
+        Selection {
+            start_point : None,
+            current_point : None,
+            outline_data : Vec::new(),
+            prev_input : CanvasInputState::default(),
+        }
+    }
+}
+impl Tool for Selection
+{
+    fn think(&mut self, _app : &mut crate::Warpainter, new_input : &CanvasInputState)
+    {
+        // press
+        if new_input.held[0] && !self.prev_input.held[0]
+        {
+            self.start_point = Some(vec_floor(&new_input.canvas_mouse_coord));
+        }
+        // press or hold or release
+        if new_input.held[0] || self.prev_input.held[0]
+        {
+            let point = vec_floor(&new_input.canvas_mouse_coord);
+            if Some(point) != self.start_point || self.current_point.is_some()
+            {
+                self.current_point = Some(point);
+            }
+        }
+        // release
+        if !new_input.held[0] && self.prev_input.held[0]
+        {
+            self.start_point = None;
+            self.current_point = None;
+        }
+        if new_input.held[1] && !self.prev_input.held[1]
+        {
+            self.start_point = None;
+            self.current_point = None;
+        }
+        
+        self.prev_input = new_input.clone();
+    }
+    fn is_brushlike(&self) -> bool
+    {
+        false
+    }
+    fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
+    {
+        if let (Some(a), Some(b)) = (self.start_point, self.current_point)
+        {
+            let mut rect = rect_normalize([a, b]);
+            rect[1][0] += 1.0;
+            rect[1][1] += 1.0;
+            rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
+            let loops = vec!(vec!(
+                rect[0],
+                [rect[1][0], rect[0][1]],
+                rect[1],
+                [rect[0][0], rect[1][1]],
+                rect[0],
+            ));
+            let gizmo = OutlineGizmo { loops, filled : false };
+            Some(Box::new(gizmo))
+        }
+        else
+        {
+            None
+        }
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    {
+        Some((app.icons.get("tool select cursor").as_ref().unwrap(), [6.0, 14.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, _ui : &mut Ui)
+    {
+    }
+}
+
 pub (crate) struct Eyedropper
 {
     size : f32,

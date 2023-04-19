@@ -122,6 +122,8 @@ struct Warpainter
     
     loaded_icons : bool,
     icons : VecMap<&'static str, egui::TextureHandle>,
+    
+    selection_poly : Vec<Vec<[f32; 2]>>,
 }
 
 impl Default for Warpainter
@@ -168,6 +170,7 @@ impl Default for Warpainter
                 Box::new(Pencil::new().to_eraser()),
                 Box::new(Fill::new()),
                 Box::new(Eyedropper::new()),
+                Box::new(Selection::new()),
             ),
             current_tool : 0,
             
@@ -176,6 +179,8 @@ impl Default for Warpainter
             
             loaded_icons : false,
             icons : VecMap::new(),
+            
+            selection_poly : Vec::new(),
         };
         
         ret
@@ -219,23 +224,25 @@ impl Warpainter
         self.loaded_icons = true;
         
         let stuff = [
-            ("new layer",           include_bytes!("icons/new layer.png")           .to_vec()),
-            ("delete layer",        include_bytes!("icons/delete layer.png")        .to_vec()),
-            ("duplicate layer",     include_bytes!("icons/duplicate layer.png")     .to_vec()),
-            ("new group",           include_bytes!("icons/new group.png")           .to_vec()),
-            ("into group",          include_bytes!("icons/into group.png")          .to_vec()),
-            ("transfer down",       include_bytes!("icons/transfer down.png")       .to_vec()),
-            ("merge down",          include_bytes!("icons/merge down.png")          .to_vec()),
-            ("lock",                include_bytes!("icons/lock.png")                .to_vec()),
-            ("lock alpha",          include_bytes!("icons/lock alpha.png")          .to_vec()),
-            ("clipping mask",       include_bytes!("icons/clipping mask.png")       .to_vec()),
-            ("move layer up",       include_bytes!("icons/move layer up.png")       .to_vec()),
-            ("move layer down",     include_bytes!("icons/move layer down.png")     .to_vec()),
+            ("new layer",                  include_bytes!("icons/new layer.png")                 .to_vec()),
+            ("delete layer",               include_bytes!("icons/delete layer.png")              .to_vec()),
+            ("duplicate layer",            include_bytes!("icons/duplicate layer.png")           .to_vec()),
+            ("new group",                  include_bytes!("icons/new group.png")                 .to_vec()),
+            ("into group",                 include_bytes!("icons/into group.png")                .to_vec()),
+            ("transfer down",              include_bytes!("icons/transfer down.png")             .to_vec()),
+            ("merge down",                 include_bytes!("icons/merge down.png")                .to_vec()),
+            ("lock",                       include_bytes!("icons/lock.png")                      .to_vec()),
+            ("lock alpha",                 include_bytes!("icons/lock alpha.png")                .to_vec()),
+            ("clipping mask",              include_bytes!("icons/clipping mask.png")             .to_vec()),
+            ("move layer up",              include_bytes!("icons/move layer up.png")             .to_vec()),
+            ("move layer down",            include_bytes!("icons/move layer down.png")           .to_vec()),
             
-            ("tool pencil",         include_bytes!("icons/tool pencil.png")         .to_vec()),
-            ("tool eraser",         include_bytes!("icons/tool eraser.png")         .to_vec()),
-            ("tool fill",           include_bytes!("icons/tool fill.png")           .to_vec()),
-            ("tool eyedropper",     include_bytes!("icons/tool eyedropper.png")     .to_vec()),
+            ("tool pencil",                include_bytes!("icons/tool pencil.png")               .to_vec()),
+            ("tool eraser",                include_bytes!("icons/tool eraser.png")               .to_vec()),
+            ("tool fill",                  include_bytes!("icons/tool fill.png")                 .to_vec()),
+            ("tool eyedropper",            include_bytes!("icons/tool eyedropper.png")           .to_vec()),
+            ("tool select",                include_bytes!("icons/tool select.png")               .to_vec()),
+            ("tool select cursor",         include_bytes!("icons/tool select cursor.png")        .to_vec()),
         ];
         for thing in stuff
         {
@@ -1032,6 +1039,10 @@ impl eframe::App for Warpainter
                     if add_button!(ui, "tool eyedropper", "Eyedropper Tool", self.current_tool == 3).clicked()
                     {
                         self.current_tool = 3;
+                    }
+                    if add_button!(ui, "tool select", "Selection Tool", self.current_tool == 3).clicked()
+                    {
+                        self.current_tool = 4;
                     }
                 });
             });
