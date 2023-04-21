@@ -596,14 +596,13 @@ impl Tool for Selection
         // release
         if !new_input.held[0] && self.prev_input.held[0]
         {
-            let mut loops = Vec::new();
             if let (Some(a), Some(b)) = (self.start_point, self.current_point)
             {
                 let mut rect = rect_normalize([a, b]);
                 rect[1][0] += 1.0;
                 rect[1][1] += 1.0;
-                rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
-                loops = vec!(vec!(
+                //rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
+                let loops = vec!(vec!(
                     rect[0],
                     [rect[1][0], rect[0][1]],
                     rect[1],
@@ -611,7 +610,7 @@ impl Tool for Selection
                     rect[0],
                 ));
                 
-                //app.commit_selection(loops);
+                app.commit_selection(loops);
             }
             
             self.start_point = None;

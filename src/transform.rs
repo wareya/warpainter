@@ -238,6 +238,18 @@ pub (crate) fn vec_add
     }
     out
 }
+pub (crate) fn vec_dot
+    <const N: usize,
+     T : core::ops::Add<Output = T> + std::marker::Copy + Default + std::ops::Mul<Output = T>>
+    (a : &[T; N], b : &[T; N]) -> T
+{
+    let mut out = T::default();
+    for i in 0..N
+    {
+        out = out + a[i] * b[i];
+    }
+    out
+}
 
 pub (crate) fn vec_floor<const N: usize>(a : &[f32; N]) -> [f32; N]
 {

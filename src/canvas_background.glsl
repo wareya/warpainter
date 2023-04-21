@@ -34,10 +34,16 @@ vec3 coord_to_poly_sdf(vec2 c, float width)
     float total_length = 0.0;
     float progress = 0.0;
     
-    for(int i = 0; i < len; i += 1)
+    for(int i = 0; i+1 < len; i += 1)
     {
-        float tex_x = (float((i+1) % int(len)) + 0.5) / float(len);
-        vec2 b = texture(user_texture_1, vec2(tex_x, 0.0)).xy;
+        float tex_x = (float(i+1) + 0.5) / float(len);
+        vec3 sample = texture(user_texture_1, vec2(tex_x, 0.0)).xyz;
+        vec2 b = sample.xy;
+        if (sample.z > 0.0)
+        {
+            a = b;
+            continue;
+        }
         vec2 u = b - a;
         vec2 v = a - c;
         float len = length(u);

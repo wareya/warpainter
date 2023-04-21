@@ -190,13 +190,15 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
         ("minima_y", minima_y),
         ("zoom_level", xform.get_scale()),
     ];
+    let loops = app.get_selection_loop_data();
+    println!("{:?}", loops);
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
         let mut shader = colorpicker_shader.lock();
         shader.add_texture(glow_painter.gl(), &texture, 0); // FIXME need to clone texture to move into here
         
-        shader.add_data(glow_painter.gl(), &[[0.0, 0.0, 0.0, 0.0], [5.0, 16.0, 0.0, 0.0], [16.0, 9.0, 0.0, 0.0]], 1);
+        shader.add_data(glow_painter.gl(), &loops, 1);
         
         shader.add_vertices(&vertices, &uvs);
         shader.render(glow_painter.gl(), &uniforms);

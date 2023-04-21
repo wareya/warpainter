@@ -306,6 +306,92 @@ impl Warpainter
 
 impl Warpainter
 {
+    fn sample_poly_sdf(c : [f32; 2], points : &Vec<[f32; 2]>) -> f32
+    {
+        let len = points.len();
+        let mut closest = 10000000.0;
+        let mut a = points[0];
+        
+        let mut inside = false;
+        
+        for i in 0..len
+        {
+            let b = points[i];
+            let u = vec_sub(&b, &a);
+            let v = vec_sub(&a, &c);
+            
+            let den = vec_dot(&u, &u);
+            
+            if den > 0.0
+            {
+                // check if this is the closest line segment to our coord
+                let t = -(vec_dot(&v, &u)/vec_dot(&u, &u));
+                if t > 0.0 && t < 1.0
+                {
+                    let new = length_sq(&vec_sub(&vec_lerp(&a, &b, t), &c));
+                    if new < closest
+                    {
+                        closest = new;
+                    }
+                }
+                closest = closest.min(length_sq(&v));
+                
+                // even-odd rule rasterization for the fill
+                if (a[1] > c[1]) != (b[1] > c[1])
+                {
+                    let cb = vec_sub(&c, &b);
+                    let ab = vec_sub(&[0.0, 0.0], &u);
+                    let s = cb[0] * ab[1] - cb[1] * ab[0];
+                    inside = inside != ((s < 0.0) == (ab[1] < 0.0));
+                }
+            }
+            
+            a = b;
+        }
+        
+        return closest.sqrt() * if inside { -1.0 } else { 1.0 };
+    }
+    fn commit_selection(&mut self, loops : Vec<Vec<[f32; 2]>>)
+    {
+        self.selection_mask = None;
+        let mut mask = Image::<1>::blank_float(self.canvas_width, self.canvas_height);
+        for y in 0..self.canvas_height
+        {
+            for x in 0..self.canvas_width
+            {
+                let mut mid : f32 = 0.0;
+                for points in loops.iter()
+                {
+                    let new = Self::sample_poly_sdf([x as f32, y as f32], points);
+                    if new.abs() < mid.abs()
+                    {
+                        mid = new;
+                    }
+                }
+                let c = (mid + 0.5).clamp(0.0, 1.0);
+                mask.set_pixel_float_wrapped(x as isize, y as isize, [c]);
+            }
+        }
+        self.selection_mask = Some(mask);
+        self.selection_poly = loops;
+    }
+    fn get_selection_loop_data(&self) -> Vec<[f32; 4]>
+    {
+        let mut ret = Vec::new();
+        for points in self.selection_poly.iter()
+        {
+            for coord in points.iter()
+            {
+                ret.push([coord[0], coord[1], 0.0, 0.0]);
+            }
+            ret.push([0.0, 0.0, 1.0, 0.0]);
+        }
+        ret
+    }
+}
+
+impl Warpainter
+{
     fn begin_edit(&mut self, inplace : bool)
     {
         if let Some(layer) = self.layers.find_layer(self.current_layer)
