@@ -174,7 +174,7 @@ impl Tool for Fill
     }
     fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
     {
-        ui.label("Treshold");
+        ui.label("Threshold");
         let mut threshold = self.threshold * 255.0;
         ui.add(egui::Slider::new(&mut threshold, 0.0..=100.0).clamp_to_range(true));
         self.threshold = threshold/255.0;
