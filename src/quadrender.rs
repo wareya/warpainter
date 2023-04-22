@@ -131,8 +131,8 @@ impl ShaderQuad
             
             #[cfg(not(target_arch = "wasm32"))]
             {
-                vertex_shader   = ("#version 140".to_string() + &vertex_shader).to_string();
-                fragment_shader = ("#version 140".to_string() + &fragment_shader).to_string();
+                vertex_shader   = ("#version 330".to_string() + &vertex_shader).to_string();
+                fragment_shader = ("#version 330".to_string() + &fragment_shader).to_string();
             }
             #[cfg(target_arch = "wasm32")]
             {
@@ -307,13 +307,13 @@ impl ShaderQuad
             
             eframe::egui_glow::check_for_gl_error!(gl, "mid quad render A");
             
-            let attrib_location = gl.get_attrib_location(self.program, "in_vertex").unwrap();
+            let attrib_location = 0;//gl.get_attrib_location(self.program, "in_vertex").unwrap();
             gl.vertex_attrib_pointer_f32(attrib_location, 2, glow::FLOAT, false, 2 * std::mem::size_of::<f32>() as i32, 0);
             gl.enable_vertex_attrib_array(attrib_location);
             
             eframe::egui_glow::check_for_gl_error!(gl, "mid quad render B");
             
-            let attrib_location = gl.get_attrib_location(self.program, "in_uv").unwrap();
+            let attrib_location = 1;//gl.get_attrib_location(self.program, "in_uv").unwrap();
             gl.vertex_attrib_pointer_f32(attrib_location, 2, glow::FLOAT, false, 2 * std::mem::size_of::<f32>() as i32, verts.len() as i32);
             gl.enable_vertex_attrib_array(attrib_location);
             
