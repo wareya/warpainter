@@ -18,6 +18,9 @@ crossbeam = "0.8.2"
 bincode = "2.0.0-rc.3"
 snap = "1.1.0"
 
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-sys = "0.4.1"
+
 [dependencies.rfd]
 version = "0.10"
 default_features = false
