@@ -121,7 +121,7 @@ struct Warpainter
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
     
     loaded_icons : bool,
-    icons : VecMap<&'static str, egui::TextureHandle>,
+    icons : VecMap<&'static str, (egui::TextureHandle, Image<4>)>,
     
     selection_mask : Option<Image<1>>,
     selection_poly : Vec<Vec<[f32; 2]>>,
@@ -250,13 +250,13 @@ impl Warpainter
         {
             // FIXME: https://github.com/rust-lang/rust/issues/48331
             let img = image::io::Reader::new(std::io::Cursor::new(&thing.1[..])).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
-            let img = Image::from_rgbaimage(&img).to_egui();
-            let img = ctx.load_texture(
+            let img = Image::from_rgbaimage(&img);
+            let tex = ctx.load_texture(
                 "my-image",
-                img,
+                img.to_egui(),
                 egui::TextureOptions::NEAREST
             );
-            self.icons.insert(thing.0, img);
+            self.icons.insert(thing.0, (tex, img));
         }
     }
 }
@@ -1007,11 +1007,11 @@ impl eframe::App for Warpainter
                 }
         
                 macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                        $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [18.0, 18.0]).selected($selected))
+                        $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0]).selected($selected))
                            .on_hover_text($tooltip)
                 } }
                 macro_rules! add_button_disabled { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                        $ui.add_enabled(false, egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [18.0, 18.0]).selected($selected))
+                        $ui.add_enabled(false, egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0]).selected($selected))
                            .on_hover_text($tooltip)
                 } }
                 
@@ -1126,7 +1126,7 @@ impl eframe::App for Warpainter
         egui::SidePanel::left("ToolPanel").min_width(22.0).default_width(22.0).show(ctx, |ui|
         {
             macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                    $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().id(), [22.0, 22.0]).selected($selected))
+                    $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [22.0, 22.0]).selected($selected))
                        .on_hover_text($tooltip)
             } }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
@@ -1205,19 +1205,63 @@ impl eframe::App for Warpainter
             });
         });
         
+        
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::JsCast;
+            
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+            let root : web_sys::HtmlElement = document.get_element_by_id("the_canvas_id").unwrap().dyn_into().unwrap();
+            
+            root.style().set_property("cursor", "unset").unwrap();
+        }
+        
         if let (Some(tool), Some(input_state)) = (self.get_tool(), input_state)
         {
             if input_state.mouse_in_canvas_area
             {
-                if let Some((cursor, offset)) = tool.get_cursor(self)
+                #[cfg(not(target_arch = "wasm32"))]
                 {
-                    ctx.set_cursor_icon(egui::CursorIcon::None);
-                    let painter = ctx.debug_painter();
-                    let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
-                    let mut pos : egui::Rect = [[0.0, 0.0].into(), cursor.size_vec2().to_pos2()].into();
-                    pos = pos.translate(input_state.window_mouse_coord.into());
-                    pos = pos.translate([-offset[0], -offset[1]].into());
-                    painter.image(cursor.id(), pos, uv, egui::Color32::WHITE);
+                    if let Some((cursor, offset)) = tool.get_cursor(self)
+                    {
+                        ctx.set_cursor_icon(egui::CursorIcon::None);
+                        let painter = ctx.debug_painter();
+                        let uv = [[0.0, 0.0].into(), [1.0, 1.0].into()].into();
+                        let mut pos : egui::Rect = [[0.0, 0.0].into(), cursor.0.size_vec2().to_pos2()].into();
+                        pos = pos.translate(input_state.window_mouse_coord.into());
+                        pos = pos.translate([-offset[0], -offset[1]].into());
+                        painter.image(cursor.0.id(), pos, uv, egui::Color32::WHITE);
+                    }
+                }
+                
+                #[cfg(target_arch = "wasm32")]
+                {
+                    if let Some((cursor, offset)) = tool.get_cursor(self)
+                    {
+                        let image = cursor.1.to_imagebuffer();
+                        
+                        let mut bytes = Vec::new();
+                        
+                        use image::ImageEncoder;
+                        image::codecs::png::PngEncoder::new(&mut bytes).write_image(
+                            image::DynamicImage::from(image).as_flat_samples_u8().unwrap().samples,
+                            cursor.1.width as u32,
+                            cursor.1.height as u32,
+                            image::ColorType::Rgba8,
+                        ).unwrap();
+                        
+                        use base64::Engine;
+                        let encoded : String = base64::engine::general_purpose::STANDARD_NO_PAD.encode(bytes);
+                        
+                        use wasm_bindgen::JsCast;
+                        
+                        let window = web_sys::window().unwrap();
+                        let document = window.document().unwrap();
+                        let root : web_sys::HtmlElement = document.get_element_by_id("the_canvas_id").unwrap().dyn_into().unwrap();
+                        
+                        root.style().set_property("cursor", &format!("url(data:image/png;base64,{}) {} {}, crosshair", encoded, offset[0] as usize, offset[1] as usize)).unwrap();
+                    }
                 }
             }
         }

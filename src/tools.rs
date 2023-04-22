@@ -20,7 +20,7 @@ pub (crate) trait Tool
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState);
     fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
     fn get_gizmo(&self, app : &crate::Warpainter, focused : bool) -> Option<Box<dyn Gizmo>>;
-    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>;
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>;
     fn settings_panel(&mut self, app : &crate::Warpainter, ui : &mut Ui);
 }
 
@@ -168,7 +168,7 @@ impl Tool for Fill
     {
         None
     }
-    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
     {
         Some((app.icons.get("tool fill").as_ref().unwrap(), [2.0, 18.0]))
     }
@@ -540,7 +540,7 @@ impl Tool for Pencil
         let gizmo = OutlineGizmo { loops, filled : false };
         Some(Box::new(gizmo))
     }
-    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
     {
         Some((app.icons.get("tool pencil").as_ref().unwrap(), [2.0, 19.0]))
     }
@@ -647,7 +647,7 @@ impl Tool for Selection
             None
         }
     }
-    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
     {
         Some((app.icons.get("tool select cursor").as_ref().unwrap(), [6.0, 14.0]))
     }
@@ -707,7 +707,7 @@ impl Tool for Eyedropper
         let gizmo = SquareGizmo { x : pos[0] + 0.5, y : pos[1] + 0.5, r : 0.5 };
         Some(Box::new(gizmo))
     }
-    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a egui::TextureHandle, [f32; 2])>
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
     {
         Some((app.icons.get("tool eyedropper").as_ref().unwrap(), [2.0, 20.0]))
     }

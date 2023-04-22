@@ -17,6 +17,8 @@ byte-slice-cast = "1.2.1"
 crossbeam = "0.8.2"
 bincode = "2.0.0-rc.3"
 snap = "1.1.0"
+base64 = "0.21.0"
+
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
@@ -43,3 +45,12 @@ tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4"
 wasm-bindgen = "0.2.84"
 wasm_thread = "0.2.0"
+web-sys = { version = "0.3.61", features = [
+    "Window",
+    "Document",
+    "HtmlElement",
+    "CssStyleDeclaration",
+    "Url",
+    "Element",
+    "Node",
+] }
