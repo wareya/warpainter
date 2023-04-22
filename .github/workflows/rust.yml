@@ -38,7 +38,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --all-features --lib --target wasm32-unknown-unknown
+          args: --all-features --target wasm32-unknown-unknown
 
   test:
     name: Test Suite
@@ -54,7 +54,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --lib
+          args:
 
   trunk:
     name: trunk
