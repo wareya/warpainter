@@ -45,7 +45,7 @@ impl Tool for Fill
         {
             app.begin_edit(false);
             
-            let start = std::time::SystemTime::now();
+            //let start = std::time::SystemTime::now();
             
             let prev_coord = self.prev_input.canvas_mouse_coord;
             let coord = new_input.canvas_mouse_coord;
@@ -145,12 +145,14 @@ impl Tool for Fill
                     }
                 }
                 
+                /*
                 let elapsed = start.elapsed();
                 let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
                 if elapsed > 0.01
                 {
                     println!("time to flood fill: {}", elapsed);
                 }
+                */
             }
             
             app.commit_edit();
