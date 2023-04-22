@@ -866,22 +866,22 @@ impl eframe::App for Warpainter
                 {
                     if ui.button("Undo").clicked()
                     {
-                        // TODO/FIXME
+                        self.perform_undo();
                     }
                     if ui.button("Redo").clicked()
                     {
-                        // TODO/FIXME
+                        self.perform_redo();
                     }
                 });
                 ui.menu_button("View", |ui|
                 {
                     if ui.button("Zoom In").clicked()
                     {
-                        // TODO/FIXME (easy)
+                        self.zoom(0.5);
                     }
                     if ui.button("Zoom Out").clicked()
                     {
-                        // TODO/FIXME (easy)
+                        self.zoom(-0.5);
                     }
                 });
             });
@@ -1205,6 +1205,7 @@ impl eframe::App for Warpainter
             });
         });
         
+        // set cursor (hardware on web, software on desktop)
         
         #[cfg(target_arch = "wasm32")]
         {

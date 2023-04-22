@@ -14,8 +14,8 @@ pub (crate) struct ShaderQuad
 }
 
 const VERT_SHADER : &'static str = "
-    in vec2 in_vertex;
-    in vec2 in_uv;
+    layout(location = 0) in vec2 in_vertex;
+    layout(location = 1) in vec2 in_uv;
     
     out vec2 vertex;
     out vec2 uv;
