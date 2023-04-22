@@ -309,7 +309,7 @@ impl Layer
         });
         self.dirtify_rect([[0.0, 0.0], size]);
     }
-    pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>) -> &'b Image<4> where 'a: 'b
+    pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>, mask : Option<&'b Image<1>>) -> &'b Image<4> where 'a: 'b
     {
         if Some(self.uuid) == override_uuid && override_data.is_some()
         {
@@ -321,10 +321,10 @@ impl Layer
         }
         else
         {
-            self.flatten_as_root(canvas_width, canvas_height, override_uuid, override_data)
+            self.flatten_as_root(canvas_width, canvas_height, override_uuid, override_data, mask)
         }
     }
-    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>) -> &'a Image<4>
+    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>, mask : Option<&Image<1>>) -> &'a Image<4>
     {
         let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()
@@ -370,7 +370,7 @@ impl Layer
                     let mode = child.blend_mode.clone();
                     let opacity = child.opacity;
                     let child_clipped = child.clipped;
-                    let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data);
+                    let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
                     
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
                     {
@@ -389,21 +389,21 @@ impl Layer
                         let above = above.unwrap();
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
-                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, above_opacity, above_mode);
+                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_mode);
                     }
                     else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                     {
                         // done with the clipping mask sequence, blend into rest of group
                         // restore original alpha
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), stash_opacity, &"Clip Alpha".to_string());
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, &"Clip Alpha".to_string());
                         if stash_is_first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_opacity, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, &"Copy".to_string());
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_opacity, &stash_blend_mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, &stash_blend_mode);
                         }
                         
                         stash = None;
@@ -415,19 +415,19 @@ impl Layer
                         let above = above.unwrap();
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
-                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, above_opacity, above_mode);
+                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_mode);
                     }
                     else
                     {
                         // normal layer blending
                         if first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, &"Copy".to_string());
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, opacity, &mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, &mode);
                         }
                     }
                 }

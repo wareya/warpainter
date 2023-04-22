@@ -266,8 +266,10 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, top_opacity : f32, blend_mode : &String)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, blend_mode : &String)
     {
+        // top opacity is ignored if a mask is used
+        
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width.min(top.width) as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
         let min_y = 0.max(rect[0][1].floor() as isize) as usize;
@@ -275,6 +277,22 @@ impl Image<4>
         
         let self_width = self.width;
         let top_width = top.width;
+        
+        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if mask.is_some()
+        {
+            Box::new(|x : usize, y : usize| -> f32
+            {
+                let mask = mask.unwrap();
+                mask.get_pixel_float_wrapped(x as isize, y as isize)[0]
+            })
+        }
+        else
+        {
+            Box::new(|_x : usize, _y : usize| -> f32
+            {
+                top_opacity
+            })
+        };
         
         macro_rules! do_loop
         {
@@ -324,6 +342,7 @@ impl Image<4>
                         {
                             for info in infos
                             {
+                                let get_opacity = &get_opacity;
                                 s.spawn(move |_|
                                 {
                                     let bottom = info.0;
@@ -341,8 +360,9 @@ impl Image<4>
                                             
                                             let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
                                             let top_pixel = $top_read_f($top[top_index]);
-                                            let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
-                                            let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
+                                            let opacity = get_opacity(x, y + offset);
+                                            let c = $mix_f(top_pixel, bottom_pixel, opacity);
+                                            let c = $post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
                                             bottom[bottom_index] = $bottom_write_f(c);
                                         }
                                     }
@@ -369,8 +389,9 @@ impl Image<4>
                                     
                                     let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
                                     let top_pixel = $top_read_f($top[top_index]);
-                                    let c = $mix_f(top_pixel, bottom_pixel, top_opacity);
-                                    let c = $post_f(c, top_pixel, bottom_pixel, top_opacity, [x, y + offset]);
+                                    let opacity = get_opacity(x, y + offset);
+                                    let c = $mix_f(top_pixel, bottom_pixel, opacity);
+                                    let c = $post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
                                     bottom[bottom_index] = $bottom_write_f(c);
                                 }
                             }
@@ -398,9 +419,9 @@ impl Image<4>
                 do_loop!(bottom, top, nop, nop, nop, blend_int, post_int),
         }
     }
-    pub (crate) fn blend_from(&mut self, top : &Image<4>, top_opacity : f32, blend_mode : &String)
+    pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, blend_mode : &String)
     {
-        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, top_opacity, blend_mode)
+        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, top_opacity, blend_mode)
     }
     
     pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128) -> UndoEvent
@@ -574,6 +595,19 @@ impl<const N : usize> Image<N>
             {
                 let mut color = self.get_pixel_float_wrapped(x, y);
                 color[3] = alpha;
+                self.set_pixel_float_wrapped(x, y, color);
+            }
+        }
+    }
+    pub (crate) fn alpha_rect_copy_from_mask(&mut self, rect : [[f32; 2]; 2], mask : &Image<1>)
+    {
+        for y in rect[0][1].floor().max(0.0) as isize..=(rect[1][1].ceil() as isize).min(self.height as isize - 1)
+        {
+            for x in rect[0][0].floor().max(0.0) as isize..=(rect[1][0].ceil() as isize).min(self.width as isize - 1)
+            {
+                let mut color = self.get_pixel_float_wrapped(x, y);
+                let a = mask.get_pixel_float_wrapped(x, y)[0];
+                color[3] = a;
                 self.set_pixel_float_wrapped(x, y, color);
             }
         }

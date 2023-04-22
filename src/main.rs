@@ -306,8 +306,10 @@ impl Warpainter
 
 impl Warpainter
 {
-    fn sample_poly_sdf(c : [f32; 2], points : &Vec<[f32; 2]>) -> f32
+    fn sample_poly_sdf(mut c : [f32; 2], points : &Vec<[f32; 2]>) -> f32
     {
+        c[0] += 0.5;
+        c[1] += 0.5;
         let len = points.len();
         let mut closest = 10000000.0;
         let mut a = points[0];
@@ -325,7 +327,7 @@ impl Warpainter
             if den > 0.0
             {
                 // check if this is the closest line segment to our coord
-                let t = -(vec_dot(&v, &u)/vec_dot(&u, &u));
+                let t = -(vec_dot(&v, &u)/den);
                 if t > 0.0 && t < 1.0
                 {
                     let new = length_sq(&vec_sub(&vec_lerp(&a, &b, t), &c));
@@ -349,7 +351,7 @@ impl Warpainter
             a = b;
         }
         
-        return closest.sqrt() * if inside { -1.0 } else { 1.0 };
+        return closest.sqrt() * if inside { 1.0 } else { -1.0 };
     }
     fn commit_selection(&mut self, loops : Vec<Vec<[f32; 2]>>)
     {
@@ -359,7 +361,7 @@ impl Warpainter
         {
             for x in 0..self.canvas_width
             {
-                let mut mid : f32 = 0.0;
+                let mut mid : f32 = 1000000.0;
                 for points in loops.iter()
                 {
                     let new = Self::sample_poly_sdf([x as f32, y as f32], points);
@@ -422,7 +424,7 @@ impl Warpainter
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            Some(layer.flatten(self.canvas_width, self.canvas_height, None, None))
+            Some(layer.flatten(self.canvas_width, self.canvas_height, None, None, None))
         }
         else
         {
@@ -433,11 +435,12 @@ impl Warpainter
     {
         if let Some(override_image) = self.get_temp_edit_image()
         {
-            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image))
+            // FIXME convey whether the edit is a direct edit
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image), None)
         }
         else
         {
-            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None)
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None, None)
         }
     }
     fn get_temp_edit_image(&self) -> Option<Image<4>>
@@ -452,13 +455,32 @@ impl Warpainter
                     {
                         if self.edit_is_direct
                         {
-                            return Some(edit_image.clone());
+                            if let Some(selection_mask) = &self.selection_mask
+                            {
+                                let mut under = current_image.clone();
+                                under.blend_from(&edit_image, Some(&selection_mask), 1.0, &"Interpolate".to_string());
+                                return Some(under);
+                            }
+                            else
+                            {
+                                return Some(edit_image.clone());
+                            }
                         }
                         else
                         {
-                            let mut r = current_image.clone();
-                            r.blend_from(edit_image, 1.0, &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
-                            return Some(r);
+                            let mut drawn = current_image.clone(); // FIXME performance drain, find a way to use a dirty rect here
+                            drawn.blend_from(edit_image, None, 1.0, &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
+                            
+                            if let Some(selection_mask) = &self.selection_mask
+                            {
+                                let mut under = current_image.clone();
+                                under.blend_from(&drawn, Some(&selection_mask), 1.0, &"Interpolate".to_string());
+                                return Some(under);
+                            }
+                            else
+                            {
+                                return Some(drawn);
+                            }
                         }
                     }
                 }

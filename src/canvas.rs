@@ -191,7 +191,6 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
         ("zoom_level", xform.get_scale()),
     ];
     let loops = app.get_selection_loop_data();
-    println!("{:?}", loops);
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
