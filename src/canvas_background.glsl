@@ -26,7 +26,7 @@ float dist_sq(vec2 a, vec2 b)
 
 vec3 coord_to_poly_sdf(vec2 c, float width)
 {
-    float len = textureSize(user_texture_1, 0).x;
+    int len = textureSize(user_texture_1, 0).x;
     float closest = 10000000.0 / zoom_level;
     vec2 a = texture(user_texture_1, vec2(0.0, 0.0)).xy;
     
@@ -37,9 +37,9 @@ vec3 coord_to_poly_sdf(vec2 c, float width)
     for(int i = 0; i+1 < len; i += 1)
     {
         float tex_x = (float(i+1) + 0.5) / float(len);
-        vec3 sample = texture(user_texture_1, vec2(tex_x, 0.0)).xyz;
-        vec2 b = sample.xy;
-        if (sample.z > 0.0)
+        vec3 tex_sample = texture(user_texture_1, vec2(tex_x, 0.0)).xyz;
+        vec2 b = tex_sample.xy;
+        if (tex_sample.z > 0.0)
         {
             a = b;
             continue;

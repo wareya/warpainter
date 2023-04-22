@@ -84,7 +84,8 @@ fn upload_data(gl : &glow::Context, handle : glow::Texture, data : &[[f32; 4]])
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
         
-        let bytes = data.iter().map(|x| x.iter().map(|x| x.to_ne_bytes()).flatten()).flatten().collect::<Vec<_>>();
+        use byte_slice_cast::*;
+        let bytes = data.as_byte_slice();
         
         gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
         gl.tex_image_2d (
