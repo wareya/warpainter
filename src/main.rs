@@ -1173,7 +1173,7 @@ impl eframe::App for Warpainter
         
         egui::TopBottomPanel::bottom("DebugText").resizable(true).max_height(150.0).show(ctx, |ui|
         {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui|
+            egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(8.0).stick_to_bottom(true).show(ui, |ui|
             {
                 if self.debug_text.len() > 500
                 {
