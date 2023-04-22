@@ -13,7 +13,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [x] eyedropper tool
 - [ ] line tool
 - [ ] other shape tools (rectangle, circle, polyline, arrow line, etc. with outline/stroke and non-fill variants)
-- [ ] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
+- [x] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
 - [ ] transform tool (bilinear transform, not perspective transform)
 
 ### layer management stuff
@@ -41,9 +41,10 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] custom preview windows with a scripting language, for things like tilesets, animations, etc
 
 ### etc
-- [ ] undo/redo (!!!!important!!!!) (implement via layer stack analysis + dirty flags/rects)
+- [x] undo/redo (!!!!important!!!!) (implement via layer stack analysis + dirty flags/rects)
+- [ ] implement undo/redo for more actions (selections, layer stack manipulations, etc)
 - [ ] file creation menu
-- [ ] opening and saving images
+- [x] opening and saving images (at least i *think* I remembered to do this...?)
 - [ ] opening and saving project files (use sqlite?)
 
 ### low priority
