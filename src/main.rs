@@ -115,6 +115,7 @@ struct Warpainter
     tools : Vec<Box<dyn Tool>>, // FIXME change to VecMap<&'static str, ....
     
     edit_is_direct : bool,
+    edit_ignores_selection : bool,
     editing_image : Option<Image<4>>,
     
     loaded_shaders : bool,
@@ -153,6 +154,7 @@ impl Default for Warpainter
             canvas_height,
             
             edit_is_direct : false,
+            edit_ignores_selection : false,
             editing_image : None,
             
             //image_preview : None,
@@ -174,6 +176,7 @@ impl Default for Warpainter
                 Box::new(Fill::new()),
                 Box::new(Eyedropper::new()),
                 Box::new(Selection::new()),
+                Box::new(MoveTool::new()),
             ),
             current_tool : 0,
             
@@ -249,6 +252,8 @@ impl Warpainter
             ("tool eyedropper",            include_bytes!("icons/tool eyedropper.png")           .to_vec()),
             ("tool select",                include_bytes!("icons/tool select.png")               .to_vec()),
             ("tool select cursor",         include_bytes!("icons/tool select cursor.png")        .to_vec()),
+            ("tool move",                  include_bytes!("icons/tool move.png")                 .to_vec()),
+            ("tool move cursor",           include_bytes!("icons/tool move cursor.png")          .to_vec()),
         ];
         for thing in stuff
         {
@@ -327,6 +332,15 @@ impl Warpainter
             let mut tool = self.tools.remove(self.current_tool);
             tool.think(self, inputstate);
             self.tools.insert(self.current_tool, tool);
+        }
+    }
+    fn tool_notify_changed(&mut self, prev : usize)
+    {
+        if prev < self.tools.len()
+        {
+            let mut tool = self.tools.remove(prev);
+            tool.notify_tool_changed(self);
+            self.tools.insert(prev, tool);
         }
     }
     fn tool_panel(&mut self, ui : &mut Ui)
@@ -434,7 +448,7 @@ impl Warpainter
 
 impl Warpainter
 {
-    fn begin_edit(&mut self, inplace : bool)
+    fn begin_edit(&mut self, inplace : bool, ignore_selection : bool)
     {
         if let Some(layer) = self.layers.find_layer(self.current_layer)
         {
@@ -443,6 +457,7 @@ impl Warpainter
                 if let Some(image) = &layer.data
                 {
                     self.edit_is_direct = inplace;
+                    self.edit_ignores_selection = ignore_selection;
                     if inplace
                     {
                         self.editing_image = Some(image.clone());
@@ -471,6 +486,10 @@ impl Warpainter
             None
         }
     }
+    fn is_editing(&self) -> bool
+    {
+        self.editing_image.is_some()
+    }
     fn flatten<'a>(&'a mut self) -> &'a Image<4>
     {
         if let Some(override_image) = self.get_temp_edit_image()
@@ -483,7 +502,7 @@ impl Warpainter
             self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None, None)
         }
     }
-    fn get_temp_edit_image(&self) -> Option<Image<4>>
+    fn get_temp_edit_image(&self) -> Option<Image<4>> // only used in flattening
     {
         if let Some(edit_image) = &self.editing_image
         {
@@ -497,30 +516,30 @@ impl Warpainter
                         {
                             if let Some(selection_mask) = &self.selection_mask
                             {
-                                let mut under = current_image.clone();
-                                under.blend_from(&edit_image, Some(&selection_mask), 1.0, &"Interpolate".to_string());
-                                return Some(under);
+                                if !self.edit_ignores_selection
+                                {
+                                    let mut under = current_image.clone();
+                                    under.blend_from(&edit_image, Some(&selection_mask), 1.0, [0, 0], &"Interpolate".to_string());
+                                    return Some(under);
+                                }
                             }
-                            else
-                            {
-                                return Some(edit_image.clone());
-                            }
+                            return Some(edit_image.clone());
                         }
                         else
                         {
                             let mut drawn = current_image.clone(); // FIXME performance drain, find a way to use a dirty rect here
-                            drawn.blend_from(edit_image, None, 1.0, &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
+                            drawn.blend_from(edit_image, None, 1.0, [0, 0], &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
                             
                             if let Some(selection_mask) = &self.selection_mask
                             {
-                                let mut under = current_image.clone();
-                                under.blend_from(&drawn, Some(&selection_mask), 1.0, &"Interpolate".to_string());
-                                return Some(under);
+                                if !self.edit_ignores_selection
+                                {
+                                    let mut under = current_image.clone();
+                                    under.blend_from(&drawn, Some(&selection_mask), 1.0, [0, 0], &"Interpolate".to_string());
+                                    return Some(under);
+                                }
                             }
-                            else
-                            {
-                                return Some(drawn);
-                            }
+                            return Some(drawn);
                         }
                     }
                 }
@@ -556,6 +575,7 @@ impl Warpainter
         
         self.editing_image = None;
         self.edit_is_direct = false;
+        self.edit_ignores_selection = false;
     }
     fn cancel_edit(&mut self)
     {
@@ -565,6 +585,7 @@ impl Warpainter
         }
         self.editing_image = None;
         self.edit_is_direct = false;
+        self.edit_ignores_selection = false;
     }
     fn log_layer_info_change(&mut self)
     {
@@ -1175,6 +1196,7 @@ impl eframe::App for Warpainter
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT).with_main_wrap(true), |ui|
                 {
                     ui.spacing_mut().button_padding = [0.0, 0.0].into();
+                    let prev_tool = self.current_tool;
                     if add_button!(ui, "tool pencil", "Pencil Tool", self.current_tool == 0).clicked()
                     {
                         self.current_tool = 0;
@@ -1191,9 +1213,17 @@ impl eframe::App for Warpainter
                     {
                         self.current_tool = 3;
                     }
-                    if add_button!(ui, "tool select", "Selection Tool", self.current_tool == 3).clicked()
+                    if add_button!(ui, "tool select", "Selection Tool", self.current_tool == 4).clicked()
                     {
                         self.current_tool = 4;
+                    }
+                    if add_button!(ui, "tool move", "Move Tool", self.current_tool == 5).clicked()
+                    {
+                        self.current_tool = 5;
+                    }
+                    if self.current_tool != prev_tool
+                    {
+                        self.tool_notify_changed(prev_tool);
                     }
                 });
             });

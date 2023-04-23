@@ -701,6 +701,13 @@ pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32;
             px_func_float::<BlendModeNormal>(a, b, 1.0)
         },
         
+        "Weld" => |a, b, amount|
+        {
+            let mut out = px_func_float::<BlendModeNormal>(a, b, amount);
+            out[3] = (a[3] + b[3]*amount).clamp(0.0, 1.0);
+            out
+        },
+        
         _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
     }
 }
@@ -766,6 +773,13 @@ pub (crate) fn find_blend_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], f32
             // normal blending, but ignore amount and top alpha (handled by post func)
             a[3] = 255;
             px_func::<BlendModeNormal>(a, b, 1.0)
+        },
+        
+        "Weld" => |a, b, amount|
+        {
+            let mut out = px_func::<BlendModeNormal>(a, b, amount);
+            out[3] = to_int(to_float(a[3]) + to_float(b[3])*amount);
+            out
         },
         
         _ => px_func::<BlendModeNormal>, // Normal, or unknown

@@ -18,6 +18,7 @@ enum ReferenceMode
 pub (crate) trait Tool
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState);
+    fn notify_tool_changed(&mut self, app : &mut crate::Warpainter);
     fn is_brushlike(&self) -> bool; // ctrl is color picker, otherwise tool-contolled
     fn get_gizmo(&self, app : &crate::Warpainter, focused : bool) -> Option<Box<dyn Gizmo>>;
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>;
@@ -43,7 +44,7 @@ impl Tool for Fill
     {
         if new_input.held[0] && !self.prev_input.held[0]
         {
-            app.begin_edit(false);
+            app.begin_edit(false, false);
             
             //let start = std::time::SystemTime::now();
             
@@ -159,6 +160,10 @@ impl Tool for Fill
         }
         
         self.prev_input = new_input.clone();
+    }
+    fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
+    {
+        
     }
     fn is_brushlike(&self) -> bool
     {
@@ -444,7 +449,7 @@ impl Tool for Pencil
         
         if new_input.held[0] && !self.prev_input.held[0]
         {
-            app.begin_edit(true);
+            app.begin_edit(true, false);
             self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
         }
         // press or hold or release
@@ -518,6 +523,10 @@ impl Tool for Pencil
         }
         
         self.prev_input = new_input.clone();
+    }
+    fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
+    {
+        
     }
     fn is_brushlike(&self) -> bool
     {
@@ -620,6 +629,10 @@ impl Tool for Selection
         }
         self.prev_input = new_input.clone();
     }
+    fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
+    {
+        
+    }
     fn is_brushlike(&self) -> bool
     {
         false
@@ -646,6 +659,136 @@ impl Tool for Selection
         {
             None
         }
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
+    {
+        Some((app.icons.get("tool select cursor").as_ref().unwrap(), [6.0, 14.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, _ui : &mut Ui)
+    {
+    }
+}
+pub (crate) struct MoveTool
+{
+    base_image : Option<Image<4>>,
+    move_image : Option<Image<4>>,
+    offset : [f32; 2],
+    prev_input : CanvasInputState,
+}
+
+impl MoveTool
+{
+    pub (crate) fn new() -> Self
+    {
+        MoveTool {
+            base_image : None,
+            move_image : None,
+            offset : [0.0, 0.0],
+            prev_input : CanvasInputState::default(),
+        }
+    }
+}
+impl Tool for MoveTool
+{
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
+    {
+        // press or hold or release
+        if new_input.held[0] || self.prev_input.held[0]
+        {
+            let prev_point = vec_floor(&self.prev_input.canvas_mouse_coord);
+            let point = vec_floor(&new_input.canvas_mouse_coord);
+            if point != prev_point
+            {
+                if !app.is_editing()
+                {
+                    app.begin_edit(true, true);
+                    if let Some(edit_image) = &app.editing_image
+                    {
+                        let get_alpha : Box<dyn Fn(usize, usize) -> f32 + Sync + Send> = if let Some(mask) = &app.selection_mask
+                        {
+                            Box::new(|x, y| mask.get_pixel_float(x as isize, y as isize)[0])
+                        }
+                        else
+                        {
+                            Box::new(|_x, _y| 1.0)
+                        };
+                        
+                        let mut base_image = edit_image.clone();
+                        let mut move_image = edit_image.clone();
+                        
+                        move_image.loop_rect_threaded(
+                            [[0.0, 0.0], [move_image.width as f32, move_image.height as f32]],
+                            &|x, y, mut color : [f32; 4]|
+                            {
+                                color[3] *= get_alpha(x, y);
+                                color
+                            }
+                        );
+                        
+                        base_image.loop_rect_threaded(
+                            [[0.0, 0.0], [base_image.width as f32, base_image.height as f32]],
+                            &|x, y, mut color : [f32; 4]|
+                            {
+                                color[3] *= 1.0 - get_alpha(x, y);
+                                color
+                            }
+                        );
+                        
+                        self.base_image = Some(base_image);
+                        self.move_image = Some(move_image);
+                    }
+                }
+            }
+            let canvas_size = [app.canvas_width as f32, app.canvas_height as f32];
+            
+            let diff = vec_sub(&point, &prev_point);
+            
+            let mut min = canvas_size;
+            let mut max = [0.0f32, 0.0f32];
+            
+            for points in app.selection_poly.iter_mut()
+            {
+                for point in points.iter_mut()
+                {
+                    min[0] = min[0].min(point[0]);
+                    min[1] = min[1].min(point[1]);
+                    max[0] = max[0].max(point[0]);
+                    max[1] = max[1].max(point[1]);
+                    *point = vec_add(&point, &diff);
+                    min[0] = min[0].min(point[0]);
+                    min[1] = min[1].min(point[1]);
+                    max[0] = max[0].max(point[0]);
+                    max[1] = max[1].max(point[1]);
+                }
+            }
+            
+            self.offset = vec_add(&self.offset, &diff);
+            if let (Some(base_image), Some(move_image), Some(editing_image))
+                = (&mut self.base_image.as_mut(), &mut self.move_image.as_mut(), app.get_editing_image())
+            {
+                let offset = [self.offset[0] as isize, self.offset[1] as isize];
+                *editing_image = base_image.clone();
+                editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, 1.0, offset, &"Weld".to_string());
+            }
+            
+            app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
+        }
+        self.prev_input = new_input.clone();
+    }
+    fn notify_tool_changed(&mut self, app : &mut crate::Warpainter)
+    {
+        app.commit_edit();
+        self.base_image = None;
+        self.move_image = None;
+        self.offset = [0.0, 0.0];
+    }
+    fn is_brushlike(&self) -> bool
+    {
+        false
+    }
+    fn get_gizmo(&self, _app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
+    {
+        None
     }
     fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
     {
@@ -694,6 +837,10 @@ impl Tool for Eyedropper
         }
         
         self.prev_input = new_input.clone();
+    }
+    fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
+    {
+        
     }
     fn is_brushlike(&self) -> bool
     {

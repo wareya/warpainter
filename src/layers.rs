@@ -372,6 +372,8 @@ impl Layer
                     let child_clipped = child.clipped;
                     let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
                     
+                    let above_offset = [0, 0];
+                    
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
                     {
                         // child is a clip target, get into clip target mode
@@ -390,20 +392,20 @@ impl Layer
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_mode);
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
                     }
                     else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                     {
                         // done with the clipping mask sequence, blend into rest of group
                         // restore original alpha
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, &"Clip Alpha".to_string());
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, &"Clip Alpha".to_string());
                         if stash_is_first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, &"Copy".to_string());
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, &stash_blend_mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, &stash_blend_mode);
                         }
                         
                         stash = None;
@@ -416,18 +418,18 @@ impl Layer
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_mode);
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
                     }
                     else
                     {
                         // normal layer blending
                         if first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &"Copy".to_string());
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, &mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &mode);
                         }
                     }
                 }
