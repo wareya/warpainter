@@ -1171,16 +1171,16 @@ impl eframe::App for Warpainter
             });
         });
         
-        egui::TopBottomPanel::bottom("DebugText").resizable(true).max_height(150.0).show(ctx, |ui|
+        egui::TopBottomPanel::bottom("DebugText").resizable(true).min_height(16.0).max_height(150.0).show(ctx, |ui|
         {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(8.0).stick_to_bottom(true).show(ui, |ui|
+            egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(16.0).stick_to_bottom(true).show(ui, |ui|
             {
                 if self.debug_text.len() > 500
                 {
                     self.debug_text.drain(0..self.debug_text.len()-500);
                 }
                 let mut text = self.debug_text.join("\n");
-                ui.add_enabled(false, egui::TextEdit::multiline(&mut text).hint_text("debug output"));
+                ui.add_enabled(false, egui::TextEdit::multiline(&mut text).desired_width(f32::INFINITY).desired_rows(1).min_size([16.0, 16.0].into()).hint_text("debug output"));
             });
         });
         
