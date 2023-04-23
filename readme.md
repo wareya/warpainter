@@ -14,6 +14,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] line tool
 - [ ] other shape tools (rectangle, circle, polyline, arrow line, etc. with outline/stroke and non-fill variants)
 - [x] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
+- [ ] deselection
 - [ ] transform tool (bilinear transform, not perspective transform)
 
 ### layer management stuff
@@ -22,7 +23,9 @@ I expect to have all of the following features. This is sorted in order of devel
 - [x] layer groups (implemented but not hooked up)
 - [x] layer moving (by buttons)
 - [ ] layer moving (by drag and drop)
-- [ ] layer merging/flattening/etc
+- [ ] layer merging/flattening/duplication
+- [ ] effect layers (blur, levels, curves, etc)
+- [ ] layer effects (outline, glow, recolor, etc)
 - [ ] real layer widget with a context menu, visibility button, etc
 - [ ] layer multiselection (with a main layer selection still)
 

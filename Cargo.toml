@@ -53,4 +53,5 @@ web-sys = { version = "0.3.61", features = [
     "Url",
     "Element",
     "Node",
+    "EventTarget",
 ] }

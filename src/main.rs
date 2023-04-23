@@ -125,6 +125,8 @@ struct Warpainter
     
     selection_mask : Option<Image<1>>,
     selection_poly : Vec<Vec<[f32; 2]>>,
+    
+    did_event_setup : bool,
 }
 
 impl Default for Warpainter
@@ -183,6 +185,8 @@ impl Default for Warpainter
             
             selection_mask : None,
             selection_poly : Vec::new(),
+            
+            did_event_setup : false,
         };
         
         ret
@@ -257,6 +261,42 @@ impl Warpainter
                 egui::TextureOptions::NEAREST
             );
             self.icons.insert(thing.0, (tex, img));
+        }
+    }
+    fn setup_canvas(&mut self)
+    {
+        if self.did_event_setup
+        {
+            return;
+        }
+        self.did_event_setup = true;
+        
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.debug(format!("setting up event suppression"));
+            
+            use wasm_bindgen::JsCast;
+            
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+            let root : web_sys::HtmlElement = document.get_element_by_id("the_canvas_id").unwrap().dyn_into().unwrap();
+            
+            let c = wasm_bindgen::closure::Closure::wrap(Box::new(|e : web_sys::Event|
+            {
+                if let Ok(event) = e.dyn_into::<web_sys::MouseEvent>()
+                {
+                    web_sys::console::log_1(&format!("event received").into());
+                    if event.which() == 2
+                    {
+                        event.prevent_default();
+                        web_sys::console::log_1(&format!("suppressing event").into());
+                    }
+                }
+            }) as Box<dyn FnMut(web_sys::Event)>);
+            
+            root.add_event_listener_with_callback("mousedown", c.as_ref().unchecked_ref()).unwrap();
+            
+            c.forget();
         }
     }
 }
@@ -793,6 +833,7 @@ impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
+        self.setup_canvas();
         self.load_icons(ctx);
         self.load_shaders(frame);
         
