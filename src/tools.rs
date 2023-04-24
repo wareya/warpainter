@@ -611,15 +611,6 @@ impl Tool for Selection
             {
                 let mut rect = [a, b];
                 
-                let r = (app.xform.get_rotation() / 90.0).round() as i32;
-                let add = match r
-                {
-                    0 => [0.0, 0.0],
-                    1 => [0.0, 1.0],
-                    2 | -2 => [1.0, 1.0],
-                    _ => [1.0, 0.0], // -1
-                };
-                
                 *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
                 *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
                 
@@ -627,7 +618,6 @@ impl Tool for Selection
                 {
                     *point = &app.xform * &*point;
                 }
-                
                 
                 let mut loops = vec!(vec!(
                     rect[0],
@@ -667,16 +657,6 @@ impl Tool for Selection
         {
             let mut rect = [a, b];
             rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
-            
-            let r = (app.xform.get_rotation() / 90.0).round() as i32;
-            println!("{}", r);
-            let add = match r
-            {
-                0 => [0.0, 0.0],
-                1 => [0.0, 1.0],
-                2 | -2 => [1.0, 1.0],
-                _ => [1.0, 0.0], // -1
-            };
             
             *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
             *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
