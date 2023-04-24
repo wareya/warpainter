@@ -22,6 +22,35 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 }
 
 #[inline]
+pub (crate) fn px_lerp_biased_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+{
+    if a[3] == 0.0 || amount == 0.0
+    {
+        return b;
+    }
+    else if b[3] == 0.0
+    {
+        return [a[0], a[1], a[2], a[3] * amount];
+    }
+    
+    let total_a = lerp(b[3], a[3], amount);
+    let mut r = [0.0; 4];
+    
+    for i in 0..3
+    {
+        r[i] = lerp(b[i] * b[3], a[i] * a[3], amount) / total_a;
+    }
+    r[3] = total_a;
+    
+    r
+}
+#[inline]
+pub (crate) fn px_lerp_biased(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
+{
+    px_to_int(px_lerp_biased_float(px_to_float(a), px_to_float(b), amount))
+}
+
+#[inline]
 pub (crate) fn px_func_float<T : BlendModeSimple>
     (mut a : [f32; 4], b : [f32; 4], amount : f32)
     -> [f32; 4]
@@ -34,7 +63,7 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
     }
     else if b[3] == 0.0
     {
-        return [a[0], a[1], a[2], a[3]];
+        return a;
     }
 
     let mut r = [0.0; 4];
@@ -688,7 +717,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32;
         "Alpha Mask" => px_func_full_float::<BlendModeAlphaMask>,
         "Alpha Reject" => px_func_full_float::<BlendModeAlphaReject>,
         
-        "Interpolate" => px_lerp_float,
+        "Interpolate" => px_lerp_biased_float,
         
         "Clip Alpha" => |a, b, _amount| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
         "Copy Alpha" => |a, b, _amount| [b[0], b[1], b[2], a[3]], // used internally
@@ -762,7 +791,7 @@ pub (crate) fn find_blend_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], f32
         "Alpha Mask" => px_func_full::<BlendModeAlphaMask>,
         "Alpha Reject" => px_func_full::<BlendModeAlphaReject>,
         
-        "Interpolate" => px_lerp,
+        "Interpolate" => px_lerp_biased,
         
         "Clip Alpha" => |a, b, _amount| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
         "Copy Alpha" => |a, b, _amount| [b[0], b[1], b[2], a[3]], // used internally

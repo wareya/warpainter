@@ -609,17 +609,41 @@ impl Tool for Selection
         {
             if let (Some(a), Some(b)) = (self.start_point, self.current_point)
             {
-                let mut rect = rect_normalize([a, b]);
-                rect[1][0] += 1.0;
-                rect[1][1] += 1.0;
-                //rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
-                let loops = vec!(vec!(
+                let mut rect = [a, b];
+                
+                let r = (app.xform.get_rotation() / 90.0).round() as i32;
+                let add = match r
+                {
+                    0 => [0.0, 0.0],
+                    1 => [0.0, 1.0],
+                    2 | -2 => [1.0, 1.0],
+                    _ => [1.0, 0.0], // -1
+                };
+                
+                *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
+                *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
+                
+                for point in rect.iter_mut()
+                {
+                    *point = &app.xform * &*point;
+                }
+                
+                
+                let mut loops = vec!(vec!(
                     rect[0],
                     [rect[1][0], rect[0][1]],
                     rect[1],
                     [rect[0][0], rect[1][1]],
                     rect[0],
                 ));
+                
+                for points in loops.iter_mut()
+                {
+                    for point in points.iter_mut()
+                    {
+                        *point = &app.xform.inverse() * &*point;
+                    }
+                }
                 
                 app.commit_selection(loops);
             }
@@ -641,17 +665,43 @@ impl Tool for Selection
     {
         if let (Some(a), Some(b)) = (self.start_point, self.current_point)
         {
-            let mut rect = rect_normalize([a, b]);
-            rect[1][0] += 1.0;
-            rect[1][1] += 1.0;
+            let mut rect = [a, b];
             rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
-            let loops = vec!(vec!(
+            
+            let r = (app.xform.get_rotation() / 90.0).round() as i32;
+            println!("{}", r);
+            let add = match r
+            {
+                0 => [0.0, 0.0],
+                1 => [0.0, 1.0],
+                2 | -2 => [1.0, 1.0],
+                _ => [1.0, 0.0], // -1
+            };
+            
+            *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
+            *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
+            
+            for point in rect.iter_mut()
+            {
+                *point = &app.xform * &*point;
+            }
+            
+            let mut loops = vec!(vec!(
                 rect[0],
                 [rect[1][0], rect[0][1]],
                 rect[1],
                 [rect[0][0], rect[1][1]],
                 rect[0],
             ));
+            
+            for points in loops.iter_mut()
+            {
+                for point in points.iter_mut()
+                {
+                    *point = &app.xform.inverse() * &*point;
+                }
+            }
+            
             let gizmo = OutlineGizmo { loops, filled : false };
             Some(Box::new(gizmo))
         }
@@ -773,6 +823,9 @@ impl Tool for MoveTool
             
             app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
         }
+        
+        // TODO: mid-tool-use undo/redo state when releasing drag
+        
         self.prev_input = new_input.clone();
     }
     fn notify_tool_changed(&mut self, app : &mut crate::Warpainter)
