@@ -585,6 +585,48 @@ impl Selection
             prev_input : CanvasInputState::default(),
         }
     }
+    fn get_loops(mut rect : [[f32; 2]; 2], app : &crate::Warpainter) -> Vec<Vec<[f32; 2]>>
+    {
+        fn peak_wave(mut x : f32) -> f32
+        {
+            x += core::f32::consts::PI * 2.0;
+            x = x.rem_euclid(core::f32::consts::PI * 0.5) + 0.25 * core::f32::consts::PI;
+            x.sin() * 2.0f32.sqrt()
+        }
+        
+        for point in rect.iter_mut()
+        {
+            point[0] += 0.5;
+            point[1] += 0.5;
+            *point = &app.xform * &*point;
+        }
+        
+        rect = rect_normalize(rect);
+        
+        let r = app.xform.get_rotation();
+        let f = peak_wave(r/180.0*core::f32::consts::PI) * app.xform.get_scale() * 0.5;
+        
+        rect[0] = vec_sub(&rect[0], &[f, f]);
+        rect[1] = vec_add(&rect[1], &[f, f]);
+        
+        let mut loops = vec!(vec!(
+            rect[0],
+            [rect[1][0], rect[0][1]],
+            rect[1],
+            [rect[0][0], rect[1][1]],
+            rect[0],
+        ));
+        
+        for points in loops.iter_mut()
+        {
+            for point in points.iter_mut()
+            {
+                *point = &app.xform.inverse() * &*point;
+            }
+        }
+        
+        loops
+    }
 }
 impl Tool for Selection
 {
@@ -593,6 +635,7 @@ impl Tool for Selection
         // press
         if new_input.held[0] && !self.prev_input.held[0]
         {
+            app.clear_selection();
             self.start_point = Some(vec_floor(&new_input.canvas_mouse_coord));
         }
         // press or hold or release
@@ -609,45 +652,8 @@ impl Tool for Selection
         {
             if let (Some(a), Some(b)) = (self.start_point, self.current_point)
             {
-                let mut rect = [a, b];
-                
-                fn peak_wave(mut x : f32) -> f32
-                {
-                    x += core::f32::consts::PI * 2.0;
-                    x = x.rem_euclid(core::f32::consts::PI * 0.5) + 0.25 * core::f32::consts::PI;
-                    x.sin() * 2.0f32.sqrt()
-                }
-                
-                for point in rect.iter_mut()
-                {
-                    point[0] += 0.5;
-                    point[1] += 0.5;
-                    *point = &app.xform * &*point;
-                }
-                
-                rect = rect_normalize(rect);
-                
-                let r = app.xform.get_rotation();
-                let f = peak_wave(r/180.0*core::f32::consts::PI) * app.xform.get_scale() * 0.5;
-                
-                rect[0] = vec_sub(&rect[0], &[f, f]);
-                rect[1] = vec_add(&rect[1], &[f, f]);
-                
-                let mut loops = vec!(vec!(
-                    rect[0],
-                    [rect[1][0], rect[0][1]],
-                    rect[1],
-                    [rect[0][0], rect[1][1]],
-                    rect[0],
-                ));
-                
-                for points in loops.iter_mut()
-                {
-                    for point in points.iter_mut()
-                    {
-                        *point = &app.xform.inverse() * &*point;
-                    }
-                }
+                let rect = [a, b];
+                let loops = Self::get_loops(rect, app);
                 
                 app.commit_selection(loops);
             }
@@ -672,43 +678,7 @@ impl Tool for Selection
             let mut rect = [a, b];
             rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
             
-            fn peak_wave(mut x : f32) -> f32
-            {
-                x += core::f32::consts::PI * 2.0;
-                x = x.rem_euclid(core::f32::consts::PI * 0.5) + 0.25 * core::f32::consts::PI;
-                x.sin() * 2.0f32.sqrt()
-            }
-            
-            for point in rect.iter_mut()
-            {
-                point[0] += 0.5;
-                point[1] += 0.5;
-                *point = &app.xform * &*point;
-            }
-            
-            rect = rect_normalize(rect);
-            
-            let r = app.xform.get_rotation();
-            let f = peak_wave(r/180.0*core::f32::consts::PI) * app.xform.get_scale() * 0.5;
-            
-            rect[0] = vec_sub(&rect[0], &[f, f]);
-            rect[1] = vec_add(&rect[1], &[f, f]);
-            
-            let mut loops = vec!(vec!(
-                rect[0],
-                [rect[1][0], rect[0][1]],
-                rect[1],
-                [rect[0][0], rect[1][1]],
-                rect[0],
-            ));
-            
-            for points in loops.iter_mut()
-            {
-                for point in points.iter_mut()
-                {
-                    *point = &app.xform.inverse() * &*point;
-                }
-            }
+            let loops = Self::get_loops(rect, app);
             
             let gizmo = OutlineGizmo { loops, filled : false };
             Some(Box::new(gizmo))

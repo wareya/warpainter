@@ -14,7 +14,9 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] line tool
 - [ ] other shape tools (rectangle, circle, polyline, arrow line, etc. with outline/stroke and non-fill variants)
 - [x] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
-- [ ] deselection
+- [x] move tool
+- [x] deselection
+- [ ] tool-specific undo (selection changes, transient move operations)
 - [ ] transform tool (bilinear transform, not perspective transform)
 
 ### layer management stuff

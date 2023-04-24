@@ -407,6 +407,11 @@ impl Warpainter
         
         return closest.sqrt() * if inside { 1.0 } else { -1.0 };
     }
+    fn clear_selection(&mut self)
+    {
+        self.selection_mask = None;
+        self.selection_poly = Vec::new();
+    }
     fn commit_selection(&mut self, loops : Vec<Vec<[f32; 2]>>)
     {
         self.selection_mask = None;
@@ -442,6 +447,7 @@ impl Warpainter
             }
             ret.push([0.0, 0.0, 1.0, 0.0]);
         }
+        ret.push([0.0, 0.0, 1.0, 0.0]);
         ret
     }
 }
