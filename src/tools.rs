@@ -611,13 +611,27 @@ impl Tool for Selection
             {
                 let mut rect = [a, b];
                 
-                *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
-                *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
+                fn peak_wave(mut x : f32) -> f32
+                {
+                    x += core::f32::consts::PI * 2.0;
+                    x = x.rem_euclid(core::f32::consts::PI * 0.5) + 0.25 * core::f32::consts::PI;
+                    x.sin() * 2.0f32.sqrt()
+                }
                 
                 for point in rect.iter_mut()
                 {
+                    point[0] += 0.5;
+                    point[1] += 0.5;
                     *point = &app.xform * &*point;
                 }
+                
+                rect = rect_normalize(rect);
+                
+                let r = app.xform.get_rotation();
+                let f = peak_wave(r/180.0*core::f32::consts::PI) * app.xform.get_scale() * 0.5;
+                
+                rect[0] = vec_sub(&rect[0], &[f, f]);
+                rect[1] = vec_add(&rect[1], &[f, f]);
                 
                 let mut loops = vec!(vec!(
                     rect[0],
@@ -658,13 +672,27 @@ impl Tool for Selection
             let mut rect = [a, b];
             rect = rect_translate(rect, [app.canvas_width as f32 / -2.0, app.canvas_height as f32 / -2.0]);
             
-            *if rect[1][0] > rect[0][0] { &mut rect[1][0] } else { &mut rect[0][0] } += 1.0;
-            *if rect[1][1] > rect[0][1] { &mut rect[1][1] } else { &mut rect[0][1] } += 1.0;
+            fn peak_wave(mut x : f32) -> f32
+            {
+                x += core::f32::consts::PI * 2.0;
+                x = x.rem_euclid(core::f32::consts::PI * 0.5) + 0.25 * core::f32::consts::PI;
+                x.sin() * 2.0f32.sqrt()
+            }
             
             for point in rect.iter_mut()
             {
+                point[0] += 0.5;
+                point[1] += 0.5;
                 *point = &app.xform * &*point;
             }
+            
+            rect = rect_normalize(rect);
+            
+            let r = app.xform.get_rotation();
+            let f = peak_wave(r/180.0*core::f32::consts::PI) * app.xform.get_scale() * 0.5;
+            
+            rect[0] = vec_sub(&rect[0], &[f, f]);
+            rect[1] = vec_add(&rect[1], &[f, f]);
             
             let mut loops = vec!(vec!(
                 rect[0],
