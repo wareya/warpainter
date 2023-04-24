@@ -475,8 +475,10 @@ impl Image<4>
                                             let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
                                             let top_pixel = $top_read_f($top[top_index]);
                                             let opacity = get_opacity(x, y + offset);
+                                            
                                             let c = $mix_f(top_pixel, bottom_pixel, opacity);
                                             let c = $post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                            
                                             bottom[bottom_index] = $bottom_write_f(c);
                                         }
                                     }

@@ -28,6 +28,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [ ] layer effects (outline, glow, recolor, etc)
 - [ ] real layer widget with a context menu, visibility button, etc
 - [ ] layer multiselection (with a main layer selection still)
+- [ ] copy/paste
 
 ### other layer stuff
 - [x] photoshop blend modes

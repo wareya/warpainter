@@ -24,16 +24,13 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 #[inline]
 pub (crate) fn px_lerp_biased_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
-    if a[3] == 0.0 || amount == 0.0
+    let total_a = lerp(b[3], a[3], amount);
+    
+    if total_a == 0.0
     {
-        return b;
-    }
-    else if b[3] == 0.0
-    {
-        return [a[0], a[1], a[2], a[3] * amount];
+        return [a[0], a[1], a[2], 0.0];
     }
     
-    let total_a = lerp(b[3], a[3], amount);
     let mut r = [0.0; 4];
     
     for i in 0..3
