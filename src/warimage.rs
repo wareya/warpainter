@@ -243,7 +243,7 @@ impl Image<4>
     }
     pub (crate) fn blank_white_transparent(w : usize, h : usize) -> Self
     {
-        let mut data = ImageData::new_int(w as usize, h as usize);
+        let mut data = ImageData::new_int(w, h);
         match &mut data
         {
             ImageData::Int(ref mut data) =>
@@ -261,8 +261,7 @@ impl Image<4>
                 }
             }
         }
-        let ret = Self { width : w as usize, height : h as usize, data };
-        ret
+        Self { width : w, height : h, data }
     }
     
     pub (crate) fn loop_rect_threaded(&mut self, rect : [[f32; 2]; 2], func : &(dyn Fn(usize, usize, [f32; 4]) -> [f32; 4] + Sync + Send))
@@ -377,7 +376,7 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &String)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         // top opacity is ignored if a mask is used
         
@@ -389,20 +388,13 @@ impl Image<4>
         let self_width = self.width;
         let top_width = top.width;
         
-        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if mask.is_some()
+        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
         {
-            Box::new(|x : usize, y : usize| -> f32
-            {
-                let mask = mask.unwrap();
-                mask.get_pixel_float_wrapped(x as isize, y as isize)[0]
-            })
+            Box::new(|x : usize, y : usize| mask.get_pixel_float_wrapped(x as isize, y as isize)[0])
         }
         else
         {
-            Box::new(|_x : usize, _y : usize| -> f32
-            {
-                top_opacity
-            })
+            Box::new(|_x : usize, _y : usize| top_opacity)
         };
         
         // separate from loop_rect_threaded because this is used by layer stack flattening, and needs to be as fast as possible
@@ -517,11 +509,11 @@ impl Image<4>
             }
         }
         
-        let blend_float = find_blend_func_float(&blend_mode);
-        let blend_int = find_blend_func(&blend_mode);
+        let blend_float = find_blend_func_float(blend_mode);
+        let blend_int = find_blend_func(blend_mode);
         
-        let post_float = find_post_func_float(&blend_mode);
-        let post_int = find_post_func(&blend_mode);
+        let post_float = find_post_func_float(blend_mode);
+        let post_int = find_post_func(blend_mode);
         
         match (&mut self.data, &top.data)
         {
@@ -535,7 +527,7 @@ impl Image<4>
                 do_loop!(bottom, top, nop, nop, nop, blend_int, post_int),
         }
     }
-    pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &String)
+    pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, top_opacity, top_offset, blend_mode)
     }
@@ -639,15 +631,13 @@ impl<const N : usize> Image<N>
 {
     pub (crate) fn blank(w : usize, h : usize) -> Self
     {
-        let data = ImageData::new_int(w as usize, h as usize);
-        let ret = Self { width : w as usize, height : h as usize, data };
-        ret
+        let data = ImageData::new_int(w, h);
+        Self { width : w, height : h, data }
     }
     pub (crate) fn blank_float(w : usize, h : usize) -> Self
     {
-        let data = ImageData::new_float(w as usize, h as usize);
-        let ret = Self { width : w as usize, height : h as usize, data };
-        ret
+        let data = ImageData::new_float(w, h);
+        Self { width : w, height : h, data }
     }
     pub (crate) fn blank_with_same_size(&self) -> Self
     {
@@ -665,8 +655,7 @@ impl<const N : usize> Image<N>
             ImageData::Int(data) =>
             {
                 type T = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>;
-                let img = T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap();
-                img
+                T::from_vec(self.width as u32, self.height as u32, flatten(data)).unwrap()
             }
             ImageData::Float(data) =>
             {

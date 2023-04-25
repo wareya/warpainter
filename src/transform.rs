@@ -17,6 +17,7 @@ impl<'a, 'b> core::ops::Mul<&'b Transform> for &'a Transform
     fn mul(self, other : &'b Transform) -> Transform
     {
         let mut out = Transform::zero();
+        #[allow(clippy::needless_range_loop)]
         for row in 0..3
         {
             for col in 0..3
@@ -38,6 +39,7 @@ impl<'a, 'b> core::ops::Mul<&'b [f32; 2]> for &'a Transform
     {
         let other = [other[0], other[1], 1.0];
         let mut out = [0.0, 0.0, 0.0];
+        #[allow(clippy::needless_range_loop)]
         for row in 0..3
         {
             for col in 0..3
@@ -144,6 +146,8 @@ impl Transform {
     pub (crate) fn inverse(&self) -> Self
     {
         let mut m = [[0.0f64; 3]; 3];
+        
+        #[allow(clippy::needless_range_loop)]
         for y in 0..3
         {
             for x in 0..3

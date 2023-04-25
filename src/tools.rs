@@ -1,4 +1,3 @@
-
 use crate::warimage::*;
 use crate::transform::*;
 use crate::canvas::CanvasInputState;
@@ -54,7 +53,7 @@ impl Tool for Fill
             let color = app.main_color_rgb;
             if let Some(Some(base)) = app.layers.find_layer_unlocked(app.current_layer).map(|x| x.data.as_ref())
             {
-                if let Some(image) = (&mut app.editing_image).as_mut()
+                if let Some(image) = app.editing_image.as_mut()
                 {
                     if !self.prev_input.held[0] || prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                     {
@@ -112,6 +111,9 @@ impl Tool for Fill
                                 }
                                 let cond1 = !visited[y as usize*image.width + x as usize];
                                 let cond2 = compare_dist(base.get_pixel_float_wrapped(coord[0], coord[1]), ref_color, self.threshold);
+                                
+                                // organizing this this way is more comprehensible
+                                #[allow(clippy::collapsible_else_if)]
                                 if cond1 && cond2
                                 {
                                     if add[1] == 0
@@ -208,7 +210,9 @@ fn draw_line_no_start(image : &mut Image<4>, from : [f32; 2], to : [f32; 2], col
     draw_line_no_start_float(image, from, to, px_to_float(color))
 }
 
-fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
+type BrushData = Vec<Vec<((isize, isize), [f32; 4])>>;
+#[allow(clippy::too_many_arguments)]
+fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to : [f32; 2], color : [f32; 4], brush : &BrushData, offset : [isize; 2], erase : bool, alpha_lock : bool)
 {
     fn dir_index(x_d : isize, y_d : isize) -> usize
     {
@@ -271,7 +275,9 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
         prev_y = y;
     }
 }
-fn draw_brush_line_no_start(image : &mut Image<4>, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &Vec<Vec<((isize, isize), [f32; 4])>>, offset : [isize; 2], erase : bool, alpha_lock : bool)
+
+#[allow(clippy::too_many_arguments)]
+fn draw_brush_line_no_start(image : &mut Image<4>, from : [f32; 2], to : [f32; 2], color : [u8; 4], brush : &BrushData, offset : [isize; 2], erase : bool, alpha_lock : bool)
 {
     draw_brush_line_no_start_float(image, from, to, px_to_float(color), brush, offset, erase, alpha_lock)
 }
@@ -342,7 +348,7 @@ fn generate_brush(size : f32) -> Image<4>
     }
     shape
 }
-fn directionalize_brush(brush_shape : &Image<4>) -> Vec<Vec<((isize, isize), [f32; 4])>>
+fn directionalize_brush(brush_shape : &Image<4>) -> BrushData
 {
     let mut ret = Vec::new();
     let dirs = [
@@ -393,6 +399,8 @@ fn directionalize_brush(brush_shape : &Image<4>) -> Vec<Vec<((isize, isize), [f3
     
     ret
 }
+
+#[allow(clippy::type_complexity)]
 pub (crate) struct Pencil
 {
     size : f32,
@@ -424,7 +432,7 @@ impl Pencil
             is_eraser : false,
         }
     }
-    pub (crate) fn to_eraser(mut self) -> Self
+    pub (crate) fn into_eraser(mut self) -> Self
     {
         self.is_eraser = true;
         self
@@ -459,6 +467,8 @@ impl Tool for Pencil
             let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
             let mut coord = vec_floor(&new_input.canvas_mouse_coord);
             
+            // broken lint
+            #[allow(clippy::suspicious_else_formatting)]
             if do_smooth
             {
                 let coord_d = vec_sub(&coord, &prev_coord);
@@ -522,7 +532,7 @@ impl Tool for Pencil
             app.cancel_edit();
         }
         
-        self.prev_input = new_input.clone();
+        self.prev_input = new_input;
     }
     fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
     {
@@ -535,8 +545,8 @@ impl Tool for Pencil
     fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
     {
         let mut pos = self.cursor_memory;
-        pos[0] = pos[0] - app.canvas_width as f32 / 2.0;
-        pos[1] = pos[1] - app.canvas_height as f32 / 2.0;
+        pos[0] -= app.canvas_width as f32 / 2.0;
+        pos[1] -= app.canvas_height as f32 / 2.0;
         let mut loops = self.outline_data.clone();
         for points in loops.iter_mut()
         {
@@ -725,6 +735,9 @@ impl Tool for MoveTool
         {
             let prev_point = vec_floor(&self.prev_input.canvas_mouse_coord);
             let point = vec_floor(&new_input.canvas_mouse_coord);
+            
+            // structured like this for future expansion
+            #[allow(clippy::collapsible_if)]
             if point != prev_point
             {
                 if !app.is_editing()
@@ -782,7 +795,7 @@ impl Tool for MoveTool
                     min[1] = min[1].min(point[1]);
                     max[0] = max[0].max(point[0]);
                     max[1] = max[1].max(point[1]);
-                    *point = vec_add(&point, &diff);
+                    *point = vec_add(point, &diff);
                     min[0] = min[0].min(point[0]);
                     min[1] = min[1].min(point[1]);
                     max[0] = max[0].max(point[0]);
@@ -796,7 +809,7 @@ impl Tool for MoveTool
             {
                 let offset = [self.offset[0] as isize, self.offset[1] as isize];
                 *editing_image = base_image.clone();
-                editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, 1.0, offset, &"Weld".to_string());
+                editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, 1.0, offset, "Weld");
             }
             
             app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));

@@ -77,9 +77,9 @@ impl UndoEvent
         let encoded = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
         snap::raw::Encoder::new().compress_vec(&encoded).unwrap()
     }
-    fn decompress(data : &Vec<u8>) -> Self
+    fn decompress(data : &[u8]) -> Self
     {
-        let vec = snap::raw::Decoder::new().decompress_vec(&data[..]).unwrap();
+        let vec = snap::raw::Decoder::new().decompress_vec(data).unwrap();
         bincode::decode_from_slice(&vec, bincode::config::standard()).unwrap().0
     }
 }
@@ -146,7 +146,7 @@ impl Default for Warpainter
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
-        let ret = Self {
+        Self {
             layers : root_layer,
             current_layer : image_layer_uuid,
             
@@ -172,7 +172,7 @@ impl Default for Warpainter
             
             tools : vec!(
                 Box::new(Pencil::new()),
-                Box::new(Pencil::new().to_eraser()),
+                Box::new(Pencil::new().into_eraser()),
                 Box::new(Fill::new()),
                 Box::new(Eyedropper::new()),
                 Box::new(Selection::new()),
@@ -190,9 +190,7 @@ impl Default for Warpainter
             selection_poly : Vec::new(),
             
             did_event_setup : false,
-        };
-        
-        ret
+        }
     }
 }
 
@@ -352,6 +350,7 @@ impl Warpainter
             self.tools.insert(self.current_tool, tool);
         }
     }
+    #[allow(clippy::borrowed_box)]
     fn get_tool(&self) -> Option<&Box<dyn Tool>>
     {
         self.tools.get(self.current_tool)
@@ -360,19 +359,18 @@ impl Warpainter
 
 impl Warpainter
 {
-    fn sample_poly_sdf(mut c : [f32; 2], points : &Vec<[f32; 2]>) -> f32
+    fn sample_poly_sdf(mut c : [f32; 2], points : &[[f32; 2]]) -> f32
     {
         c[0] += 0.5;
         c[1] += 0.5;
-        let len = points.len();
         let mut closest = 10000000.0;
         let mut a = points[0];
         
         let mut inside = false;
         
-        for i in 0..len
+        for b in points.iter()
         {
-            let b = points[i];
+            let b = *b;
             let u = vec_sub(&b, &a);
             let v = vec_sub(&a, &c);
             
@@ -405,7 +403,7 @@ impl Warpainter
             a = b;
         }
         
-        return closest.sqrt() * if inside { 1.0 } else { -1.0 };
+        closest.sqrt() * if inside { 1.0 } else { -1.0 }
     }
     fn clear_selection(&mut self)
     {
@@ -477,11 +475,11 @@ impl Warpainter
         }
     }
     
-    fn get_editing_image<'a>(&'a mut self) -> Option<&'a mut Image<4>>
+    fn get_editing_image(&mut self) -> Option<&mut Image<4>>
     {
-        (&mut self.editing_image).as_mut()
+        self.editing_image.as_mut()
     }
-    fn get_current_layer_image<'a>(&'a mut self) -> Option<&'a Image<4>>
+    fn get_current_layer_image(&mut self) -> Option<& Image<4>>
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
@@ -496,7 +494,7 @@ impl Warpainter
     {
         self.editing_image.is_some()
     }
-    fn flatten<'a>(&'a mut self) -> &'a Image<4>
+    fn flatten(&mut self) -> &Image<4>
     {
         if let Some(override_image) = self.get_temp_edit_image()
         {
@@ -525,7 +523,7 @@ impl Warpainter
                                 if !self.edit_ignores_selection
                                 {
                                     let mut under = current_image.clone();
-                                    under.blend_from(&edit_image, Some(&selection_mask), 1.0, [0, 0], &"Interpolate".to_string());
+                                    under.blend_from(edit_image, Some(selection_mask), 1.0, [0, 0], "Interpolate");
                                     return Some(under);
                                 }
                             }
@@ -534,14 +532,14 @@ impl Warpainter
                         else
                         {
                             let mut drawn = current_image.clone(); // FIXME performance drain, find a way to use a dirty rect here
-                            drawn.blend_from(edit_image, None, 1.0, [0, 0], &"Normal".to_string()); // FIXME use drawing opacity / brush alpha
+                            drawn.blend_from(edit_image, None, 1.0, [0, 0], "Normal"); // FIXME use drawing opacity / brush alpha
                             
                             if let Some(selection_mask) = &self.selection_mask
                             {
                                 if !self.edit_ignores_selection
                                 {
                                     let mut under = current_image.clone();
-                                    under.blend_from(&drawn, Some(&selection_mask), 1.0, [0, 0], &"Interpolate".to_string());
+                                    under.blend_from(&drawn, Some(selection_mask), 1.0, [0, 0], "Interpolate");
                                     return Some(under);
                                 }
                             }
@@ -604,8 +602,8 @@ impl Warpainter
             self.redo_buffer = Vec::new();
             let event = UndoEvent::LayerInfoChange(LayerInfoChange {
                 uuid : self.current_layer,
-                old : old_info.clone(),
-                new : new_info.clone(),
+                old : old_info,
+                new : new_info,
             });
             self.undo_buffer.push(event.compress());
         }
@@ -760,7 +758,7 @@ impl Warpainter
     }
     fn set_main_color_rgb(&mut self, new : [f32; 4])
     {
-        self.main_color_rgb = new.clone();
+        self.main_color_rgb = new;
         self.main_color_hsv = rgb_to_hsv(new);
     }
     fn set_main_color_hsv8(&mut self, new : [u8; 4])
@@ -779,7 +777,7 @@ impl Warpainter
     }
     fn set_sub_color_rgb(&mut self, new : [f32; 4])
     {
-        self.sub_color_rgb = new.clone();
+        self.sub_color_rgb = new;
         self.sub_color_hsv = rgb_to_hsv(new);
     }
     fn set_sub_color_hsv8(&mut self, new : [u8; 4])
@@ -1051,6 +1049,9 @@ impl eframe::App for Warpainter
                     {
                         layer.dirtify_all();
                     }
+                    
+                    #[allow(clippy::if_same_then_else)]
+                    
                     if old_blend_mode != layer.blend_mode
                     {
                         self.log_layer_info_change();
@@ -1092,7 +1093,6 @@ impl eframe::App for Warpainter
                     let clipped      = layer.as_ref().map_or(false, |layer| layer.clipped     );
                     let locked       = layer.as_ref().map_or(false, |layer| layer.locked      );
                     let alpha_locked = layer.as_ref().map_or(false, |layer| layer.alpha_locked);
-                    drop(layer);
                     
                     if add_button!(ui, "clipping mask", "Toggle Clipping Mask", clipped).clicked()
                     {
@@ -1134,7 +1134,7 @@ impl eframe::App for Warpainter
                     }
                     if add_button!(ui, "into group", "Into New Group", false).clicked()
                     {
-                        self.layers.into_group(self.current_layer);
+                        self.layers.move_into_new_group(self.current_layer);
                     }
                     if add_button_disabled!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
                     {
@@ -1358,6 +1358,7 @@ impl eframe::App for Warpainter
     }
 }
 
+#[allow(clippy::field_reassign_with_default)]
 #[cfg(not(target_arch = "wasm32"))]
 fn main()
 {
@@ -1365,6 +1366,7 @@ fn main()
     
     // eframe 0.19.0 is borked on windows 10, the window flickers violently when you resize it, flashing white
     // this is a seizure hazard when using the dark theme, so force the light theme instead
+    
     options.follow_system_theme = false;
     options.default_theme = eframe::Theme::Light;
     
@@ -1372,7 +1374,7 @@ fn main()
     eframe::run_native (
         "Warpainter",
         options,
-        Box::new(|_| Box::new(Warpainter::default())),
+        Box::new(|_| Box::<Warpainter>::default()),
     ).unwrap();
 }
 

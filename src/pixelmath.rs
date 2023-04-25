@@ -392,8 +392,8 @@ pub (crate) fn px_func_triad_float<T : BlendModeTriad>(mut a : [f32; 4], b : [f3
     let a_a = a[3] * m;
     let b_a = b_under_a * m;
     
-    let a_triad : [f32; 3] = (|x : [f32; 4]| [x[0], x[1], x[2]])(a);
-    let b_triad : [f32; 3] = (|x : [f32; 4]| [x[0], x[1], x[2]])(b);
+    let a_triad : [f32; 3] = [a[0], a[1], a[2]];
+    let b_triad : [f32; 3] = [b[0], b[1], b[2]];
     
     let r_triad = T::blend(a_triad, b_triad);
     
@@ -663,10 +663,12 @@ impl BlendModeFull for BlendModeAlphaReject
     }
 }
 
+type FloatBlendFn = fn([f32; 4], [f32; 4], f32) -> [f32; 4];
+type IntBlendFn = fn([u8; 4], [u8; 4], f32) -> [u8; 4];
 
-pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32; 4], f32) -> [f32; 4]
+pub (crate) fn find_blend_func_float(blend_mode : &str) -> FloatBlendFn
 {
-    match blend_mode.as_str()
+    match blend_mode
     {
         "Multiply" => px_func_float::<BlendModeMultiply>,
         "Divide" => px_func_float::<BlendModeDivide>,
@@ -738,9 +740,9 @@ pub (crate) fn find_blend_func_float(blend_mode : &String) -> fn([f32; 4], [f32;
     }
 }
     
-pub (crate) fn find_blend_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], f32) -> [u8; 4]
+pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
 {
-    match blend_mode.as_str()
+    match blend_mode
     {
         "Multiply" => px_func::<BlendModeMultiply>,
         "Divide" => px_func::<BlendModeDivide>,
@@ -833,9 +835,12 @@ fn dither<T : Sized>(blended : T, base : T, mut amount : f32, coord : [usize; 2]
     }
 }
 
-pub (crate) fn find_post_func_float(blend_mode : &String) -> fn([f32; 4], [f32; 4], [f32; 4], f32, [usize; 2]) -> [f32; 4]
+type FloatPostFn = fn([f32; 4], [f32; 4], [f32; 4], f32, [usize; 2]) -> [f32; 4];
+type IntPostFn = fn([u8; 4], [u8; 4], [u8; 4], f32, [usize; 2]) -> [u8; 4];
+
+pub (crate) fn find_post_func_float(blend_mode : &str) -> FloatPostFn
 {
-    match blend_mode.as_str()
+    match blend_mode
     {
         "Dither" => |blended, top, base, mut amount, coord|
         {
@@ -846,9 +851,9 @@ pub (crate) fn find_post_func_float(blend_mode : &String) -> fn([f32; 4], [f32; 
         _ => |blended, _top, _base, _amount, _coord| blended,
     }
 }
-pub (crate) fn find_post_func(blend_mode : &String) -> fn([u8; 4], [u8; 4], [u8; 4], f32, [usize; 2]) -> [u8; 4]
+pub (crate) fn find_post_func(blend_mode : &str) -> IntPostFn
 {
-    match blend_mode.as_str()
+    match blend_mode
     {
         "Dither" => |blended, top, base, mut amount, coord|
         {

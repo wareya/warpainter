@@ -13,7 +13,7 @@ pub (crate) struct ShaderQuad
     texture_handle : [Option<glow::Texture>; 8],
 }
 
-const VERT_SHADER : &'static str = "
+const VERT_SHADER : &str = "
     layout(location = 0) in vec2 in_vertex;
     layout(location = 1) in vec2 in_uv;
     
@@ -27,7 +27,7 @@ const VERT_SHADER : &'static str = "
         uv = in_uv;
     }
 ";
-const FRAG_SHADER : &'static str = "
+const FRAG_SHADER : &str = "
     in vec2 vertex;
     in vec2 uv;
     
@@ -97,7 +97,7 @@ fn upload_data(gl : &glow::Context, handle : glow::Texture, data : &[[f32; 4]])
             0, // border
             glow::RGBA,
             glow::FLOAT,
-            Some(&bytes)
+            Some(bytes)
         );
     }
 }
@@ -131,13 +131,13 @@ impl ShaderQuad
             
             #[cfg(not(target_arch = "wasm32"))]
             {
-                vertex_shader   = ("#version 330".to_string() + &vertex_shader).to_string();
-                fragment_shader = ("#version 330".to_string() + &fragment_shader).to_string();
+                vertex_shader   = "#version 330".to_string() + &vertex_shader;
+                fragment_shader = "#version 330".to_string() + &fragment_shader;
             }
             #[cfg(target_arch = "wasm32")]
             {
-                vertex_shader   = ("#version 300 es".to_string() + &vertex_shader).to_string();
-                fragment_shader = ("#version 300 es".to_string() + &fragment_shader).to_string();
+                vertex_shader   = "#version 300 es".to_string() + &vertex_shader;
+                fragment_shader = "#version 300 es".to_string() + &fragment_shader;
                 
                 vertex_shader = vertex_shader
                     .replace( " float ",  " highp float ")
@@ -249,7 +249,7 @@ impl ShaderQuad
                 self.texture_handle[which] = gl.create_texture().ok();
             }
             let handle = self.texture_handle[which].unwrap();
-            upload_texture(gl, handle, &texture);
+            upload_texture(gl, handle, texture);
             eframe::egui_glow::check_for_gl_error!(gl, "after texture upload");
         }
     }
@@ -265,7 +265,7 @@ impl ShaderQuad
                 self.texture_handle[which] = gl.create_texture().ok();
             }
             let handle = self.texture_handle[which].unwrap();
-            upload_data(gl, handle, &data);
+            upload_data(gl, handle, data);
             eframe::egui_glow::check_for_gl_error!(gl, "after texture upload");
         }
     }
@@ -275,14 +275,14 @@ impl ShaderQuad
         self.vertices = vec!(0.0; verts.len()*2);
         for (i, vert) in verts.iter().enumerate()
         {
-            self.vertices[i*2 + 0] = vert[0];
+            self.vertices[i*2    ] = vert[0];
             self.vertices[i*2 + 1] = vert[1];
         }
         
         self.uvs = vec!(0.0; uvs.len()*2);
         for (i, uv) in uvs.iter().enumerate()
         {
-            self.uvs[i*2 + 0] = uv[0];
+            self.uvs[i*2    ] = uv[0];
             self.uvs[i*2 + 1] = uv[1];
         }
     }

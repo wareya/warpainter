@@ -22,7 +22,7 @@ impl LayerInfo
     fn new(name : String) -> Self
     {
         Self {
-            name : name.to_string(),
+            name,
             blend_mode : "Normal".to_string(),
             
             opacity : 1.0,
@@ -296,14 +296,10 @@ impl Layer
         // FIXME cache somehow??? or is it not worth it
         self.visit_layers(0, &mut |layer, _|
         {
-            match &layer.data
+            if let Some(image) = &layer.data
             {
-                Some(image) =>
-                {
-                    size[0] = size[0].max(image.width as f32);
-                    size[1] = size[1].max(image.height as f32);
-                }
-                _ => {}
+                size[0] = size[0].max(image.width as f32);
+                size[1] = size[1].max(image.height as f32);
             }
             Some(())
         });
@@ -311,6 +307,7 @@ impl Layer
     }
     pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>, mask : Option<&'b Image<1>>) -> &'b Image<4> where 'a: 'b
     {
+        #[allow(clippy::unnecessary_unwrap)] // broken lint
         if Some(self.uuid) == override_uuid && override_data.is_some()
         {
             // FIXME use different dirty rects for override and non-override
@@ -341,6 +338,7 @@ impl Layer
             //println!("group is dirty, reflattening ({:?})", dirty_rect);
             let new_dirty_rect;
             
+            #[allow(clippy::unnecessary_unwrap)] // broken lint
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
                 new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
@@ -374,6 +372,7 @@ impl Layer
                     
                     let above_offset = [0, 0];
                     
+                    #[allow(clippy::unnecessary_unwrap)] // broken lint
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
                     {
                         // child is a clip target, get into clip target mode
@@ -398,10 +397,10 @@ impl Layer
                     {
                         // done with the clipping mask sequence, blend into rest of group
                         // restore original alpha
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, &"Clip Alpha".to_string());
+                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, "Clip Alpha");
                         if stash_is_first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, "Copy");
                         }
                         else
                         {
@@ -411,21 +410,20 @@ impl Layer
                         stash = None;
                         stash_clean = None;
                     }
-                    else if stash.is_some() && above.is_some() // above.is_some() is redundant with the above if branch, but left in for clarity
+                    else if let (Some(above), Some(ref mut stash)) = (above, stash.as_mut()) // above.is_some() is redundant with the above if branch, but left in for clarity
                     {
                         // continuing a clip mask blend
-                        let above = above.unwrap();
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
+                        stash.blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
                     }
                     else
                     {
                         // normal layer blending
                         if first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &"Copy".to_string());
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, "Copy");
                         }
                         else
                         {
@@ -441,31 +439,19 @@ impl Layer
     }
     pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer, usize) -> Option<()>) -> Option<()>
     {
-        if f(self, depth).is_none()
-        {
-            return None;
-        }
+        f(self, depth)?;
         for child in self.children.iter()
         {
-            if child.visit_layers(depth+1, f).is_none()
-            {
-                return None;
-            }
+            child.visit_layers(depth+1, f)?;
         }
         Some(())
     }
     pub(crate) fn visit_layers_mut(&mut self, depth : usize, f : &mut dyn FnMut(&mut Layer, usize) -> Option<()>) -> Option<()>
     {
-        if f(self, depth).is_none()
-        {
-            return None;
-        }
+        f(self, depth)?;
         for child in self.children.iter_mut()
         {
-            if child.visit_layers_mut(depth+1, f).is_none()
-            {
-                return None;
-            }
+            child.visit_layers_mut(depth+1, f)?;
         }
         Some(())
     }
@@ -690,7 +676,7 @@ impl Layer
             parent.children.insert(i, Layer::new_group("New Group"));
         });
     }
-    pub (crate) fn into_group(&mut self, find_uuid : u128)
+    pub (crate) fn move_into_new_group(&mut self, find_uuid : u128)
     {
         self.visit_layer_parent_mut(find_uuid, &mut |parent, i|
         {

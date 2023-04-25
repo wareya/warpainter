@@ -30,11 +30,11 @@ pub (crate) fn draw_dotted(painter : &egui::Painter, from : [f32; 2], to : [f32;
         end[1] = end[1].floor() + 0.5;
         if i % 2 == 0
         {
-            painter.line_segment([start.into(), end.into()].into(), white);
+            painter.line_segment([start.into(), end.into()], white);
         }
         else
         {
-            painter.line_segment([start.into(), end.into()].into(), black);
+            painter.line_segment([start.into(), end.into()], black);
             
             //// counteract bad linear-color-space AA by drawing twice
             //painter.line_segment([start.into(), end.into()].into(), black);
@@ -53,7 +53,7 @@ pub (crate) fn draw_doubled(painter : &egui::Painter, point_lists : &[&[[f32; 2]
     {
         for i in 0..points.len()-1
         {
-            painter.line_segment([points[i].into(), points[i+1].into()].into(), white);
+            painter.line_segment([points[i].into(), points[i+1].into()], white);
         }
     }
     // black section for inner line
@@ -61,7 +61,7 @@ pub (crate) fn draw_doubled(painter : &egui::Painter, point_lists : &[&[[f32; 2]
     {
         for i in 0..points.len()-1
         {
-            painter.line_segment([points[i].into(), points[i+1].into()].into(), black);
+            painter.line_segment([points[i].into(), points[i+1].into()], black);
             
             //// counteract bad linear-color-space AA by drawing twice
             //painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
