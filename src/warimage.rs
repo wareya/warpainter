@@ -402,7 +402,7 @@ impl Image<4>
         
         macro_rules! do_loop
         {
-            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $mix_f:expr, $post_f:expr) =>
+            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr) =>
             {
                 {
                     let mut thread_count = 4;
@@ -419,7 +419,7 @@ impl Image<4>
                     let infos =
                     {
                         let row_count = max_y - min_y + 1;
-                        if row_count < thread_count { vec!((bottom, min_y)) }
+                        if row_count < thread_count { vec!((bottom, min_y, blend_mode.clone())) }
                         else
                         {
                             let chunk_size_rows = row_count/thread_count;
@@ -431,12 +431,12 @@ impl Image<4>
                                 {
                                     let (split, remainder) = bottom.split_at_mut(chunk_size_pixels);
                                     bottom = remainder;
-                                    ret.push((split, min_y + chunk_size_rows*i));
+                                    ret.push((split, min_y + chunk_size_rows*i, blend_mode.clone()));
                                 }
                             }
                             if bottom.len() > 0
                             {
-                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1)));
+                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1), blend_mode.clone()));
                             }
                             ret
                         }
@@ -451,14 +451,21 @@ impl Image<4>
                                 let get_opacity = &get_opacity;
                                 s.spawn(move |_|
                                 {
+                                    let blend_mode = info.2;
+                                    
+                                    let blend_f = find_blend_func_float(blend_mode);
+                                    let post_f = find_post_func_float(blend_mode);
+                                    
                                     let bottom = info.0;
                                     let offset = info.1;
                                     let min_y = 0;
                                     let max_y = bottom.len()/self_width;
+                                    
                                     for y in min_y..max_y
                                     {
                                         let self_index_y_part = y*self_width;
                                         let top_index_y_part = (y as isize + offset as isize - top_offset[1]) as usize * top_width;
+                                        
                                         for x in min_x..max_x
                                         {
                                             let bottom_index = self_index_y_part + x;
@@ -468,8 +475,8 @@ impl Image<4>
                                             let top_pixel = $top_read_f($top[top_index]);
                                             let opacity = get_opacity(x, y + offset);
                                             
-                                            let c = $mix_f(top_pixel, bottom_pixel, opacity);
-                                            let c = $post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                            let c = blend_f(top_pixel, bottom_pixel, opacity);
+                                            let c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
                                             
                                             bottom[bottom_index] = $bottom_write_f(c);
                                         }
@@ -482,14 +489,21 @@ impl Image<4>
                     {
                         for info in infos
                         {
+                            let blend_mode = info.2;
+                            
+                            let blend_f = find_blend_func_float(blend_mode);
+                            let post_f = find_post_func_float(blend_mode);
+                            
                             let bottom = info.0;
                             let offset = info.1;
                             let min_y = 0;
                             let max_y = bottom.len()/self_width;
+                            
                             for y in min_y..max_y
                             {
                                 let self_index_y_part = y*self_width;
                                 let top_index_y_part = (y as isize + offset as isize - top_offset[1]) as usize * top_width;
+                                
                                 for x in min_x..max_x
                                 {
                                     let bottom_index = self_index_y_part + x;
@@ -498,8 +512,10 @@ impl Image<4>
                                     let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
                                     let top_pixel = $top_read_f($top[top_index]);
                                     let opacity = get_opacity(x, y + offset);
-                                    let c = $mix_f(top_pixel, bottom_pixel, opacity);
-                                    let c = $post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                    
+                                    let c = blend_f(top_pixel, bottom_pixel, opacity);
+                                    let c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                    
                                     bottom[bottom_index] = $bottom_write_f(c);
                                 }
                             }
@@ -509,22 +525,16 @@ impl Image<4>
             }
         }
         
-        let blend_float = find_blend_func_float(blend_mode);
-        let blend_int = find_blend_func(blend_mode);
-        
-        let post_float = find_post_func_float(blend_mode);
-        let post_int = find_post_func(blend_mode);
-        
         match (&mut self.data, &top.data)
         {
             (ImageData::<4>::Float(bottom), ImageData::<4>::Float(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, blend_float, post_float),
+                do_loop!(bottom, top,         nop,         nop,       nop),
             (ImageData::<4>::Float(bottom), ImageData::<4>::Int(top)) =>
-                do_loop!(bottom, top, nop, px_to_float, nop, blend_float, post_float),
+                do_loop!(bottom, top,         nop, px_to_float,       nop),
             (ImageData::<4>::Int(bottom), ImageData::<4>::Float(top)) =>
-                do_loop!(bottom, top, px_to_float, nop, px_to_int, blend_float, post_float),
+                do_loop!(bottom, top, px_to_float,         nop, px_to_int),
             (ImageData::<4>::Int(bottom), ImageData::<4>::Int(top)) =>
-                do_loop!(bottom, top, nop, nop, nop, blend_int, post_int),
+                do_loop!(bottom, top, px_to_float, px_to_float, px_to_int),
         }
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)

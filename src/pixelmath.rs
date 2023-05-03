@@ -6,6 +6,13 @@ fn lerp(a : f32, b : f32, t : f32) -> f32
 }
 
 #[inline]
+// return what the output alpha should be given the two input alpha values
+fn alpha_combine(a : f32, b : f32) -> f32
+{
+    b * (1.0 - a) + a
+}
+
+#[inline]
 pub (crate) fn px_lerp_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
 {
     let mut r = [0.0; 4];
@@ -230,14 +237,6 @@ impl BlendModeSimple for BlendModeColorDodge
     fn blend(top : f32, bottom : f32) -> f32
     {
         (bottom / (1.0 - top)).clamp(0.0, 1.0)
-    }
-}
-pub (crate) struct BlendModeGlowDodge;
-impl BlendModeSimple for BlendModeGlowDodge
-{
-    fn blend(top : f32, bottom : f32) -> f32
-    {
-        bottom / (1.0 - top)
     }
 }
 pub (crate) struct BlendModeGlow;
@@ -663,12 +662,98 @@ impl BlendModeFull for BlendModeAlphaReject
     }
 }
 
-type FloatBlendFn = fn([f32; 4], [f32; 4], f32) -> [f32; 4];
+pub (crate) struct BlendModeGlowDodge;
+impl BlendModeFull for BlendModeGlowDodge
+{
+    fn blend(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        a[3] *= amount;
+        
+        if a[3] == 0.0
+        {
+            return b;
+        }
+        else if b[3] == 0.0
+        {
+            return a;
+        }
+
+        let mut r = [0.0; 4];
+        
+        // a is top layer, b is bottom
+        let b_under_a = b[3] * (1.0 - a[3]);
+        r[3] = a[3] + b_under_a;
+        let m = 1.0 / r[3];
+        
+        let a_a = a[3] * m;
+        let b_a = b_under_a * m;
+        
+        for i in 0..3
+        {
+            r[i] = lerp(a[i], BlendModeColorDodge::blend(a[i] * a_a, b[i]), 1.0) * a_a + b[i] * b_a;
+        }
+        
+        r
+    }
+}
+
+type FloatBlendFn = dyn Fn([f32; 4], [f32; 4], f32) -> [f32; 4];
 type IntBlendFn = fn([u8; 4], [u8; 4], f32) -> [u8; 4];
 
-pub (crate) fn find_blend_func_float(blend_mode : &str) -> FloatBlendFn
+use ouroboros::self_referencing;
+#[self_referencing]
+struct BoxedLuaBlendFn
 {
-    match blend_mode
+    lua : mlua::Lua,
+    #[borrows(lua)]
+    #[covariant]
+    func : mlua::Function<'this>
+}
+
+impl BoxedLuaBlendFn
+{
+    fn from_string(code : &str) -> Option<Self>
+    {
+        use mlua::prelude::*;
+        let lua = mlua::Lua::new();
+        if lua.load(code).into_function().is_ok()
+        {
+            Some(Self::new(lua, |lua| lua.load(code).into_function().unwrap()))
+        }
+        else
+        {
+            let err = lua.load(code).into_function().unwrap_err();
+            println!("failed to compile: {}", err);
+            None
+        }
+    }
+    pub (crate) fn call(&self, a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        if let Ok((r,)) = self.borrow_func().call((a, b, amount))
+        {
+            r
+        }
+        else
+        {
+            px_func_float::<BlendModeNormal>(a, b, amount)
+        }
+    }
+}
+
+pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
+{
+    if blend_mode.starts_with("Custom\n")
+    {
+        let code = blend_mode.split_once("\n").unwrap().1;
+        if let Some(f) = BoxedLuaBlendFn::from_string(&code)
+        {
+            return Box::new(move |a, b, amount|
+            {
+                f.call(a, b, amount)
+            });
+        }
+    }
+    Box::new(match blend_mode
     {
         "Multiply" => px_func_float::<BlendModeMultiply>,
         "Divide" => px_func_float::<BlendModeDivide>,
@@ -685,7 +770,9 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> FloatBlendFn
         "Linear Burn" => px_func_float::<BlendModeLinearBurn>,
         "Color Burn" => px_func_float::<BlendModeColorBurn>,
         "Color Dodge" => px_func_float::<BlendModeColorDodge>,
-        "Glow Dodge" => px_func_float::<BlendModeGlowDodge>,
+        
+        "Glow Dodge" => px_func_full_float::<BlendModeGlowDodge>,
+        
         "Glow" => px_func_float::<BlendModeGlow>,
         "Reflect" => px_func_float::<BlendModeReflect>,
         "Overlay" => px_func_float::<BlendModeOverlay>,
@@ -737,7 +824,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> FloatBlendFn
         },
         
         _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
-    }
+    })
 }
     
 pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
@@ -759,7 +846,9 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         "Linear Burn" => px_func::<BlendModeLinearBurn>,
         "Color Burn" => px_func::<BlendModeColorBurn>,
         "Color Dodge" => px_func::<BlendModeColorDodge>,
-        "Glow Dodge" => px_func::<BlendModeGlowDodge>,
+        
+        "Glow Dodge" => px_func_full::<BlendModeGlowDodge>,
+        
         "Glow" => px_func::<BlendModeGlow>,
         "Reflect" => px_func::<BlendModeReflect>,
         "Overlay" => px_func::<BlendModeOverlay>,

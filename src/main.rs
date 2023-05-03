@@ -1038,7 +1038,23 @@ impl eframe::App for Warpainter
                         ui.selectable_value(&mut layer.blend_mode, "Alpha Reject".to_string(), "Alpha Reject");
                         
                         ui.selectable_value(&mut layer.blend_mode, "Interpolate".to_string(), "Interpolate");
+                        
+                        ui.separator();
+                        
+                        ui.selectable_value(&mut layer.blend_mode, "Custom".to_string(), "Custom");
                     });
+                    
+                    if layer.blend_mode == "Custom"
+                    {
+                        if layer.custom_blend_mode == ""
+                        {
+                            layer.custom_blend_mode = "".to_string();
+                        }
+                        egui::Window::new("Custom Blend Mode Editor").vscroll(true).show(ctx, |ui|
+                        {
+                            ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut layer.custom_blend_mode).code_editor());
+                        });
+                    }
                     
                     let old_opacity = layer.opacity * 100.0;
                     let mut opacity = old_opacity;
@@ -1380,18 +1396,23 @@ fn main()
 
 // when compiling to web using trunk.
 #[cfg(target_arch = "wasm32")]
-fn main() {
+fn main()
+{
     // Make sure panics are logged using `console.error`.
     console_error_panic_hook::set_once();
-
+    
     // Redirect tracing to console.log and friends:
     tracing_wasm::set_as_global_default();
-
+    
     let web_options = eframe::WebOptions::default();
-
-    wasm_bindgen_futures::spawn_local(async {
-        eframe::start_web(
-            "the_canvas_id", // hardcode it
+    
+    let window = web_sys::window().unwrap();
+    web_sys::console::log_1(&format!("event received").into());
+    
+    wasm_bindgen_futures::spawn_local(async
+    {
+        eframe::start_web (
+            "the_canvas_id",
             web_options,
             Box::new(|_| Box::new(Warpainter::default())),
         )

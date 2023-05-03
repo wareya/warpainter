@@ -18,7 +18,7 @@ crossbeam = "0.8.2"
 bincode = "2.0.0-rc.3"
 snap = "1.1.0"
 base64 = "0.21.0"
-
+ouroboros = "0.15.6"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
@@ -30,7 +30,6 @@ features = [
     "xdg-portal",
 ]
 
-
 [dependencies.uuid]
 version = "1.1.2"
 features = [
@@ -39,7 +38,12 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+mlua = { version = "0.8.8", features = ["luajit", "vendored", "send"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+mlua = { version = "0.8.8", features = ["vendored", "send"] }
+
 console_error_panic_hook = "0.1.6"
 tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4"
@@ -54,4 +58,7 @@ web-sys = { version = "0.3.61", features = [
     "Element",
     "Node",
     "EventTarget",
+    "Event",
+    "InputEvent",
+    "console",
 ] }

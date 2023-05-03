@@ -49,6 +49,7 @@ pub (crate) struct Layer
     
     pub (crate) name : String,
     pub (crate) blend_mode : String,
+    pub (crate) custom_blend_mode : String,
     
     pub (crate) opacity : f32,
     pub (crate) visible : bool,
@@ -95,6 +96,7 @@ impl Layer
         Layer {
             name : name.to_string(),
             blend_mode : "Normal".to_string(),
+            custom_blend_mode : "".to_string(),
             
             data : Some(image),
             children : vec!(),
@@ -125,6 +127,7 @@ impl Layer
         Layer {
             name : name.to_string(),
             blend_mode : "Normal".to_string(),
+            custom_blend_mode : "".to_string(),
             
             data : None,
             children : vec!(),
@@ -365,7 +368,11 @@ impl Layer
                 let child = b.first_mut().unwrap();
                 if child.visible
                 {
-                    let mode = child.blend_mode.clone();
+                    let mut mode = child.blend_mode.clone();
+                    if mode == "Custom"
+                    {
+                        mode += &("\n".to_string() + &child.custom_blend_mode);
+                    }
                     let opacity = child.opacity;
                     let child_clipped = child.clipped;
                     let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
