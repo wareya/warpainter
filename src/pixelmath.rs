@@ -693,15 +693,6 @@ impl BlendModeFull for BlendModeGlowDodge
 type FloatBlendFn = dyn Fn([f32; 4], [f32; 4], f32) -> [f32; 4];
 type IntBlendFn = fn([u8; 4], [u8; 4], f32) -> [u8; 4];
 
-use ouroboros::self_referencing;
-#[self_referencing]
-struct BoxedLuaBlendFn
-{
-    lua : mlua::Lua,
-    #[borrows(lua)]
-    #[covariant]
-    func : mlua::Function<'this>
-}
 
 //canonical "Normal" lua blend function:
 
@@ -743,7 +734,18 @@ end
 return {blend[1], blend[2], blend[3], over}
 */
 
+use ouroboros::self_referencing;
+#[cfg(not(target_arch = "wasm32"))]
+#[self_referencing]
+struct BoxedLuaBlendFn
+{
+    lua : mlua::Lua,
+    #[borrows(lua)]
+    #[covariant]
+    func : mlua::Function<'this>,
+}
 
+#[cfg(not(target_arch = "wasm32"))]
 impl BoxedLuaBlendFn
 {
     fn from_string(code : &str) -> Option<Self>
@@ -775,15 +777,19 @@ impl BoxedLuaBlendFn
 
 pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
 {
-    if blend_mode.starts_with("Custom\n")
+    
+    #[cfg(not(target_arch = "wasm32"))]
     {
-        let code = blend_mode.split_once("\n").unwrap().1;
-        if let Some(f) = BoxedLuaBlendFn::from_string(&code)
+        if blend_mode.starts_with("Custom\n")
         {
-            return Box::new(move |a, b, amount|
+            let code = blend_mode.split_once("\n").unwrap().1;
+            if let Some(f) = BoxedLuaBlendFn::from_string(&code)
             {
-                f.call(a, b, amount)
-            });
+                return Box::new(move |a, b, amount|
+                {
+                    f.call(a, b, amount)
+                });
+            }
         }
     }
     Box::new(match blend_mode

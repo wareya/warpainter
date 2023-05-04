@@ -1301,28 +1301,33 @@ impl eframe::App for Warpainter
                 {
                     self.perform_redo();
                 }
-                if state.consume_shortcut(&shortcut_paste)
+                
+                // FIXME support clipboard on web
+                #[cfg(not(target_arch = "wasm32"))]
                 {
-                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                    if state.consume_shortcut(&shortcut_paste)
                     {
-                        if let Ok(image_data) = clipboard.get().image()
+                        if let Ok(mut clipboard) = arboard::Clipboard::new()
                         {
-                            self.new_layer();
-                            let data = self.get_current_layer_data().unwrap();
-                            
-                            let w = image_data.width;
-                            let h = image_data.height;
-                            let pixels = image_data.bytes.chunks(4).map(|x| [x[0], x[1], x[2], x[3]]).collect::<Vec<_>>();
-                            for y in 0..h
+                            if let Ok(image_data) = clipboard.get().image()
                             {
-                                for x in 0..w
+                                self.new_layer();
+                                let data = self.get_current_layer_data().unwrap();
+                                
+                                let w = image_data.width;
+                                let h = image_data.height;
+                                let pixels = image_data.bytes.chunks(4).map(|x| [x[0], x[1], x[2], x[3]]).collect::<Vec<_>>();
+                                for y in 0..h
                                 {
-                                    data.set_pixel(x as isize, y as isize, pixels[y*w + x]);
+                                    for x in 0..w
+                                    {
+                                        data.set_pixel(x as isize, y as isize, pixels[y*w + x]);
+                                    }
                                 }
-                            }
-                            if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
-                            {
-                                layer.dirtify_all();
+                                if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                                {
+                                    layer.dirtify_all();
+                                }
                             }
                         }
                     }

@@ -19,7 +19,6 @@ bincode = "2.0.0-rc.3"
 snap = "1.1.0"
 base64 = "0.21.0"
 ouroboros = "0.15.6"
-arboard = "3.2.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
@@ -41,10 +40,9 @@ features = [
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 mlua = { version = "0.8.8", features = ["luajit", "vendored", "send"] }
+arboard = "3.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-mlua = { version = "0.8.8", features = ["lua54", "vendored", "send"] }
-
 console_error_panic_hook = "0.1.6"
 tracing-wasm = "0.2"
 wasm-bindgen-futures = "0.4"
