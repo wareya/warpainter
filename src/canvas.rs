@@ -79,7 +79,7 @@ impl CanvasInputState
     }
 }
 
-pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui::Response, CanvasInputState)
+pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is_global : bool) -> (egui::Response, CanvasInputState)
 {
     let input = ui.input(|input| input.clone());
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
@@ -97,23 +97,26 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter) -> (egui
     
     // handle input
     
-    if input.key_pressed(egui::Key::Num0)
+    if focus_is_global
     {
-        app.xform = Transform::ident();
-    }
-    for _ in 0..input.num_presses(egui::Key::Num2)
-    {
-        app.xform.rotate(15.0);
-        app.debug(format!("{}", app.xform.get_scale()));
-        app.debug(format!("{}", app.xform.get_rotation()));
-        app.debug(format!("{:?}", app.xform.get_translation()));
-    }
-    for _ in 0..input.num_presses(egui::Key::Num1)
-    {
-        app.xform.rotate(-15.0);
-        app.debug(format!("{}", app.xform.get_scale()));
-        app.debug(format!("{}", app.xform.get_rotation()));
-        app.debug(format!("{:?}", app.xform.get_translation()));
+        if input.key_pressed(egui::Key::Num0)
+        {
+            app.xform = Transform::ident();
+        }
+        for _ in 0..input.num_presses(egui::Key::Num2)
+        {
+            app.xform.rotate(15.0);
+            app.debug(format!("{}", app.xform.get_scale()));
+            app.debug(format!("{}", app.xform.get_rotation()));
+            app.debug(format!("{:?}", app.xform.get_translation()));
+        }
+        for _ in 0..input.num_presses(egui::Key::Num1)
+        {
+            app.xform.rotate(-15.0);
+            app.debug(format!("{}", app.xform.get_scale()));
+            app.debug(format!("{}", app.xform.get_rotation()));
+            app.debug(format!("{:?}", app.xform.get_translation()));
+        }
     }
     
     // FIXME: enforce that the canvas does not go offscreen

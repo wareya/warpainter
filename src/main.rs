@@ -490,6 +490,17 @@ impl Warpainter
             None
         }
     }
+    fn get_current_layer_data(&mut self) -> Option<&mut Image<4>>
+    {
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            layer.data.as_mut()
+        }
+        else
+        {
+            None
+        }
+    }
     fn is_editing(&self) -> bool
     {
         self.editing_image.is_some()
@@ -862,24 +873,7 @@ impl eframe::App for Warpainter
         self.load_icons(ctx);
         self.load_shaders(frame);
         
-        ctx.input_mut(|state|
-        {
-            let shortcut_undo = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Z);
-            let shortcut_redo_a = egui::KeyboardShortcut::new(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z);
-            let shortcut_redo_b = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Y);
-            if state.consume_shortcut(&shortcut_undo)
-            {
-                self.perform_undo();
-            }
-            if state.consume_shortcut(&shortcut_redo_a)
-            {
-                self.perform_redo();
-            }
-            if state.consume_shortcut(&shortcut_redo_b)
-            {
-                self.perform_redo();
-            }
-        });
+        let mut focus_is_global = true;
         
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
         {
@@ -1052,7 +1046,16 @@ impl eframe::App for Warpainter
                         }
                         egui::Window::new("Custom Blend Mode Editor").vscroll(true).show(ctx, |ui|
                         {
-                            ui.add_sized(ui.available_size(), egui::TextEdit::multiline(&mut layer.custom_blend_mode).code_editor());
+                            let editor = egui::TextEdit::multiline(&mut layer.custom_blend_mode).code_editor();
+                            let res = ui.add_sized(ui.available_size(), editor);
+                            if res.changed()
+                            {
+                                layer.dirtify_all();
+                            }
+                            if res.has_focus()
+                            {
+                                focus_is_global = false;
+                            }
                         });
                     }
                     
@@ -1277,6 +1280,56 @@ impl eframe::App for Warpainter
             });
         });
         
+        if focus_is_global
+        {
+            ctx.input_mut(|state|
+            {
+                let shortcut_undo = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Z);
+                let shortcut_redo_a = egui::KeyboardShortcut::new(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z);
+                let shortcut_redo_b = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Y);
+                
+                let shortcut_paste = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::V);
+                if state.consume_shortcut(&shortcut_undo)
+                {
+                    self.perform_undo();
+                }
+                if state.consume_shortcut(&shortcut_redo_a)
+                {
+                    self.perform_redo();
+                }
+                if state.consume_shortcut(&shortcut_redo_b)
+                {
+                    self.perform_redo();
+                }
+                if state.consume_shortcut(&shortcut_paste)
+                {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                    {
+                        if let Ok(image_data) = clipboard.get().image()
+                        {
+                            self.new_layer();
+                            let data = self.get_current_layer_data().unwrap();
+                            
+                            let w = image_data.width;
+                            let h = image_data.height;
+                            let pixels = image_data.bytes.chunks(4).map(|x| [x[0], x[1], x[2], x[3]]).collect::<Vec<_>>();
+                            for y in 0..h
+                            {
+                                for x in 0..w
+                                {
+                                    data.set_pixel(x as isize, y as isize, pixels[y*w + x]);
+                                }
+                            }
+                            if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                            {
+                                layer.dirtify_all();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
         let frame = egui::Frame {
             inner_margin: egui::style::Margin::same(0.0),
             rounding: egui::Rounding::none(),
@@ -1285,14 +1338,13 @@ impl eframe::App for Warpainter
             ..Default::default()
         };
         
-        
         let mut input_state = None;
         egui::CentralPanel::default().frame(frame).show(ctx, |ui|
         {
             ui.spacing_mut().window_margin = 0.0.into();
             ui.add(|ui : &mut egui::Ui|
             {
-                let (response, state) = canvas(ui, self);
+                let (response, state) = canvas(ui, self, focus_is_global);
                 input_state = Some(state);
                 response
             });

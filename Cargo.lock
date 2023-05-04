@@ -87,6 +87,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6041616acea41d67c4a984709ddab1587fd0b10efe5cc563fee954d2f011854"
 dependencies = [
  "clipboard-win",
+ "core-graphics",
+ "image",
  "log",
  "objc",
  "objc-foundation",
@@ -2424,6 +2426,7 @@ dependencies = [
 name = "warpainter"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "base64",
  "bincode",
  "byte-slice-cast",

@@ -667,33 +667,26 @@ impl BlendModeFull for BlendModeGlowDodge
 {
     fn blend(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
     {
-        a[3] *= amount;
+        fn glow_dodge(a : f32, b : f32, alpha : f32, lower_alpha : f32) -> f32
+        {
+            let dodge = (b / (1.0 - a*alpha)).clamp(0.0, 1.0);
+            lerp(dodge, a, 1.0 - lower_alpha)
+        }
+        a[3] = a[3] * amount;
         
-        if a[3] == 0.0
-        {
-            return b;
-        }
-        else if b[3] == 0.0
-        {
-            return a;
-        }
+        let over = a[3] + b[3] * (1.0 - a[3]);
+        
+        let mut blend = b;
 
-        let mut r = [0.0; 4];
-        
-        // a is top layer, b is bottom
-        let b_under_a = b[3] * (1.0 - a[3]);
-        r[3] = a[3] + b_under_a;
-        let m = 1.0 / r[3];
-        
-        let a_a = a[3] * m;
-        let b_a = b_under_a * m;
-        
-        for i in 0..3
+        if over != 0.0
         {
-            r[i] = lerp(a[i], BlendModeColorDodge::blend(a[i] * a_a, b[i]), 1.0) * a_a + b[i] * b_a;
+            blend[0] = glow_dodge(a[0], b[0], a[3], b[3]);
+            blend[1] = glow_dodge(a[1], b[1], a[3], b[3]);
+            blend[2] = glow_dodge(a[2], b[2], a[3], b[3]);
         }
-        
-        r
+        blend[3] = over;
+
+        blend
     }
 }
 
@@ -710,11 +703,51 @@ struct BoxedLuaBlendFn
     func : mlua::Function<'this>
 }
 
+//canonical "Normal" lua blend function:
+
+/*
+-- helper function
+function lerp(a, b, t)
+    return a * (1.0 - t) + b * t
+end
+
+-- get arguments
+local a, b, opacity = ...
+
+-- premultiply top alpha by opacity
+a[4] = a[4] * opacity
+
+local blend = {}
+
+-- actual blend logic; do your blending here
+-- the "Normal" blend mode just returns the top layer
+blend[1] = a[1]
+blend[2] = a[2]
+blend[3] = a[3]
+
+-- output alpha
+local over = a[4] + b[4] * (1.0 - a[4])
+
+-- weighted lerp between pre-blend and post-blend
+-- bypass and return bottom if we have no output alpha
+if over == 0.0 then
+    blend = b
+-- do weighted lerp otherwise
+else
+    local under = a[4] / over
+    blend[1] = lerp(b[1], blend[1], under)
+    blend[2] = lerp(b[2], blend[2], under)
+    blend[3] = lerp(b[3], blend[3], under)
+end
+
+return {blend[1], blend[2], blend[3], over}
+*/
+
+
 impl BoxedLuaBlendFn
 {
     fn from_string(code : &str) -> Option<Self>
     {
-        use mlua::prelude::*;
         let lua = mlua::Lua::new();
         if lua.load(code).into_function().is_ok()
         {
