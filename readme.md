@@ -2,6 +2,12 @@
 
 Warpaint (codename) is a pixel-art-oriented image editor written in rust.
 
+## Online demo
+
+There's an online demo: https://wareya.github.io/warpainter/
+
+It might not work in some browsers and it's a little glitchy. Also, remember that Warpaint is extremely immature and can't be used for complex art yet.
+
 ## Features / TODO
 
 I expect to have all of the following features. This is sorted in order of development priority, not general importance.
