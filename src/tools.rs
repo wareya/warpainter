@@ -340,7 +340,7 @@ fn generate_brush(size : f32) -> Image<4>
         for ux in 0..img_size as isize
         {
             let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
-            if y*y + x*x < size*size/4.0 && (x != 0.0 || img_size == 1) // <- for testing outline analysis
+            if y*y + x*x < size*size/4.0
             {
                 shape.set_pixel(ux, uy, [255, 255, 255, 255]);
             }
