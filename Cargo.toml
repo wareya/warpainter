@@ -10,7 +10,7 @@ incremental = true
 lto = "off"
 
 [dependencies]
-eframe = { version = "0.21.3", default-features = false, features = ["default_fonts", "glow"] }
+eframe = { version = "0.23.0", default-features = false, features = ["default_fonts", "glow"] }
 image = "0.24.3"
 lazy_static = "1.4"
 byte-slice-cast = "1.2.1"

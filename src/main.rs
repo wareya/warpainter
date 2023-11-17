@@ -1095,11 +1095,11 @@ impl eframe::App for Warpainter
                 }
         
                 macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                        $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0]).selected($selected))
+                        $ui.add(egui::widgets::ImageButton::new(egui::load::SizedTexture::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0])).selected($selected))
                            .on_hover_text($tooltip)
                 } }
                 macro_rules! add_button_disabled { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                        $ui.add_enabled(false, egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0]).selected($selected))
+                        $ui.add_enabled(false, egui::widgets::ImageButton::new(egui::load::SizedTexture::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0])).selected($selected))
                            .on_hover_text($tooltip)
                 } }
                 
@@ -1213,7 +1213,7 @@ impl eframe::App for Warpainter
         egui::SidePanel::left("ToolPanel").min_width(22.0).default_width(22.0).show(ctx, |ui|
         {
             macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
-                    $ui.add(egui::widgets::ImageButton::new(self.icons.get($icon).unwrap().0.id(), [22.0, 22.0]).selected($selected))
+                    $ui.add(egui::widgets::ImageButton::new(egui::load::SizedTexture::new(self.icons.get($icon).unwrap().0.id(), [22.0, 22.0])).selected($selected))
                        .on_hover_text($tooltip)
             } }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
@@ -1337,7 +1337,7 @@ impl eframe::App for Warpainter
         
         let frame = egui::Frame {
             inner_margin: egui::style::Margin::same(0.0),
-            rounding: egui::Rounding::none(),
+            rounding: egui::Rounding::ZERO,
             fill: ctx.style().visuals.window_fill(),
             stroke: Default::default(),
             ..Default::default()
