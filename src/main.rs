@@ -1468,7 +1468,7 @@ fn main()
     
     wasm_bindgen_futures::spawn_local(async
     {
-        eframe::start_web (
+        eframe::WebRunner::new().start(
             "the_canvas_id",
             web_options,
             Box::new(|_| Box::new(Warpainter::default())),
