@@ -463,7 +463,7 @@ impl Tool for Pencil
         // press or hold or release
         if new_input.held[0] || self.prev_input.held[0]
         {
-            let do_smooth = new_input.held[0] && self.smooth_mode;
+            let do_smooth = self.smooth_mode;
             let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
             let mut coord = vec_floor(&new_input.canvas_mouse_coord);
             

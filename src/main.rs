@@ -128,6 +128,8 @@ struct Warpainter
     selection_poly : Vec<Vec<[f32; 2]>>,
     
     did_event_setup : bool,
+    
+    open_dialog : String,
 }
 
 impl Default for Warpainter
@@ -190,6 +192,8 @@ impl Default for Warpainter
             selection_poly : Vec::new(),
             
             did_event_setup : false,
+            
+            open_dialog : "".to_string(),
         }
     }
 }
@@ -875,12 +879,92 @@ impl eframe::App for Warpainter
         
         let mut focus_is_global = true;
         
+        let mut new_dialog_opened = &self.open_dialog == "New Window";
+        
+        if new_dialog_opened
+        {
+            focus_is_global = false;
+            
+            // need an "Area" to be able to capture inputs outside of the open window
+            egui::Area::new("New File Dummy BG")
+                .interactable(true)
+                .fixed_pos(egui::Pos2::ZERO)
+                .show(ctx, |ui|
+            {
+                let screen_rect = ui.ctx().input(|i| i.screen_rect);
+                ui.painter().rect_filled(
+                    screen_rect,
+                    egui::Rounding::ZERO,
+                    egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5),
+                );
+                
+                let mut still_open = true;
+                let window_response = egui::Window::new("New File")
+                    .resizable(false)
+                    .open(&mut still_open)
+                    .pivot(egui::Align2::CENTER_CENTER).default_pos((screen_rect.size() / 2.0).to_pos2())
+                    .show(ctx, |ui|
+                {
+                    let (mut width, mut height) = ui.data(|map|
+                    {
+                        map.get_temp(egui::Id::new("New File Height/Width")).unwrap_or((800, 600))
+                    });
+                    ui.horizontal(|ui|
+                    {
+                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut width).clamp_range(1..=32000));
+                        ui.label("Width");
+                    });
+                    ui.horizontal(|ui|
+                    {
+                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut height).clamp_range(1..=32000));
+                        ui.label("Height");
+                    });
+                    ui.label("Note: Any unsaved progress in your current file will be immediately lost if you make a new file.");
+                    ui.data_mut(|map|
+                    {
+                        map.insert_temp(egui::Id::new("New File Height/Width"), (width, height))
+                    });
+                    ui.allocate_ui_with_layout([150.0, 0.0].into(), egui::Layout::right_to_left(egui::Align::BOTTOM), |ui|
+                    {
+                        if ui.button("Cancel").clicked()
+                        {
+                            new_dialog_opened = false;
+                        }
+                        if ui.button("OK").clicked()
+                        {
+                            // TODO: reset view transform and zoom out to display entire canvas
+                            let img = Image::<4>::blank_white_transparent(width, height);
+                            self.load_from_img(img);
+                            new_dialog_opened = false;
+                        }
+                    });
+                });
+                if !still_open
+                {
+                    new_dialog_opened = false;
+                }
+                ui.allocate_response(screen_rect.size(), egui::Sense::click());
+                ctx.move_to_top(window_response.unwrap().response.layer_id); // prevent window from being hidden by "Area"
+            });
+        }
+        
+        if &self.open_dialog == "New Window" && !new_dialog_opened
+        {
+            self.open_dialog = "".to_string();
+        }
+        
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
         {
             egui::menu::bar(ui, |ui|
             {
                 ui.menu_button("File", |ui|
                 {
+                    if ui.button("New...").clicked()
+                    {
+                        self.open_dialog = "New Window".to_string();
+                        ui.close_menu();
+                    }
+                    
                     let _ = &ui; // suppress unused warning on wasm32
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -899,8 +983,6 @@ impl eframe::App for Warpainter
                                 let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
                                 let img = Image::<4>::from_rgbaimage(&img);
                                 self.load_from_img(img);
-                                
-                                ui.close_menu();
                             }
                         }
                         if ui.button("Save Copy...").clicked()
