@@ -878,25 +878,15 @@ impl eframe::App for Warpainter
         self.load_shaders(frame);
         
         let mut focus_is_global = true;
-        
         let mut new_dialog_opened = &self.open_dialog == "New Window";
-        
         if new_dialog_opened
         {
             focus_is_global = false;
-            
             // need an "Area" to be able to capture inputs outside of the open window
-            egui::Area::new("New File Dummy BG")
-                .interactable(true)
-                .fixed_pos(egui::Pos2::ZERO)
-                .show(ctx, |ui|
+            egui::Area::new("New File Dummy BG") .interactable(true).fixed_pos(egui::Pos2::ZERO).show(ctx, |ui|
             {
                 let screen_rect = ui.ctx().input(|i| i.screen_rect);
-                ui.painter().rect_filled(
-                    screen_rect,
-                    egui::Rounding::ZERO,
-                    egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5),
-                );
+                ui.painter().rect_filled(screen_rect, egui::Rounding::ZERO, egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5));
                 
                 let mut still_open = true;
                 let window_response = egui::Window::new("New File")
