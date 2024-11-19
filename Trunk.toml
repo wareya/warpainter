@@ -1,2 +1,5 @@
 [build]
 filehash = false
+
+[serve]
+address = "0.0.0.0"

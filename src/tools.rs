@@ -6,6 +6,7 @@ use crate::pixelmath::*;
 
 use crate::egui;
 use crate::egui::Ui;
+use crate::egui::SliderClamping;
 
 enum ReferenceMode
 {
@@ -183,7 +184,7 @@ impl Tool for Fill
     {
         ui.label("Threshold");
         let mut threshold = self.threshold * 255.0;
-        ui.add(egui::Slider::new(&mut threshold, 0.0..=100.0).clamp_to_range(true));
+        ui.add(egui::Slider::new(&mut threshold, 0.0..=100.0).clamping(SliderClamping::Always));
         self.threshold = threshold/255.0;
     }
 }
@@ -567,7 +568,7 @@ impl Tool for Pencil
     {
         ui.label("Size");
         let old_size = self.size;
-        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).step_by(1.0).logarithmic(true).clamp_to_range(true));
+        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).step_by(1.0).logarithmic(true).clamping(SliderClamping::Always));
         if self.size != old_size
         {
             self.update_brush();
@@ -905,7 +906,7 @@ impl Tool for Eyedropper
     fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
     {
         //ui.label("Size");
-        //ui.add(egui::Slider::new(&mut self.size, 1.0..=8.0).step_by(1.0).clamp_to_range(true));
+        //ui.add(egui::Slider::new(&mut self.size, 1.0..=8.0).step_by(1.0).clamping());
         ui.checkbox(&mut self.pick_alpha, "Pick Alpha");
     }
 }

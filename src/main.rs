@@ -10,7 +10,7 @@ extern crate alloc;
 use eframe::egui;
 use alloc::sync::Arc;
 use egui::mutex::Mutex;
-use egui::Ui;
+use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
 
 mod warimage;
@@ -256,6 +256,9 @@ impl Warpainter
             ("tool select cursor",         include_bytes!("icons/tool select cursor.png")        .to_vec()),
             ("tool move",                  include_bytes!("icons/tool move.png")                 .to_vec()),
             ("tool move cursor",           include_bytes!("icons/tool move cursor.png")          .to_vec()),
+            
+            ("undo",                       include_bytes!("icons/undo.png")                      .to_vec()),
+            ("redo",                       include_bytes!("icons/redo.png")                      .to_vec()),
         ];
         for thing in stuff
         {
@@ -292,11 +295,12 @@ impl Warpainter
             {
                 if let Ok(event) = e.dyn_into::<web_sys::MouseEvent>()
                 {
-                    web_sys::console::log_1(&format!("event received").into());
+                    //web_sys::console::log_1(&format!("event received").into());
                     if event.which() == 2
                     {
                         event.prevent_default();
-                        web_sys::console::log_1(&format!("suppressing event").into());
+                        //web_sys::console::log_1(&format!("suppressing event").into());
+                        //self.debug(format!("suppressing event...."));
                     }
                 }
             }) as Box<dyn FnMut(web_sys::Event)>);
@@ -759,6 +763,10 @@ impl Warpainter
         new_zoom = new_zoom.clamp(-8.0, 8.0);
         self.xform.set_scale(2.0_f32.powf(new_zoom));
     }
+    fn view_reset(&mut self)
+    {
+        self.xform = Transform::ident();
+    }
     
     fn debug<T : ToString>(&mut self, text : T)
     {
@@ -883,7 +891,7 @@ impl eframe::App for Warpainter
         {
             focus_is_global = false;
             // need an "Area" to be able to capture inputs outside of the open window
-            egui::Area::new("New File Dummy BG") .interactable(true).fixed_pos(egui::Pos2::ZERO).show(ctx, |ui|
+            egui::Area::new("New File Dummy BG".into()).interactable(true).fixed_pos(egui::Pos2::ZERO).show(ctx, |ui|
             {
                 let screen_rect = ui.ctx().input(|i| i.screen_rect);
                 ui.painter().rect_filled(screen_rect, egui::Rounding::ZERO, egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5));
@@ -901,12 +909,12 @@ impl eframe::App for Warpainter
                     });
                     ui.horizontal(|ui|
                     {
-                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut width).clamp_range(1..=32000));
+                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut width).range(1..=32000));
                         ui.label("Width");
                     });
                     ui.horizontal(|ui|
                     {
-                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut height).clamp_range(1..=32000));
+                        ui.add_sized([50.0, 16.0], egui::DragValue::new(&mut height).range(1..=32000));
                         ui.label("Height");
                     });
                     ui.label("Note: Any unsaved progress in your current file will be immediately lost if you make a new file.");
@@ -1015,19 +1023,43 @@ impl eframe::App for Warpainter
                     {
                         self.zoom(-0.5);
                     }
+                    if ui.button("Reset").clicked()
+                    {
+                        self.view_reset();
+                    }
                 });
             });
         });
         
-        egui::SidePanel::right("RightPanel").show(ctx, |ui|
+        egui::TopBottomPanel::top("ToolBar").show(ctx, |ui|
         {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
+            egui::menu::bar(ui, |ui|
             {
+                macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
+                        $ui.add(egui::widgets::ImageButton::new(egui::load::SizedTexture::new(self.icons.get($icon).unwrap().0.id(), [18.0, 18.0])).selected($selected))
+                           .on_hover_text($tooltip)
+                } }
+                
+                if add_button!(ui, "undo", "UndoButton", false).clicked()
+                {
+                    self.perform_undo();
+                }
+                if add_button!(ui, "redo", "RedoButton", false).clicked()
+                {
+                    self.perform_redo();
+                }
+            });
+        });
+        
+        let window_size = ctx.input(|i: &egui::InputState| i.screen_rect());
+        
+        macro_rules! layer_panel { () => { |ui : &mut Ui|
+        {
                 let focused_outline = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255));
                 if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                 {
                     let old_blend_mode = layer.blend_mode.clone();
-                    egui::ComboBox::from_id_source("blend_mode_dropdown")
+                    egui::ComboBox::from_id_salt("blend_mode_dropdown")
                         .selected_text(&layer.blend_mode)
                         .width(150.0)
                         .show_ui(ui, |ui|
@@ -1133,7 +1165,7 @@ impl eframe::App for Warpainter
                     
                     let old_opacity = layer.opacity * 100.0;
                     let mut opacity = old_opacity;
-                    let slider_response = ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
+                    let slider_response = ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamping(SliderClamping::Always));
                     layer.opacity = opacity/100.0;
                     
                     if old_blend_mode != layer.blend_mode || old_opacity != opacity
@@ -1151,7 +1183,7 @@ impl eframe::App for Warpainter
                     {
                         self.log_layer_info_change();
                     }
-                    else if slider_response.drag_released()
+                    else if slider_response.drag_stopped()
                     {
                         println!("making undo for opacity");
                         self.log_layer_info_change();
@@ -1159,10 +1191,10 @@ impl eframe::App for Warpainter
                 }
                 else
                 {
-                    egui::ComboBox::from_id_source("blend_mode_dropdown").selected_text("").show_ui(ui, |_ui|{});
+                    egui::ComboBox::from_id_salt("blend_mode_dropdown").selected_text("").show_ui(ui, |_ui|{});
                     
                     let mut opacity = 0.0;
-                    ui.add_enabled(false, egui::Slider::new(&mut opacity, 0.0..=100.0).clamp_to_range(true));
+                    ui.add_enabled(false, egui::Slider::new(&mut opacity, 0.0..=100.0).clamping(SliderClamping::Always));
                     
                 }
         
@@ -1280,8 +1312,20 @@ impl eframe::App for Warpainter
                         }
                     });
                 }
+            }
+        }}
+        
+        let layers_on_right = window_size.size().x >= 720.0;
+        let sidebars_on_bottom = window_size.size().x < 480.0;
+        
+        if layers_on_right
+        {
+            egui::SidePanel::right("RightPanel").show(ctx, |ui|
+            {
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, layer_panel!());
             });
-        });
+        }
+        
         egui::SidePanel::left("ToolPanel").min_width(22.0).default_width(22.0).show(ctx, |ui|
         {
             macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
@@ -1325,19 +1369,30 @@ impl eframe::App for Warpainter
                 });
             });
         });
-        egui::SidePanel::left("ToolSettings").show(ctx, |ui|
+        
+        macro_rules! toolsettings { () => { |ui|
         {
-            egui::ScrollArea::vertical().show(ui, |ui|
-            {
-                self.tool_panel(ui);
-            });
-            
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
-                ui.add(|ui : &mut egui::Ui| color_picker(ui, self));
+                ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
                 ui.separator();
+                
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
+                {
+                    egui::ScrollArea::vertical().show(ui, |ui|
+                    {
+                        self.tool_panel(ui);
+                        
+                        if !layers_on_right
+                        {
+                            ui.separator();
+                            ui.separator();
+                            layer_panel!()(ui);
+                        }
+                    });
+                });
             });
-        });
+        }}}
         
         egui::TopBottomPanel::bottom("DebugText").resizable(true).min_height(16.0).max_height(150.0).show(ctx, |ui|
         {
@@ -1351,6 +1406,15 @@ impl eframe::App for Warpainter
                 ui.add_enabled(false, egui::TextEdit::multiline(&mut text).desired_width(f32::INFINITY).desired_rows(1).min_size([16.0, 16.0].into()).hint_text("debug output"));
             });
         });
+        
+        if !sidebars_on_bottom
+        {
+            egui::SidePanel::left("ToolSettings").show(ctx, toolsettings!());
+        }
+        else
+        {
+            egui::TopBottomPanel::bottom("ToolSettings").resizable(true).min_height(16.0).max_height(300.0).show(ctx, toolsettings!());
+        }
         
         if focus_is_global
         {
@@ -1408,7 +1472,7 @@ impl eframe::App for Warpainter
         }
         
         let frame = egui::Frame {
-            inner_margin: egui::style::Margin::same(0.0),
+            inner_margin: egui::Margin::same(0.0),
             rounding: egui::Rounding::ZERO,
             fill: ctx.style().visuals.window_fill(),
             stroke: Default::default(),
@@ -1512,14 +1576,15 @@ fn main()
     // eframe 0.19.0 is borked on windows 10, the window flickers violently when you resize it, flashing white
     // this is a seizure hazard when using the dark theme, so force the light theme instead
     
-    options.follow_system_theme = false;
-    options.default_theme = eframe::Theme::Light;
+    //options.follow_system_theme = false;
+    //options.default_theme = Theme::Light;
+    //options.initial_window_size = Some([1280.0, 720.0].into());
+    options.viewport = egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]).with_drag_and_drop(true);
     
-    options.initial_window_size = Some([1280.0, 720.0].into());
     eframe::run_native (
         "Warpainter",
         options,
-        Box::new(|_| Box::<Warpainter>::default()),
+        Box::new(|_| Ok(Box::<Warpainter>::default())),
     ).unwrap();
 }
 
@@ -1535,17 +1600,34 @@ fn main()
     
     let web_options = eframe::WebOptions::default();
     
-    let window = web_sys::window().unwrap();
     web_sys::console::log_1(&format!("event received").into());
     
     wasm_bindgen_futures::spawn_local(async
     {
-        eframe::WebRunner::new().start(
-            "the_canvas_id",
+        use wasm_bindgen::JsCast;
+        
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document
+            .get_element_by_id("the_canvas_id").unwrap()
+            .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+        
+        let start_result = eframe::WebRunner::new().start(
+            canvas,
             web_options,
-            Box::new(|_| Box::new(Warpainter::default())),
-        )
-        .await
-        .expect("failed to start eframe");
+            Box::new(|_| Ok(Box::new(Warpainter::default()))),
+        ).await;
+        
+        // Remove the loading text and spinner:
+        if let Some(loading_text) = document.get_element_by_id("loading_text")
+        {
+            match start_result {
+                Ok(_) => loading_text.remove(),
+                Err(e) =>
+                {
+                    loading_text.set_inner_html("<p> The app has crashed. See the developer console for details. </p>");
+                    panic!("Failed to start eframe: {e:?}");
+                }
+            }
+        }
     });
 }

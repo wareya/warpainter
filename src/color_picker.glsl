@@ -59,14 +59,14 @@ vec4 hsv_to_rgb(vec4 hsva)
     float h2 = hsva.x / 60.0;
     float x = c * (1.0 - abs(mod(h2, 2.0) - 1.0));
     
-    vec3 table[6] = vec3[6] (
-        vec3(c, x, 0.0),
-        vec3(x, c, 0.0),
-        vec3(0.0, c, x),
-        vec3(0.0, x, c),
-        vec3(x, 0.0, c),
-        vec3(c, 0.0, x)
-    );
+    vec3 table[6];
+    table[0] = vec3(c, x, 0.0);
+    table[1] = vec3(x, c, 0.0);
+    table[2] = vec3(0.0, c, x);
+    table[3] = vec3(0.0, x, c);
+    table[4] = vec3(x, 0.0, c);
+    table[5] = vec3(c, 0.0, x);
+    
     vec3 triad = table[int(mod(h2, 6.0))];
     
     float m = hsva.z - c;

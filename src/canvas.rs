@@ -16,8 +16,12 @@ pub (crate) struct CanvasInputState
     pub (crate) view_mouse_coord : [f32; 2],
     pub (crate) window_mouse_motion : [f32; 2],
     pub (crate) mouse_scroll : f32,
+    pub (crate) zoom : f32,
+    pub (crate) touch_rotation : f32,
+    pub (crate) touch_scroll : [f32; 2],
     pub (crate) mouse_in_canvas : bool,
     pub (crate) mouse_in_canvas_area : bool,
+    pub (crate) cancel : bool,
 }
 
 fn to_array(v : egui::Pos2) -> [f32; 2]
@@ -34,7 +38,8 @@ impl CanvasInputState
         self.window_mouse_motion = to_array(input.pointer.delta().to_pos2());
         self.window_mouse_coord = to_array(input.pointer.interact_pos().unwrap_or_default());
         self.view_mouse_coord = vec_sub(&self.window_mouse_coord, &to_array(response.rect.min));
-        self.mouse_scroll = input.scroll_delta.y;
+        self.mouse_scroll = input.raw_scroll_delta.y;
+        self.zoom = input.zoom_delta();
         
         self.held = [
             input.pointer.button_down(egui::PointerButton::Primary),
@@ -44,16 +49,28 @@ impl CanvasInputState
             input.pointer.button_down(egui::PointerButton::Extra2),
         ];
         
-        if !response.dragged() && !response.drag_released()
+        self.touch_scroll = [0.0, 0.0];
+        self.touch_rotation = 0.0;
+        if let Some(mt) = input.multi_touch()
+        {
+            self.touch_scroll[0] = mt.translation_delta.x;
+            self.touch_scroll[1] = mt.translation_delta.y;
+            self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
+        }
+        
+        if !response.dragged() && !response.drag_stopped()
         {
             for e in self.held.iter_mut()
             {
                 *e = false;
             }
         }
-        if !response.hovered()
+        #[cfg(not(target_arch = "wasm32"))]
         {
-            self.mouse_scroll = 0.0;
+            if !response.hovered()
+            {
+                self.mouse_scroll = 0.0;
+            }
         }
         
         self.canvas_mouse_coord = {
@@ -119,20 +136,51 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         }
     }
     
+    let mut view_moved = false;
+    
     // FIXME: enforce that the canvas does not go offscreen
     // (idea: if center of screen is not inside of canvas, prevent center of canvas from going past edges)
     // (idea 2: prevent right extrema from going more than 25% leftwards from center, and so on for all extrema)
-    if inputstate.held[2]
+    if inputstate.held[2] && !matches!(inputstate.window_mouse_motion, [0.0, 0.0])
     {
         app.xform.translate(inputstate.window_mouse_motion);
+        view_moved = true;
+    }
+    if !matches!(inputstate.touch_scroll, [0.0, 0.0])
+    {
+        app.xform.translate(inputstate.touch_scroll);
+        view_moved = true;
+    }
+    if inputstate.touch_rotation != 0.0
+    {
+        let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
+        app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
+        app.xform.rotate(inputstate.touch_rotation);
+        app.xform.translate(offset);
+        view_moved = true;
     }
     
-    if inputstate.mouse_scroll != 0.0
+    if inputstate.zoom != 1.0
+    {
+        let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
+        app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
+        app.zoom((inputstate.zoom).log2());
+        app.xform.translate(offset);
+        view_moved = true;
+    }
+    else if inputstate.mouse_scroll != 0.0
     {
         let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
         app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
         app.zoom(inputstate.mouse_scroll/128.0);
         app.xform.translate(offset);
+        view_moved = true;
+    }
+    
+    if view_moved
+    {
+        inputstate.cancel = true;
+        inputstate.held[1] = true;
     }
     
     app.tool_think(&inputstate);

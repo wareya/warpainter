@@ -136,40 +136,12 @@ impl ShaderQuad
             }
             #[cfg(target_arch = "wasm32")]
             {
-                vertex_shader   = "#version 300 es".to_string() + &vertex_shader;
-                fragment_shader = "#version 300 es".to_string() + &fragment_shader;
+                let prefix = "#version 300 es\nprecision highp float;".to_string();
+                vertex_shader   = prefix.clone() + &vertex_shader;
+                fragment_shader = prefix.clone() + &fragment_shader;
                 
-                vertex_shader = vertex_shader
-                    .replace( " float ",  " highp float ")
-                    .replace( " vec2 " ,  " highp vec2 " )
-                    .replace( " vec3 " ,  " highp vec3 " )
-                    .replace( " vec4 " ,  " highp vec4 " )
-                    .replace( "(float ",  "(highp float ")
-                    .replace( "(vec2 " ,  "(highp vec2 " )
-                    .replace( "(vec3 " ,  "(highp vec3 " )
-                    .replace( "(vec4 " ,  "(highp vec4 " )
-                    .replace("\nfloat ", "\nhighp float ")
-                    .replace("\nvec2 " , "\nhighp vec2 " )
-                    .replace("\nvec3 " , "\nhighp vec3 " )
-                    .replace("\nvec4 " , "\nhighp vec4 " )
-                    ;
-                fragment_shader = fragment_shader
-                    .replace( " float ",  " highp float ")
-                    .replace( " vec2 " ,  " highp vec2 " )
-                    .replace( " vec3 " ,  " highp vec3 " )
-                    .replace( " vec4 " ,  " highp vec4 " )
-                    .replace( "(float ",  "(highp float ")
-                    .replace( "(vec2 " ,  "(highp vec2 " )
-                    .replace( "(vec3 " ,  "(highp vec3 " )
-                    .replace( "(vec4 " ,  "(highp vec4 " )
-                    .replace("\nfloat ", "\nhighp float ")
-                    .replace("\nvec2 " , "\nhighp vec2 " )
-                    .replace("\nvec3 " , "\nhighp vec3 " )
-                    .replace("\nvec4 " , "\nhighp vec4 " )
-                    ;
-                
-                log(&vertex_shader);
-                log(&fragment_shader);
+                //log(&vertex_shader);
+                //log(&fragment_shader);
             }
 
             let mut shaders = vec!();
@@ -185,10 +157,12 @@ impl ShaderQuad
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         eprintln!("{}", err);
+                        eprintln!("{}", source);
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
                         log(&err);
+                        log(&source);
                     }
                     return None;
                 }

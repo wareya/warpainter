@@ -10,7 +10,8 @@ incremental = true
 lto = "off"
 
 [dependencies]
-eframe = { version = "0.23.0", default-features = false, features = ["default_fonts", "glow"] }
+wgpu = "^22.1.0"
+eframe = { version = "0.29.1", default-features = false, features = ["default_fonts", "glow"] }
 image = "0.24.3"
 lazy_static = "1.4"
 byte-slice-cast = "1.2.1"
@@ -26,7 +27,7 @@ ndk-sys = "0.4.1"
 
 [dependencies.rfd]
 version = "0.10"
-default_features = false
+default-features = false
 features = [
     "xdg-portal",
 ]
@@ -46,10 +47,10 @@ arboard = "3.2.0"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 tracing-wasm = "0.2"
-wasm-bindgen-futures = "0.4"
-wasm-bindgen = "0.2.84"
-wasm_thread = "0.2.0"
-web-sys = { version = "0.3.61", features = [
+wasm-bindgen-futures = "^0.4"
+wasm-bindgen = "^0.2.84"
+wasm_thread = "^0.2.0"
+web-sys = { version = "^0.3.70", features = [
     "Window",
     "Document",
     "HtmlElement",
