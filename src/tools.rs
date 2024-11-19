@@ -63,10 +63,11 @@ impl Tool for Fill
                         
                         fn compare_dist(a : [f32; 4], b : [f32; 4], r : f32) -> bool
                         {
-                            let mut d = 0.0;
+                            let mut d : f32 = 0.0;
                             for i in 0..4
                             {
-                                d += (b[i]-a[i]).abs();
+                                //d += (b[i]-a[i]).abs();
+                                d = d.max((b[i]-a[i]).abs());
                             }
                             d <= r
                         }
@@ -184,7 +185,7 @@ impl Tool for Fill
     {
         ui.label("Threshold");
         let mut threshold = self.threshold * 255.0;
-        ui.add(egui::Slider::new(&mut threshold, 0.0..=100.0).clamping(SliderClamping::Always));
+        ui.add(egui::Slider::new(&mut threshold, 0.0..=255.0).clamping(SliderClamping::Always));
         self.threshold = threshold/255.0;
     }
 }
@@ -455,6 +456,8 @@ impl Tool for Pencil
         let b = if self.brush_shape.height & 1 == 0 { 0.5 } else { 0.0 };
         new_input.canvas_mouse_coord[0] += a;
         new_input.canvas_mouse_coord[1] += b;
+        
+        println!("{} {}", new_input.held[0], !self.prev_input.held[0]);
         
         if new_input.held[0] && !self.prev_input.held[0]
         {
