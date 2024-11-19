@@ -19,6 +19,7 @@ pub (crate) struct CanvasInputState
     pub (crate) zoom : f32,
     pub (crate) touch_rotation : f32,
     pub (crate) touch_scroll : [f32; 2],
+    pub (crate) touch_center : [f32; 2],
     pub (crate) mouse_in_canvas : bool,
     pub (crate) mouse_in_canvas_area : bool,
     pub (crate) cancel : bool,
@@ -39,7 +40,6 @@ impl CanvasInputState
         self.window_mouse_coord = to_array(input.pointer.interact_pos().unwrap_or_default());
         self.view_mouse_coord = vec_sub(&self.window_mouse_coord, &to_array(response.rect.min));
         self.mouse_scroll = input.raw_scroll_delta.y;
-        self.zoom = input.zoom_delta();
         
         self.held = [
             input.pointer.button_down(egui::PointerButton::Primary),
@@ -50,12 +50,22 @@ impl CanvasInputState
         ];
         
         self.touch_scroll = [0.0, 0.0];
+        self.touch_center = [0.0, 0.0];
         self.touch_rotation = 0.0;
+        self.zoom = 1.0;
         if let Some(mt) = input.multi_touch()
         {
             self.touch_scroll[0] = mt.translation_delta.x;
             self.touch_scroll[1] = mt.translation_delta.y;
+            
+            //self.touch_center[0] = mt.center_pos.x;
+            //self.touch_center[1] = mt.center_pos.y;
+            // TODO: fix when next version of egui comes out
+            self.touch_center[0] = mt.start_pos.x;
+            self.touch_center[1] = mt.start_pos.y;
+            
             self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
+            self.zoom = mt.zoom_delta;
         }
         
         if !response.dragged() && !response.drag_stopped()
@@ -153,7 +163,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     }
     if inputstate.touch_rotation != 0.0
     {
-        let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
+        let offset = vec_sub(&inputstate.touch_center, &to_array(response.rect.center()));
         app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
         app.xform.rotate(inputstate.touch_rotation);
         app.xform.translate(offset);
@@ -162,9 +172,9 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     if inputstate.zoom != 1.0
     {
-        let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
+        let offset = vec_sub(&inputstate.touch_center, &to_array(response.rect.center()));
         app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
-        app.zoom((inputstate.zoom).log2());
+        app.zoom_unrounded((inputstate.zoom).log2());
         app.xform.translate(offset);
         view_moved = true;
     }
@@ -231,7 +241,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         vert[1] /= response.rect.height()/2.0;
     }
     
-    //// !!!! WARNING: evil vile code
+    //// !!!! WARNING FIXME TODO: evil vile code
     let uniforms = [
         ("width", response.rect.width()),
         ("height", response.rect.height()),
@@ -255,7 +265,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
     painter.add(callback);
-    //// !!!! WARNING: evil vile code (end)
+    //// !!!! WARNING FIXME TODO: evil vile code (end)
     
     if inputstate.mouse_in_canvas_area
     {

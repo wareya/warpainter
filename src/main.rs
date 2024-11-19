@@ -763,6 +763,13 @@ impl Warpainter
         new_zoom = new_zoom.clamp(-8.0, 8.0);
         self.xform.set_scale(2.0_f32.powf(new_zoom));
     }
+    fn zoom_unrounded(&mut self, amount : f32)
+    {
+        let mut log_zoom = self.xform.get_scale().max(0.01).log(2.0);
+        log_zoom += amount;
+        log_zoom = log_zoom.clamp(-8.0, 8.0);
+        self.xform.set_scale(2.0_f32.powf(log_zoom));
+    }
     fn view_reset(&mut self)
     {
         self.xform = Transform::ident();
@@ -1381,11 +1388,17 @@ impl eframe::App for Warpainter
                 {
                     egui::ScrollArea::vertical().show(ui, |ui|
                     {
+                        if !layers_on_right
+                        {
+                            ui.label("Tool Settings");
+                            ui.separator();
+                        }
                         self.tool_panel(ui);
                         
                         if !layers_on_right
                         {
                             ui.separator();
+                            ui.label("Layers");
                             ui.separator();
                             layer_panel!()(ui);
                         }
