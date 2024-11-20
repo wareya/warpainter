@@ -49,10 +49,8 @@ impl CanvasInputState
             input.pointer.button_down(egui::PointerButton::Extra2),
         ];
         
-        println!("{}", self.held[0]);
-        
         self.touch_scroll = [0.0, 0.0];
-        self.touch_center = [0.0, 0.0];
+        self.touch_center = self.window_mouse_coord;
         self.touch_rotation = 0.0;
         self.zoom = 1.0;
         if let Some(mt) = input.multi_touch()
@@ -195,7 +193,6 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         inputstate.held[1] = true;
     }
     
-    println!("{}", inputstate.held[0]);
     app.tool_think(&inputstate);
     
     // render canvas

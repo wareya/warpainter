@@ -13,6 +13,9 @@ use egui::mutex::Mutex;
 use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
 mod warimage;
 mod transform;
 mod widgets;
@@ -175,6 +178,7 @@ impl Default for Warpainter
             tools : vec!(
                 Box::new(Pencil::new()),
                 Box::new(Pencil::new().into_eraser()),
+                Box::new(Line::new()),
                 Box::new(Fill::new()),
                 Box::new(Eyedropper::new()),
                 Box::new(Selection::new()),
@@ -250,6 +254,7 @@ impl Warpainter
             
             ("tool pencil",                include_bytes!("icons/tool pencil.png")               .to_vec()),
             ("tool eraser",                include_bytes!("icons/tool eraser.png")               .to_vec()),
+            ("tool line",                  include_bytes!("icons/tool line.png")                 .to_vec()),
             ("tool fill",                  include_bytes!("icons/tool fill.png")                 .to_vec()),
             ("tool eyedropper",            include_bytes!("icons/tool eyedropper.png")           .to_vec()),
             ("tool select",                include_bytes!("icons/tool select.png")               .to_vec()),
@@ -259,6 +264,8 @@ impl Warpainter
             
             ("undo",                       include_bytes!("icons/undo.png")                      .to_vec()),
             ("redo",                       include_bytes!("icons/redo.png")                      .to_vec()),
+            
+            ("crosshair",                  include_bytes!("icons/crosshair.png")                 .to_vec()),
         ];
         for thing in stuff
         {
@@ -1353,21 +1360,25 @@ impl eframe::App for Warpainter
                     {
                         self.current_tool = 1;
                     }
-                    if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 2).clicked()
+                    if add_button!(ui, "tool line", "Line Tool", self.current_tool == 2).clicked()
                     {
                         self.current_tool = 2;
                     }
-                    if add_button!(ui, "tool eyedropper", "Eyedropper Tool", self.current_tool == 3).clicked()
+                    if add_button!(ui, "tool fill", "Fill Tool", self.current_tool == 3).clicked()
                     {
                         self.current_tool = 3;
                     }
-                    if add_button!(ui, "tool select", "Selection Tool", self.current_tool == 4).clicked()
+                    if add_button!(ui, "tool eyedropper", "Eyedropper Tool", self.current_tool == 4).clicked()
                     {
                         self.current_tool = 4;
                     }
-                    if add_button!(ui, "tool move", "Move Tool", self.current_tool == 5).clicked()
+                    if add_button!(ui, "tool select", "Selection Tool", self.current_tool == 5).clicked()
                     {
                         self.current_tool = 5;
+                    }
+                    if add_button!(ui, "tool move", "Move Tool", self.current_tool == 6).clicked()
+                    {
+                        self.current_tool = 6;
                     }
                     if self.current_tool != prev_tool
                     {
@@ -1601,6 +1612,18 @@ fn main()
     ).unwrap();
 }
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    fn alert(s: &str);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn test(data : String, mime : String) {
+    alert(&format!("attempted paste. data: {} mime: {}", data, mime));
+}
+
 // when compiling to web using trunk.
 #[cfg(target_arch = "wasm32")]
 fn main()
@@ -1620,6 +1643,12 @@ fn main()
         use wasm_bindgen::JsCast;
         
         let document = web_sys::window().unwrap().document().unwrap();
+        
+        let mut body = document.body();
+        
+        r#"import { greet } from "./hello_world";
+            greet("World!"); "#;
+        
         let canvas = document
             .get_element_by_id("the_canvas_id").unwrap()
             .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();

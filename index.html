@@ -141,6 +141,31 @@
             });
         }
     </script>
+    <script type="module">
+    import { test } from "./warpainter.js";
+    
+    document.onpaste = (e) =>
+    {
+        let clip = (e.clipboardData || e.originalEvent.clipboardData);
+        let items = clip.items;
+        let files = clip.files;
+        let types = clip.types;
+        for (let file of files)
+        {
+            if (!file.type.startsWith('image/')){ continue; }
+
+            let img = new Image();
+            const reader = new FileReader();
+            reader.onload = (e) =>
+            {
+                //load_image(img, e.target.result, file.type);
+                test(e.target.result, file.type);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    </script>
 </body>
 
 </html>

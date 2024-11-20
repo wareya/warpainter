@@ -457,8 +457,6 @@ impl Tool for Pencil
         new_input.canvas_mouse_coord[0] += a;
         new_input.canvas_mouse_coord[1] += b;
         
-        println!("{} {}", new_input.held[0], !self.prev_input.held[0]);
-        
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(true, false);
@@ -577,6 +575,146 @@ impl Tool for Pencil
             self.update_brush();
         }
         ui.checkbox(&mut self.smooth_mode, "Smooth Diagonals");
+    }
+}
+
+#[allow(clippy::type_complexity)]
+pub (crate) struct Line
+{
+    size : f32,
+    brush_shape : Image<4>,
+    outline_data : Vec<Vec<[f32; 2]>>,
+    direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
+    cursor_memory : [f32; 2],
+    prev_input : CanvasInputState,
+    is_eraser : bool,
+}
+
+impl Line
+{
+    pub (crate) fn new() -> Self
+    {
+        let size = 1.0;
+        let brush_shape = generate_brush(size);
+        let outline_data = brush_shape.analyze_outline();
+        let direction_shapes = directionalize_brush(&brush_shape);
+        Line {
+            size,
+            brush_shape,
+            outline_data,
+            direction_shapes,
+            cursor_memory : [0.0, 0.0],
+            prev_input : CanvasInputState::default(),
+            is_eraser : false,
+        }
+    }
+    pub (crate) fn into_eraser(mut self) -> Self
+    {
+        self.is_eraser = true;
+        self
+    }
+    pub (crate) fn update_brush(&mut self)
+    {
+        self.brush_shape = generate_brush(self.size);
+        self.outline_data = self.brush_shape.analyze_outline();
+        self.direction_shapes = directionalize_brush(&self.brush_shape);
+    }
+}
+
+impl Tool for Line
+{
+    fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
+    {
+        let mut new_input = new_input.clone();
+        let a = if self.brush_shape.width  & 1 == 0 { 0.5 } else { 0.0 };
+        let b = if self.brush_shape.height & 1 == 0 { 0.5 } else { 0.0 };
+        new_input.canvas_mouse_coord[0] += a;
+        new_input.canvas_mouse_coord[1] += b;
+        
+        if new_input.held[0] && !self.prev_input.held[0]
+        {
+            app.begin_edit(true, false);
+            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+        }
+        // press or hold or release
+        if new_input.held[0] || self.prev_input.held[0]
+        {
+            let prev_coord = vec_floor(&self.prev_input.canvas_mouse_coord);
+            let coord = vec_floor(&new_input.canvas_mouse_coord);
+            
+            if prev_coord != coord
+            {
+                app.cancel_edit();
+                app.begin_edit(true, false);
+                
+                let color = app.main_color_rgb;
+                let eraser = app.eraser_mode || self.is_eraser;
+                let alpha_locked = app.current_layer_is_alpha_locked();
+                if let Some(image) = app.get_editing_image()
+                {
+                    let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
+                    let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
+                    
+                    draw_brush_at_float(image, self.cursor_memory, color, &self.brush_shape, eraser, alpha_locked);
+                    draw_brush_line_no_start_float(image, self.cursor_memory, coord, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                    app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
+                }
+            }
+        }
+        else
+        {
+            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+        }
+        // release
+        if !new_input.held[0] && self.prev_input.held[0]
+        {
+            app.commit_edit();
+        }
+        if new_input.held[1] && !self.prev_input.held[1]
+        {
+            app.cancel_edit();
+        }
+        
+        self.prev_input = new_input;
+    }
+    fn notify_tool_changed(&mut self, _app : &mut crate::Warpainter)
+    {
+        
+    }
+    fn is_brushlike(&self) -> bool
+    {
+        true
+    }
+    fn get_gizmo(&self, app : &crate::Warpainter, _focused : bool) -> Option<Box<dyn Gizmo>>
+    {
+        let mut pos = vec_floor(&self.prev_input.canvas_mouse_coord);
+        pos[0] -= app.canvas_width as f32 / 2.0;
+        pos[1] -= app.canvas_height as f32 / 2.0;
+        let mut loops = self.outline_data.clone();
+        for points in loops.iter_mut()
+        {
+            for point in points.iter_mut()
+            {
+                *point = vec_add(point, &[pos[0], pos[1]]);
+                *point = vec_sub(point, &[(self.brush_shape.width as f32/2.0).floor(), (self.brush_shape.height as f32/2.0).floor()]);
+            }
+        }
+        let gizmo = OutlineGizmo { loops, filled : false };
+        Some(Box::new(gizmo))
+    }
+    fn get_cursor<'a>(&self, app : &'a crate::Warpainter) -> Option<(&'a(egui::TextureHandle, Image<4>), [f32; 2])>
+    {
+        Some((app.icons.get("crosshair").as_ref().unwrap(), [6.0, 6.0]))
+    }
+    fn settings_panel(&mut self, _app : &crate::Warpainter, ui : &mut Ui)
+    {
+        ui.label("Size");
+        let old_size = self.size;
+        ui.add(egui::Slider::new(&mut self.size, 1.0..=64.0).step_by(1.0).logarithmic(true).clamping(SliderClamping::Always));
+        if self.size != old_size
+        {
+            self.update_brush();
+        }
     }
 }
 
