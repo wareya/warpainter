@@ -228,7 +228,7 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
             (-1, -1) => 5,
             ( 0, -1) => 6,
             ( 1, -1) => 7,
-            _ => panic!(),
+            _ => 1000,
         }
     }
     from[0] = from[0].floor();
@@ -242,10 +242,24 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
     for i in 1..=max as usize
     {
         let amount = i as f32 / max;
-        let coord = vec_lerp(&from, &to, amount);
+        let mut coord = vec_lerp(&from, &to, amount);
+        
+        // fix unbalanced 6-by-3 (etc) lines
+        let vi = if diff[0].abs() < diff[1].abs() { 0 } else { 1 };
+        if (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
+        {
+            coord[vi] -= 0.0001f32;
+        }
+        
         let x = coord[0].round() as isize;
         let y = coord[1].round() as isize;
         let dir = dir_index(x - prev_x, y - prev_y);
+        prev_x = x;
+        prev_y = y;
+        if dir == 1000
+        {
+            continue;
+        }
         let brush_shape = &brush[dir];
         for ((ux, uy), c) in brush_shape
         {
@@ -273,8 +287,6 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
                 image.set_pixel_float(x + ux - offset[0], y + uy - offset[1], c);
             }
         }
-        prev_x = x;
-        prev_y = y;
     }
 }
 
@@ -642,7 +654,7 @@ impl Tool for Line
             let prev_coord = vec_floor(&self.prev_input.canvas_mouse_coord);
             let coord = vec_floor(&new_input.canvas_mouse_coord);
             
-            if prev_coord != coord
+            if prev_coord != coord || (new_input.held[0] && !self.prev_input.held[0])
             {
                 app.cancel_edit();
                 app.begin_edit(true, false);
@@ -656,7 +668,10 @@ impl Tool for Line
                     let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
                     
                     draw_brush_at_float(image, self.cursor_memory, color, &self.brush_shape, eraser, alpha_locked);
-                    draw_brush_line_no_start_float(image, self.cursor_memory, coord, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                    if prev_coord != coord
+                    {
+                        draw_brush_line_no_start_float(image, self.cursor_memory, coord, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                    }
                     app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
                 }
             }
