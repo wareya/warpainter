@@ -202,6 +202,15 @@ fn draw_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to :
     {
         let amount = i as f32 / max;
         let coord = vec_lerp(&from, &to, amount);
+        let mut coord = [coord[0] as f64, coord[1] as f64];
+        
+        // fix unbalanced 6-by-3 (etc) lines
+        let vi = if diff[0].abs() < diff[1].abs() { 0 } else { 1 };
+        if (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
+        {
+            coord[vi] -= 1.0 / (1.9 * max as f64);
+        }
+        
         let x = coord[0].round() as isize;
         let y = coord[1].round() as isize;
         image.set_pixel_float(x, y, color);
@@ -242,13 +251,14 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
     for i in 1..=max as usize
     {
         let amount = i as f32 / max;
-        let mut coord = vec_lerp(&from, &to, amount);
+        let coord = vec_lerp(&from, &to, amount);
+        let mut coord = [coord[0] as f64, coord[1] as f64];
         
         // fix unbalanced 6-by-3 (etc) lines
         let vi = if diff[0].abs() < diff[1].abs() { 0 } else { 1 };
         if (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
         {
-            coord[vi] -= 0.0001f32;
+            coord[vi] -= 1.0 / (1.9 * max as f64);
         }
         
         let x = coord[0].round() as isize;
