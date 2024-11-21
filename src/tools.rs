@@ -206,7 +206,7 @@ fn draw_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mut to :
         
         // fix unbalanced 6-by-3 (etc) lines
         let vi = if diff[0].abs() < diff[1].abs() { 0 } else { 1 };
-        if (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
+        if max > 2.0 && (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
         {
             coord[vi] -= 1.0 / (1.9 * max as f64);
         }
@@ -256,7 +256,7 @@ fn draw_brush_line_no_start_float(image : &mut Image<4>, mut from : [f32; 2], mu
         
         // fix unbalanced 6-by-3 (etc) lines
         let vi = if diff[0].abs() < diff[1].abs() { 0 } else { 1 };
-        if (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
+        if max > 2.0 && (amount - 0.5) * 1.0f32.copysign(diff[vi]) + 0.5 > 0.5
         {
             coord[vi] -= 1.0 / (1.9 * max as f64);
         }
