@@ -1,5 +1,6 @@
 
 use alloc::sync::Arc;
+use alloc::rc::Rc;
 
 use eframe::egui;
 use eframe::egui_glow;
@@ -199,7 +200,26 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     //let start = std::time::SystemTime::now();
     
-    let texture = app.flatten().clone(); // FIXME performance drain
+    use std::sync::Mutex;
+    use std::sync::LazyLock;
+    static LAST_PROGRESS : LazyLock<Arc<Mutex<u128>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(!0u128)));
+    
+    use std::ops::DerefMut;
+    if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
+    {
+        if *x != app.edit_progress
+        {
+            app.flatten();
+            *x = app.edit_progress;
+        }
+    }
+    let mut texture = app.flatten_use();
+    if texture.is_none()
+    {
+        app.flatten();
+        texture = app.flatten_use();
+    }
+    let texture = texture.unwrap();
     
     /*
     let elapsed = start.elapsed();
@@ -253,10 +273,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     ];
     let loops = app.get_selection_loop_data();
     let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
+    let tref = texture as *const crate::Image<4> as usize;
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
         let mut shader = colorpicker_shader.lock();
-        shader.add_texture(glow_painter.gl(), &texture, 0); // FIXME need to clone texture to move into here
+        // FIXME evil unsafe
+        unsafe { shader.add_texture(glow_painter.gl(), &*(tref as *const crate::Image<4>), 0); }
+        //shader.add_texture(glow_painter.gl(), texture, 0);
         
         shader.add_data(glow_painter.gl(), &loops, 1);
         
@@ -265,6 +288,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
     painter.add(callback);
+    
     //// !!!! WARNING FIXME TODO: evil vile code (end)
     
     if inputstate.mouse_in_canvas_area

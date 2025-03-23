@@ -44,6 +44,7 @@ pub (crate) struct Layer
     
     pub (crate) flattened_data : Option<Image<4>>,
     pub (crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
+    pub (crate) edited_dirty_rect : Option<[[f32; 2]; 2]>,
     
     pub (crate) offset : [f32; 2],
     
@@ -103,6 +104,7 @@ impl Layer
             
             flattened_data : None,
             flattened_dirty_rect : None,
+            edited_dirty_rect : None,
             
             uuid : Uuid::new_v4().as_u128(),
             
@@ -134,6 +136,7 @@ impl Layer
             
             flattened_data : None,
             flattened_dirty_rect : None,
+            edited_dirty_rect : None,
             
             uuid : Uuid::new_v4().as_u128(),
             
@@ -277,6 +280,15 @@ impl Layer
         {
             self.flattened_dirty_rect = Some(rect_normalize(inner));
         }
+        self.edited_dirty_rect = Some(rect_enclose_rect(self.edited_dirty_rect.unwrap_or(self.flattened_dirty_rect.unwrap()), self.flattened_dirty_rect.unwrap()));
+    }
+    pub(crate) fn dirtify_edited(&mut self)
+    {
+        if self.edited_dirty_rect.is_some()
+        {
+            self.dirtify_rect(self.edited_dirty_rect.unwrap());
+        }
+        self.edited_dirty_rect = None;
     }
     pub(crate) fn dirtify_full_rect(&mut self)
     {
@@ -443,6 +455,10 @@ impl Layer
             self.flattened_dirty_rect = None;
             return self.flattened_data.as_ref().unwrap();
         }
+    }
+    pub(crate) fn flatten_get_cached(&self) -> Option<&Image<4>>
+    {
+        self.flattened_data.as_ref()
     }
     pub(crate) fn visit_layers(&self, depth : usize, f : &mut dyn FnMut(&Layer, usize) -> Option<()>) -> Option<()>
     {

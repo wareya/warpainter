@@ -379,7 +379,6 @@ impl Image<4>
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         // top opacity is ignored if a mask is used
-        
         let min_x = 0.max(rect[0][0].floor() as isize).max(top_offset[0]) as usize;
         let max_x = ((self.width  as isize).min(top.width  as isize + top_offset[0].min(0))).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
         let min_y = 0.max(rect[0][1].floor() as isize).max(top_offset[1]) as usize;
@@ -405,7 +404,7 @@ impl Image<4>
             ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr) =>
             {
                 {
-                    let mut thread_count = 4;
+                    let mut thread_count = 8;
                     if let Some(count) = std::thread::available_parallelism().ok()
                     {
                         thread_count = count.get();
@@ -542,33 +541,42 @@ impl Image<4>
         self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, top_opacity, top_offset, blend_mode)
     }
     
-    pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128) -> UndoEvent
+    pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128, rect : Option<[[f32; 2]; 2]>) -> UndoEvent
     {
         let mut min_x = new_data.width;
         let mut max_x = 0;
         let mut min_y = new_data.height;
         let mut max_y = 0;
-        macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
+        if let Some(rect) = rect
         {
-            for outer in $outer_range
-            {
-                for inner in $inner_range
-                {
-                    let first = if $y_outer { inner } else { outer } as isize;
-                    let second = if $y_outer { outer } else { inner } as isize;
-                    let old_c = old_data.get_pixel_float_wrapped(first, second);
-                    let new_c = new_data.get_pixel_float_wrapped(first, second);
-                    if !vec_eq(&old_c, &new_c)
-                    {
-                        *$target = $f(*$target, outer);
-                    }
-                }
-            }
-        } }
-        do_loop!(true , 0..new_data.height            , 0..new_data.width, &mut min_y, usize::min);
-        do_loop!(true , (min_y..new_data.height).rev(), 0..new_data.width, &mut max_y, usize::max);
-        do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
-        do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
+            min_x = rect[0][0].floor() as usize;
+            min_y = rect[0][1].floor() as usize;
+            max_x = rect[1][0].ceil() as usize;
+            max_y = rect[1][1].ceil() as usize;
+        }
+        //macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
+        //{
+        //    for outer in $outer_range
+        //    {
+        //        for inner in $inner_range
+        //        {
+        //            let first = if $y_outer { inner } else { outer } as isize;
+        //            let second = if $y_outer { outer } else { inner } as isize;
+        //            let old_c = old_data.get_pixel_float_wrapped(first, second);
+        //            let new_c = new_data.get_pixel_float_wrapped(first, second);
+        //            if !vec_eq(&old_c, &new_c)
+        //            {
+        //                *$target = $f(*$target, outer);
+        //            }
+        //        }
+        //    }
+        //} }
+        //do_loop!(true , 0..new_data.height            , 0..new_data.width, &mut min_y, usize::min);
+        //do_loop!(true , (min_y..new_data.height).rev(), 0..new_data.width, &mut max_y, usize::max);
+        //do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
+        //do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
+        
+        println!("{} {} {} {} {:?}", min_x, max_x, min_y, max_y, rect);
         
         if max_y >= min_y && max_x >= min_x
         {
@@ -579,19 +587,41 @@ impl Image<4>
             let mut new_copy = if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) };
             let mut mask = vec!(false; w*h);
             
-            for y in min_y..=max_y
+            if old_data.is_int()
             {
-                for x in min_x..=max_x
+                for y in min_y..=max_y
                 {
-                    let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
-                    let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
-                    if !vec_eq(&old_c, &new_c)
+                    for x in min_x..=max_x
                     {
-                        let x2 = x - min_x;
-                        let y2 = y - min_y;
-                        old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
-                        new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
-                        mask[y2 * w + x2] = true;
+                        let old_c = old_data.get_pixel(x as isize, y as isize);
+                        let new_c = new_data.get_pixel(x as isize, y as isize);
+                        if !vec_eq_u8(&old_c, &new_c)
+                        {
+                            let x2 = x - min_x;
+                            let y2 = y - min_y;
+                            old_copy.set_pixel(x2 as isize, y2 as isize, old_c);
+                            new_copy.set_pixel(x2 as isize, y2 as isize, new_c);
+                            mask[y2 * w + x2] = true;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for y in min_y..=max_y
+                {
+                    for x in min_x..=max_x
+                    {
+                        let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
+                        let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
+                        if !vec_eq(&old_c, &new_c)
+                        {
+                            let x2 = x - min_x;
+                            let y2 = y - min_y;
+                            old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
+                            new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
+                            mask[y2 * w + x2] = true;
+                        }
                     }
                 }
             }

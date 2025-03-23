@@ -78,7 +78,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, sma
     
     // do input
     
-    if response.dragged()
+    if response.is_pointer_button_down_on()
     {
         if let Some(drag_origin) = input.pointer.press_origin()
         {

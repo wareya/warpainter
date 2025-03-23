@@ -52,12 +52,15 @@ impl Tool for Fill
             let coord = new_input.canvas_mouse_coord;
             
             let color = app.main_color_rgb;
+            
             if let Some(Some(base)) = app.layers.find_layer_unlocked(app.current_layer).map(|x| x.data.as_ref())
             {
                 if let Some(image) = app.editing_image.as_mut()
                 {
                     if !self.prev_input.held[0] || prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
                     {
+                        let mut rect = [coord, coord];
+                        
                         let coord = [coord[0] as isize, coord[1] as isize];
                         let ref_color = base.get_pixel_float(coord[0], coord[1]);
                         
@@ -87,6 +90,7 @@ impl Tool for Fill
                         let mut last_coord = coord;
                         while let Some(coord) = frontier.pop()
                         {
+                            rect = rect_enclose_rect(rect, [[coord[0] as f32, coord[1] as f32], [coord[0] as f32, coord[1] as f32]]);
                             max_f_size = max_f_size.max(frontier.len());
                             
                             if last_coord[1] != coord[1]
@@ -146,6 +150,9 @@ impl Tool for Fill
                                 }
                             }
                         }
+                        
+                        app.mark_current_layer_dirty(grow_box(rect, [1.0, 1.0]));
+                        
                         println!("max frontier size... {}", max_f_size);
                     }
                 }
@@ -159,7 +166,6 @@ impl Tool for Fill
                 }
                 */
             }
-            
             app.commit_edit();
         }
         

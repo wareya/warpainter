@@ -133,6 +133,8 @@ struct Warpainter
     did_event_setup : bool,
     
     open_dialog : String,
+    
+    edit_progress : u128,
 }
 
 impl Default for Warpainter
@@ -151,6 +153,7 @@ impl Default for Warpainter
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
+        use rand::Rng;
         Self {
             layers : root_layer,
             current_layer : image_layer_uuid,
@@ -198,6 +201,8 @@ impl Default for Warpainter
             did_event_setup : false,
             
             open_dialog : "".to_string(),
+            
+            edit_progress : rand::rng().random(),
         }
     }
 }
@@ -469,6 +474,7 @@ impl Warpainter
 {
     fn begin_edit(&mut self, inplace : bool, ignore_selection : bool)
     {
+        self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer(self.current_layer)
         {
             if !layer.locked
@@ -532,6 +538,10 @@ impl Warpainter
             self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None, None)
         }
     }
+    fn flatten_use(&self) -> Option<&Image<4>>
+    {
+        self.layers.flatten_get_cached()
+    }
     fn get_temp_edit_image(&self) -> Option<Image<4>> // only used in flattening
     {
         if let Some(edit_image) = &self.editing_image
@@ -579,6 +589,7 @@ impl Warpainter
     }
     fn commit_edit(&mut self)
     {
+        self.edit_progress += 1;
         self.debug("Committing edit");
         if let Some(image) = self.get_temp_edit_image()
         {
@@ -592,7 +603,7 @@ impl Warpainter
                         *current_image = image;
                         
                         self.redo_buffer = Vec::new();
-                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer);
+                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer, layer.edited_dirty_rect);
                         self.undo_buffer.push(event.compress());
                     }
                 }
@@ -600,7 +611,7 @@ impl Warpainter
         }
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            layer.dirtify_all();
+            layer.dirtify_edited();
         }
         
         self.editing_image = None;
@@ -609,9 +620,10 @@ impl Warpainter
     }
     fn cancel_edit(&mut self)
     {
+        self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            layer.dirtify_all();
+            layer.dirtify_edited();
         }
         self.editing_image = None;
         self.edit_is_direct = false;
@@ -619,6 +631,7 @@ impl Warpainter
     }
     fn log_layer_info_change(&mut self)
     {
+        self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
             let old_info = layer.old_info_for_undo.clone();
@@ -636,6 +649,7 @@ impl Warpainter
     }
     fn perform_undo(&mut self)
     {
+        self.edit_progress += 1;
         if let Some(event) = self.undo_buffer.pop()
         {
             let event = UndoEvent::decompress(&event);
@@ -677,6 +691,7 @@ impl Warpainter
     }
     fn perform_redo(&mut self)
     {
+        self.edit_progress += 1;
         if let Some(event) = self.redo_buffer.pop()
         {
             let event = UndoEvent::decompress(&event);
@@ -719,6 +734,7 @@ impl Warpainter
     
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
+        self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
             layer.dirtify_rect(rect);
@@ -1448,7 +1464,6 @@ impl eframe::App for Warpainter
                 let shortcut_redo_a = egui::KeyboardShortcut::new(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::Z);
                 let shortcut_redo_b = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Y);
                 
-                let shortcut_paste = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::V);
                 if state.consume_shortcut(&shortcut_undo)
                 {
                     self.perform_undo();
@@ -1465,12 +1480,24 @@ impl eframe::App for Warpainter
                 // FIXME support clipboard on web
                 #[cfg(not(target_arch = "wasm32"))]
                 {
+                    // FIXME go back to ctrl when egui adds a way to not block clipboard shortcuts
+                    let shortcut_paste = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::V);
                     if state.consume_shortcut(&shortcut_paste)
                     {
+                        println!("b");
                         if let Ok(mut clipboard) = arboard::Clipboard::new()
                         {
+                            println!("c");
                             if let Ok(image_data) = clipboard.get().image()
                             {
+                                if self.is_editing()
+                                {
+                                    self.commit_edit();
+                                }
+                                
+                                // FIXME undo/redo for layer operations
+                                
+                                println!("d");
                                 self.new_layer();
                                 let data = self.get_current_layer_data().unwrap();
                                 
@@ -1488,6 +1515,8 @@ impl eframe::App for Warpainter
                                 {
                                     layer.dirtify_all();
                                 }
+                                
+                                // FIXME undo/redo for layer operations
                             }
                         }
                     }
