@@ -26,7 +26,7 @@ bincode = "2.0.0-rc.3"
 snap = "1.1.0"
 base64 = "0.21.0"
 ouroboros = "0.15.6"
-getrandom = { version = "*", features = ["js"] }
+getrandom = { version = "0.2.11", features = ["js"] }
 rand = "0.9.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
