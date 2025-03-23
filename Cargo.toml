@@ -27,7 +27,7 @@ snap = "1.1.0"
 base64 = "0.21.0"
 ouroboros = "0.15.6"
 getrandom = { version = "0.2.11", features = ["js"] }
-rand = "0.9.0"
+rand = "0.8.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
