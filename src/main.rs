@@ -202,7 +202,7 @@ impl Default for Warpainter
             
             open_dialog : "".to_string(),
             
-            edit_progress : rand::rng().random(),
+            edit_progress : rand::thread_rng().gen(),
         }
     }
 }
