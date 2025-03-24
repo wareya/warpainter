@@ -381,6 +381,7 @@ impl Layer
             let mut first = true;
             let mut stash_is_first = false;
             let mut stash = None;
+            let mut stash_offs = [0, 0];
             let mut stash_clean = None;
             let mut stash_opacity = 0.0;
             let mut stash_blend_mode = "".to_string();
@@ -414,24 +415,36 @@ impl Layer
                         // child is a clip target, get into clip target mode
                         // for color
                         stash = Some(source_data.clone());
+                        stash_offs = above_offset;
                         // remove alpha
                         stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
+                        //let mut rect = new_dirty_rect;
+                        //rect[0] -= 
                         // for alpha, we restore the color bit's alpha with this later
                         stash_clean = Some(source_data.clone());
                         stash_is_first = first;
                         stash_opacity = opacity;
                         stash_blend_mode = mode.clone();
                         
+                        let mut rect = new_dirty_rect;
+                        rect[0][0] -= above_offset[0] as f32;
+                        rect[0][1] -= above_offset[1] as f32;
+                        rect[1][0] -= above_offset[0] as f32;
+                        rect[1][1] -= above_offset[1] as f32;
+                        
                         // blend top into it
                         let above = above.unwrap();
+                        above_offset[0] = above.offset[0] as isize - stash_offs[0];
+                        above_offset[1] = above.offset[1] as isize - stash_offs[1];
                         let above_opacity = above.opacity;
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
+                        stash.as_mut().unwrap().blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
                     }
                     else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                     {
                         // done with the clipping mask sequence, blend into rest of group
+                        above_offset = stash_offs;
                         // restore original alpha
                         stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, "Clip Alpha");
                         if stash_is_first
@@ -450,9 +463,16 @@ impl Layer
                     {
                         // continuing a clip mask blend
                         let above_opacity = above.opacity;
+                        above_offset[0] = above.offset[0] as isize - stash_offs[0];
+                        above_offset[1] = above.offset[1] as isize - stash_offs[1];
                         let above_mode = &above.blend_mode.clone();
                         let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.blend_rect_from(new_dirty_rect, above_data, mask, above_opacity, above_offset, above_mode);
+                        let mut rect = new_dirty_rect;
+                        rect[0][0] -= stash_offs[0] as f32;
+                        rect[0][1] -= stash_offs[1] as f32;
+                        rect[1][0] -= stash_offs[0] as f32;
+                        rect[1][1] -= stash_offs[1] as f32;
+                        stash.blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
                     }
                     else
                     {

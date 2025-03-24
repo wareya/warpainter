@@ -259,6 +259,8 @@ impl Warpainter
             ("merge down",                 include_bytes!("icons/merge down.png")                .to_vec()),
             ("lock",                       include_bytes!("icons/lock.png")                      .to_vec()),
             ("lock alpha",                 include_bytes!("icons/lock alpha.png")                .to_vec()),
+            ("visible",                    include_bytes!("icons/visible.png")                   .to_vec()),
+            ("visible_big",                include_bytes!("icons/visible_big.png")               .to_vec()),
             ("clipping mask",              include_bytes!("icons/clipping mask.png")             .to_vec()),
             ("move layer up",              include_bytes!("icons/move layer up.png")             .to_vec()),
             ("move layer down",            include_bytes!("icons/move layer down.png")           .to_vec()),
@@ -1315,10 +1317,20 @@ impl eframe::App for Warpainter
                     ui.spacing_mut().button_padding = [0.0, 0.0].into();
                     
                     let layer = self.layers.find_layer_mut(self.current_layer);
+                    let visible      = layer.as_ref().map_or(false, |layer| layer.visible     );
                     let clipped      = layer.as_ref().map_or(false, |layer| layer.clipped     );
                     let locked       = layer.as_ref().map_or(false, |layer| layer.locked      );
                     let alpha_locked = layer.as_ref().map_or(false, |layer| layer.alpha_locked);
                     
+                    if add_button!(ui, "visible_big", "Toggle Visibility", visible).clicked()
+                    {
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            layer.visible = !layer.visible;
+                            self.full_rerender();
+                            self.log_layer_info_change();
+                        }
+                    }
                     if add_button!(ui, "clipping mask", "Toggle Clipping Mask", clipped).clicked()
                     {
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
