@@ -36,9 +36,8 @@ fn packbits_decompress(input : &[u8]) -> Vec<u8>
     output
 }
 
-pub (crate) fn wpsd_open(app : &mut Warpainter, path : &std::path::PathBuf)
+pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
 {
-    let bytes = std::fs::read(path).unwrap();
     let psd = Psd::from_bytes(&bytes).unwrap();
     
     app.layers = Layer::new_group("___root___");

@@ -137,6 +137,8 @@ struct Warpainter
     open_dialog : String,
     
     edit_progress : u128,
+    
+    file_open_promise : Option<poll_promise::Promise<(String, Vec<u8>)>>,
 }
 
 impl Default for Warpainter
@@ -205,6 +207,8 @@ impl Default for Warpainter
             open_dialog : "".to_string(),
             
             edit_progress : rand::thread_rng().gen(),
+            
+            file_open_promise : None,
         }
     }
 }
@@ -1021,7 +1025,8 @@ impl eframe::App for Warpainter
                                 println!("{}", path.extension().unwrap().to_string_lossy());
                                 if path.extension().unwrap().to_string_lossy() == "psd"
                                 {
-                                    wpsd_open(self, &path);
+                                    let bytes = std::fs::read(path).unwrap();
+                                    wpsd_open(self, &bytes);
                                 }
                                 else
                                 {
@@ -1031,6 +1036,7 @@ impl eframe::App for Warpainter
                                     self.load_from_img(img);
                                 }
                             }
+                            ui.close_menu();
                         }
                         if ui.button("Save Copy...").clicked()
                         {
@@ -1045,12 +1051,57 @@ impl eframe::App for Warpainter
                                 let img = self.flatten().to_imagebuffer();
                                 // FIXME handle error
                                 img.save(path).unwrap();
-                                
-                                ui.close_menu();
                             }
+                            ui.close_menu();
+                        }
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        if ui.button("Open").clicked()
+                        {
+                            let future = async
+                            {
+                                let file = rfd::AsyncFileDialog::new()
+                                    .add_filter("Supported Image Formats",
+                                                &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
+                                    .pick_file().await;
+                                
+                                let file = file.unwrap();
+                                let data = file.read().await;
+                                (file.file_name(), data)
+                            };
+                            self.file_open_promise = Some(poll_promise::Promise::spawn_local(future));
+                            ui.close_menu();
+                            
+                            // GOTO: OPENFILEWEB
                         }
                     }
                 });
+                
+                #[cfg(target_arch = "wasm32")]
+                {
+                    // COMEFROM: OPENFILEWEB
+                    if let Some(Some((name, data))) = self.file_open_promise.as_ref().map(|x| x.ready())
+                    {
+                        let name = name.clone();
+                        let data = data.clone();
+                        println!("{}", name);
+                        if name.ends_with(".psd")
+                        {
+                            wpsd_open(self, &data);
+                        }
+                        else
+                        {
+                            use std::io::Cursor;
+                            use image::io::Reader as ImageReader;
+                            // FIXME handle error
+                            let img = ImageReader::new(Cursor::new(data)).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
+                            let img = Image::<4>::from_rgbaimage(&img);
+                            self.load_from_img(img);
+                        }
+                        self.file_open_promise = None;
+                    }
+                }
                 ui.menu_button("Edit", |ui|
                 {
                     if ui.button("Undo").clicked()
