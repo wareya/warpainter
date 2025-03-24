@@ -16,6 +16,7 @@ use eframe::egui_glow::glow;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+mod wpsd;
 mod warimage;
 mod transform;
 mod widgets;
@@ -27,6 +28,7 @@ mod quadrender;
 mod vecmap;
 mod pixelmath;
 
+use wpsd::*;
 use warimage::*;
 use transform::*;
 use widgets::*;
@@ -732,7 +734,7 @@ impl Warpainter
         }
     }
     
-    fn full_rerender(&mut self, )
+    fn full_rerender(&mut self)
     {
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -1009,17 +1011,25 @@ impl eframe::App for Warpainter
                         {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Supported Image Formats",
-                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds"])
+                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
                                 //.add_filter("Warpainter Project",
                                 //    &["wrp"])
                                 .pick_file()
                             {
                                 self.cancel_edit();
                                 
-                                // FIXME handle error
-                                let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
-                                let img = Image::<4>::from_rgbaimage(&img);
-                                self.load_from_img(img);
+                                println!("{}", path.extension().unwrap().to_string_lossy());
+                                if path.extension().unwrap().to_string_lossy() == "psd"
+                                {
+                                    wpsd_open(self, &path);
+                                }
+                                else
+                                {
+                                    // FIXME handle error
+                                    let img = image::io::Reader::open(path).unwrap().decode().unwrap().to_rgba8();
+                                    let img = Image::<4>::from_rgbaimage(&img);
+                                    self.load_from_img(img);
+                                }
                             }
                         }
                         if ui.button("Save Copy...").clicked()
@@ -1291,14 +1301,17 @@ impl eframe::App for Warpainter
                     if add_button!(ui, "new layer", "New Layer", false).clicked()
                     {
                         self.new_layer();
+                        self.full_rerender();
                     }
                     if add_button!(ui, "new group", "New Group", false).clicked()
                     {
                         self.layers.add_group(self.current_layer);
+                        self.full_rerender();
                     }
                     if add_button!(ui, "into group", "Into New Group", false).clicked()
                     {
                         self.layers.move_into_new_group(self.current_layer);
+                        self.full_rerender();
                     }
                     if add_button_disabled!(ui, "duplicate layer", "Duplicate Layer", false).clicked()
                     {
@@ -1307,10 +1320,12 @@ impl eframe::App for Warpainter
                     if add_button!(ui, "move layer up", "Move Layer Up", false).clicked()
                     {
                         self.layers.move_layer_up(self.current_layer);
+                        self.full_rerender();
                     }
                     if add_button!(ui, "move layer down", "Move Layer Down", false).clicked()
                     {
                         self.layers.move_layer_down(self.current_layer);
+                        self.full_rerender();
                     }
                     if add_button_disabled!(ui, "transfer down", "Transfer Down", false).clicked()
                     {
@@ -1323,6 +1338,7 @@ impl eframe::App for Warpainter
                     if add_button!(ui, "delete layer", "Delete Layer", false).clicked()
                     {
                         self.delete_current_layer();
+                        self.full_rerender();
                     }
                 });
                 

@@ -190,6 +190,17 @@ impl Layer
         }
         None
     }
+    pub(crate) fn find_layer_unlocked_mut(&mut self, uuid : u128) -> Option<&mut Layer>
+    {
+        if let Some(layer) = self.find_layer_mut(uuid)
+        {
+            if !layer.locked
+            {
+                return Some(layer);
+            }
+        }
+        None
+    }
     pub(crate) fn find_layer_mut(&mut self, uuid : u128) -> Option<&mut Layer>
     {
         if self.uuid == uuid
@@ -387,9 +398,15 @@ impl Layer
                     }
                     let opacity = child.opacity;
                     let child_clipped = child.clipped;
-                    let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
                     
-                    let above_offset = [0, 0];
+                    println!("???{:?}", self.offset);
+                    let mut above_offset = [0, 0];
+                    if child.data.is_some()
+                    {
+                        above_offset = [child.offset[0] as isize, child.offset[1] as isize];
+                    }
+                    
+                    let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
                     
                     #[allow(clippy::unnecessary_unwrap)] // broken lint
                     if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped

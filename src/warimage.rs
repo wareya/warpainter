@@ -376,8 +376,14 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn blend_rect_from(&mut self, mut rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
+        //rect[0][0] += top_offset[0] as f32;
+        //rect[1][0] += top_offset[0] as f32;
+        //rect[0][1] += top_offset[1] as f32;
+        //rect[1][1] += top_offset[1] as f32;
+        
+        println!("{:?}", top_offset);
         // top opacity is ignored if a mask is used
         let min_x = 0.max(rect[0][0].floor() as isize).max(top_offset[0]) as usize;
         let max_x = ((self.width  as isize).min(top.width  as isize + top_offset[0].min(0))).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -404,7 +410,7 @@ impl Image<4>
             ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr) =>
             {
                 {
-                    let mut thread_count = 8;
+                    let mut thread_count = 4;
                     if let Some(count) = std::thread::available_parallelism().ok()
                     {
                         thread_count = count.get();

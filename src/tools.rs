@@ -913,79 +913,91 @@ impl Tool for MoveTool
             #[allow(clippy::collapsible_if)]
             if point != prev_point
             {
-                if !app.is_editing()
+                let diff = vec_sub(&point, &prev_point);
+                
+                if app.selection_mask.is_none()
                 {
-                    app.begin_edit(true, true);
-                    if let Some(edit_image) = &app.editing_image
+                    if let Some(base) = app.layers.find_layer_unlocked_mut(app.current_layer)
                     {
-                        let get_alpha : Box<dyn Fn(usize, usize) -> f32 + Sync + Send> = if let Some(mask) = &app.selection_mask
-                        {
-                            Box::new(|x, y| mask.get_pixel_float(x as isize, y as isize)[0])
-                        }
-                        else
-                        {
-                            Box::new(|_x, _y| 1.0)
-                        };
-                        
-                        let mut base_image = edit_image.clone();
-                        let mut move_image = edit_image.clone();
-                        
-                        move_image.loop_rect_threaded(
-                            [[0.0, 0.0], [move_image.width as f32, move_image.height as f32]],
-                            &|x, y, mut color : [f32; 4]|
-                            {
-                                color[3] *= get_alpha(x, y);
-                                color
-                            }
-                        );
-                        
-                        base_image.loop_rect_threaded(
-                            [[0.0, 0.0], [base_image.width as f32, base_image.height as f32]],
-                            &|x, y, mut color : [f32; 4]|
-                            {
-                                color[3] *= 1.0 - get_alpha(x, y);
-                                color
-                            }
-                        );
-                        
-                        self.base_image = Some(base_image);
-                        self.move_image = Some(move_image);
+                        base.offset[0] += diff[0];
+                        base.offset[1] += diff[1];
+                        app.full_rerender(); // FIXME
                     }
                 }
-            }
-            let canvas_size = [app.canvas_width as f32, app.canvas_height as f32];
-            
-            let diff = vec_sub(&point, &prev_point);
-            
-            let mut min = canvas_size;
-            let mut max = [0.0f32, 0.0f32];
-            
-            for points in app.selection_poly.iter_mut()
-            {
-                for point in points.iter_mut()
+                else 
                 {
-                    min[0] = min[0].min(point[0]);
-                    min[1] = min[1].min(point[1]);
-                    max[0] = max[0].max(point[0]);
-                    max[1] = max[1].max(point[1]);
-                    *point = vec_add(point, &diff);
-                    min[0] = min[0].min(point[0]);
-                    min[1] = min[1].min(point[1]);
-                    max[0] = max[0].max(point[0]);
-                    max[1] = max[1].max(point[1]);
+                    if !app.is_editing()
+                    {
+                        app.begin_edit(true, true);
+                        if let Some(edit_image) = &app.editing_image
+                        {
+                            let get_alpha : Box<dyn Fn(usize, usize) -> f32 + Sync + Send> = if let Some(mask) = &app.selection_mask
+                            {
+                                Box::new(|x, y| mask.get_pixel_float(x as isize, y as isize)[0])
+                            }
+                            else
+                            {
+                                Box::new(|_x, _y| 1.0)
+                            };
+                            
+                            let mut base_image = edit_image.clone();
+                            let mut move_image = edit_image.clone();
+                            
+                            move_image.loop_rect_threaded(
+                                [[0.0, 0.0], [move_image.width as f32, move_image.height as f32]],
+                                &|x, y, mut color : [f32; 4]|
+                                {
+                                    color[3] *= get_alpha(x, y);
+                                    color
+                                }
+                            );
+                            
+                            base_image.loop_rect_threaded(
+                                [[0.0, 0.0], [base_image.width as f32, base_image.height as f32]],
+                                &|x, y, mut color : [f32; 4]|
+                                {
+                                    color[3] *= 1.0 - get_alpha(x, y);
+                                    color
+                                }
+                            );
+                            
+                            self.base_image = Some(base_image);
+                            self.move_image = Some(move_image);
+                        }
+                    }
+                    let canvas_size = [app.canvas_width as f32, app.canvas_height as f32];
+                    
+                    let mut min = canvas_size;
+                    let mut max = [0.0f32, 0.0f32];
+                    
+                    for points in app.selection_poly.iter_mut()
+                    {
+                        for point in points.iter_mut()
+                        {
+                            min[0] = min[0].min(point[0]);
+                            min[1] = min[1].min(point[1]);
+                            max[0] = max[0].max(point[0]);
+                            max[1] = max[1].max(point[1]);
+                            *point = vec_add(point, &diff);
+                            min[0] = min[0].min(point[0]);
+                            min[1] = min[1].min(point[1]);
+                            max[0] = max[0].max(point[0]);
+                            max[1] = max[1].max(point[1]);
+                        }
+                    }
+                    
+                    self.offset = vec_add(&self.offset, &diff);
+                    if let (Some(base_image), Some(move_image), Some(editing_image))
+                        = (&mut self.base_image.as_mut(), &mut self.move_image.as_mut(), app.get_editing_image())
+                    {
+                        let offset = [self.offset[0] as isize, self.offset[1] as isize];
+                        *editing_image = base_image.clone();
+                        editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, 1.0, offset, "Weld");
+                    }
+                    
+                    app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
                 }
             }
-            
-            self.offset = vec_add(&self.offset, &diff);
-            if let (Some(base_image), Some(move_image), Some(editing_image))
-                = (&mut self.base_image.as_mut(), &mut self.move_image.as_mut(), app.get_editing_image())
-            {
-                let offset = [self.offset[0] as isize, self.offset[1] as isize];
-                *editing_image = base_image.clone();
-                editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, 1.0, offset, "Weld");
-            }
-            
-            app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
         }
         
         // TODO: mid-tool-use undo/redo state when releasing drag
