@@ -732,6 +732,15 @@ impl Warpainter
         }
     }
     
+    fn full_rerender(&mut self, )
+    {
+        self.edit_progress += 1;
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            layer.dirtify_all();
+        }
+    }
+    
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
         self.edit_progress += 1;
@@ -1172,6 +1181,7 @@ impl eframe::App for Warpainter
                         ui.selectable_value(&mut layer.blend_mode, "Custom".to_string(), "Custom");
                     });
                     
+                    let mut rerender = false;
                     if layer.blend_mode == "Custom"
                     {
                         if layer.custom_blend_mode == ""
@@ -1184,7 +1194,7 @@ impl eframe::App for Warpainter
                             let res = ui.add_sized(ui.available_size(), editor);
                             if res.changed()
                             {
-                                layer.dirtify_all();
+                                rerender = true;
                             }
                             if res.has_focus()
                             {
@@ -1198,16 +1208,12 @@ impl eframe::App for Warpainter
                     let slider_response = ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamping(SliderClamping::Always));
                     layer.opacity = opacity/100.0;
                     
-                    if old_blend_mode != layer.blend_mode || old_opacity != opacity
-                    {
-                        layer.dirtify_all();
-                    }
-                    
                     #[allow(clippy::if_same_then_else)]
                     
                     if old_blend_mode != layer.blend_mode
                     {
                         self.log_layer_info_change();
+                        rerender = true;
                     }
                     else if old_opacity != opacity && !slider_response.dragged()
                     {
@@ -1217,6 +1223,11 @@ impl eframe::App for Warpainter
                     {
                         println!("making undo for opacity");
                         self.log_layer_info_change();
+                    }
+                    
+                    if old_opacity != opacity || rerender
+                    {
+                        self.full_rerender();
                     }
                 }
                 else
@@ -1252,7 +1263,7 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.clipped = !layer.clipped;
-                            layer.dirtify_all();
+                            self.full_rerender();
                             self.log_layer_info_change();
                         }
                     }
@@ -1511,10 +1522,7 @@ impl eframe::App for Warpainter
                                         data.set_pixel(x as isize, y as isize, pixels[y*w + x]);
                                     }
                                 }
-                                if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
-                                {
-                                    layer.dirtify_all();
-                                }
+                                self.full_rerender();
                                 
                                 // FIXME undo/redo for layer operations
                             }
