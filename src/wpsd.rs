@@ -75,23 +75,25 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, path : &std::path::PathBuf)
         let r = layer.get_channel(PsdChannelKind::Red).unwrap();
         let g = layer.get_channel(PsdChannelKind::Green).unwrap_or(r);
         let b = layer.get_channel(PsdChannelKind::Blue).unwrap_or(r);
-        let a = layer.get_channel(PsdChannelKind::TransparencyMask).unwrap_or(r);
-        insert(&mut rgba, 0, layer.get_channel(PsdChannelKind::Red  ).unwrap());
-        insert(&mut rgba, 1, layer.get_channel(PsdChannelKind::Green).unwrap());
-        insert(&mut rgba, 2, layer.get_channel(PsdChannelKind::Blue ).unwrap());
-        insert(&mut rgba, 3, layer.get_channel(PsdChannelKind::TransparencyMask).unwrap());
+        insert(&mut rgba, 0, r);
+        insert(&mut rgba, 1, g);
+        insert(&mut rgba, 2, b);
+        if let Some(a) = layer.get_channel(PsdChannelKind::TransparencyMask)
+        {
+            insert(&mut rgba, 3, a);
+        }
         
-        println!("cough: {} {} {}", rgba.len(), layer.width(), layer.height());
+        //println!("cough: {} {} {}", rgba.len(), layer.width(), layer.height());
         
         if let Some(img) = image::RgbaImage::from_raw(w, h, rgba)
         {
             let img = Image::<4>::from_rgbaimage(&img);
             let mut image_layer = Layer::new_layer_from_image("New Layer", img);
             image_layer.name = layer.name().to_string();
-            image_layer.offset[0] = layer.layer_left() as f32 * 0.5;
-            image_layer.offset[1] = layer.layer_top() as f32 * 0.5;
+            image_layer.offset[0] = layer.layer_left() as f32;
+            image_layer.offset[1] = layer.layer_top() as f32;
             //image_layer.clipped = layer.is_clipping_mask();
-            println!("!!!!{:?}", image_layer.offset);
+            //println!("!!!!{:?}", image_layer.offset);
             use psd::*;
             image_layer.blend_mode = match layer.blend_mode()
             {

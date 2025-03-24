@@ -48,13 +48,19 @@ impl Tool for Fill
             
             //let start = std::time::SystemTime::now();
             
-            let prev_coord = self.prev_input.canvas_mouse_coord;
-            let coord = new_input.canvas_mouse_coord;
+            let mut prev_coord = self.prev_input.canvas_mouse_coord;
+            let mut coord = new_input.canvas_mouse_coord;
             
             let color = app.main_color_rgb;
             
-            if let Some(Some(base)) = app.layers.find_layer_unlocked(app.current_layer).map(|x| x.data.as_ref())
+            let layer = app.layers.find_layer_unlocked(app.current_layer);
+            if let Some(Some(base)) = layer.map(|x| x.data.as_ref())
             {
+                let layer = layer.unwrap();
+                let offset = layer.offset;
+                coord = vec_add(&coord, &offset);
+                prev_coord = vec_add(&prev_coord, &offset);
+                
                 if let Some(image) = app.editing_image.as_mut()
                 {
                     if !self.prev_input.held[0] || prev_coord[0].floor() != coord[0].floor() || prev_coord[1].floor() != coord[1].floor()
@@ -919,6 +925,7 @@ impl Tool for MoveTool
                 {
                     if let Some(base) = app.layers.find_layer_unlocked_mut(app.current_layer)
                     {
+                        base.dirtify_all();
                         base.offset[0] += diff[0];
                         base.offset[1] += diff[1];
                         app.full_rerender(); // FIXME

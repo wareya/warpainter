@@ -329,7 +329,7 @@ impl Layer
             }
             Some(())
         });
-        self.dirtify_rect([[0.0, 0.0], size]);
+        self.dirtify_rect([self.offset, vec_add(&self.offset, &size)]);
     }
     pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>, mask : Option<&'b Image<1>>) -> &'b Image<4> where 'a: 'b
     {
@@ -399,7 +399,7 @@ impl Layer
                     let opacity = child.opacity;
                     let child_clipped = child.clipped;
                     
-                    println!("???{:?}", self.offset);
+                    //println!("???{:?}", self.offset);
                     let mut above_offset = [0, 0];
                     if child.data.is_some()
                     {

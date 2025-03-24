@@ -383,12 +383,13 @@ impl Image<4>
         //rect[0][1] += top_offset[1] as f32;
         //rect[1][1] += top_offset[1] as f32;
         
-        println!("{:?}", top_offset);
         // top opacity is ignored if a mask is used
         let min_x = 0.max(rect[0][0].floor() as isize).max(top_offset[0]) as usize;
-        let max_x = ((self.width  as isize).min(top.width  as isize + top_offset[0].min(0))).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
+        let max_x = ((self.width  as isize).min(top.width  as isize + top_offset[0])).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
         let min_y = 0.max(rect[0][1].floor() as isize).max(top_offset[1]) as usize;
-        let max_y = ((self.height as isize).min(top.height as isize + top_offset[1].min(0))).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
+        let max_y = ((self.height as isize).min(top.height as isize + top_offset[1])).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
+        
+        //println!("{:?}, {}, {}", top_offset, self.height, max_y);
         
         let self_width = self.width;
         let top_width = top.width;
