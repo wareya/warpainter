@@ -1311,6 +1311,7 @@ impl eframe::App for Warpainter
                            .on_hover_text($tooltip)
                 } }
                 
+                
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
                 {
                     ui.spacing_mut().item_spacing = [1.0, 0.0].into();
@@ -1407,31 +1408,34 @@ impl eframe::App for Warpainter
                 
                 ui.separator();
                 
-                let mut layer_info = vec!();
-                for layer in self.layers.children.iter()
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
                 {
-                    layer.visit_layers(0, &mut |layer, depth|
+                    let mut layer_info = vec!();
+                    for layer in self.layers.children.iter()
                     {
-                        layer_info.push((layer.name.clone(), layer.uuid, depth));
-                        Some(())
-                    });
-                }
-                for info in layer_info
-                {
-                    ui.horizontal(|ui|
+                        layer.visit_layers(0, &mut |layer, depth|
+                        {
+                            layer_info.push((layer.name.clone(), layer.uuid, depth));
+                            Some(())
+                        });
+                    }
+                    for info in layer_info
                     {
-                        ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
-                        let mut button = egui::Button::new(info.0);
-                        if info.1 == self.current_layer
+                        ui.horizontal(|ui|
                         {
-                            button = button.stroke(focused_outline);
-                        }
-                        if ui.add(button).clicked()
-                        {
-                            self.current_layer = info.1;
-                        }
-                    });
-                }
+                            ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
+                            let mut button = egui::Button::new(info.0);
+                            if info.1 == self.current_layer
+                            {
+                                button = button.stroke(focused_outline);
+                            }
+                            if ui.add(button).clicked()
+                            {
+                                self.current_layer = info.1;
+                            }
+                        });
+                    }
+                });
             }
         }}
         

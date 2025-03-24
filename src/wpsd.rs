@@ -92,6 +92,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             image_layer.offset[0] = layer.layer_left() as f32;
             image_layer.offset[1] = layer.layer_top() as f32;
             image_layer.clipped = !layer.is_clipping_mask();
+            image_layer.visible = layer.visible();
             //println!("!!!!{:?}", image_layer.offset);
             use psd::*;
             image_layer.blend_mode = match layer.blend_mode()

@@ -418,8 +418,6 @@ impl Layer
                         stash_offs = above_offset;
                         // remove alpha
                         stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
-                        //let mut rect = new_dirty_rect;
-                        //rect[0] -= 
                         // for alpha, we restore the color bit's alpha with this later
                         stash_clean = Some(source_data.clone());
                         stash_is_first = first;
@@ -444,9 +442,15 @@ impl Layer
                     else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                     {
                         // done with the clipping mask sequence, blend into rest of group
-                        above_offset = stash_offs;
                         // restore original alpha
-                        stash.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, "Clip Alpha");
+                        let mut rect = new_dirty_rect;
+                        rect[0][0] -= stash_offs[0] as f32;
+                        rect[0][1] -= stash_offs[1] as f32;
+                        rect[1][0] -= stash_offs[0] as f32;
+                        rect[1][1] -= stash_offs[1] as f32;
+                        
+                        stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, "Clip Alpha");
+                        above_offset = stash_offs;
                         if stash_is_first
                         {
                             self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, "Copy");

@@ -278,7 +278,7 @@ impl Image<4>
             ($bottom:expr, $bottom_read_f:expr, $bottom_write_f:expr) =>
             {
                 {
-                    let mut thread_count = 4;
+                    let mut thread_count = 16;
                     if let Some(count) = std::thread::available_parallelism().ok()
                     {
                         thread_count = count.get();
