@@ -533,6 +533,9 @@ impl Tool for Pencil
                 }
             }
             
+            let coord2 = vec_sub(&coord, &app.get_editing_offset());
+            let prev_coord2 = vec_sub(&prev_coord, &app.get_editing_offset());
+            
             let color = app.main_color_rgb;
             let eraser = app.eraser_mode || self.is_eraser;
             let alpha_locked = app.current_layer_is_alpha_locked();
@@ -542,12 +545,12 @@ impl Tool for Pencil
                 let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
                 if !self.prev_input.held[0]
                 {
-                    draw_brush_at_float(image, coord, color, &self.brush_shape, eraser, alpha_locked);
+                    draw_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked);
                     app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
                 }
                 else if prev_coord[0] != coord[0] || prev_coord[1] != coord[1]
                 {
-                    draw_brush_line_no_start_float(image, prev_coord, coord, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                    draw_brush_line_no_start_float(image, prev_coord2, coord2, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
                     app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
                 }
             }

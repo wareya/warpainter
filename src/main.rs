@@ -123,6 +123,7 @@ struct Warpainter
     edit_is_direct : bool,
     edit_ignores_selection : bool,
     editing_image : Option<Image<4>>,
+    editing_offset : [f32; 2],
     
     loaded_shaders : bool,
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
@@ -172,6 +173,7 @@ impl Default for Warpainter
             edit_is_direct : false,
             edit_ignores_selection : false,
             editing_image : None,
+            editing_offset : [0.0, 0.0],
             
             //image_preview : None,
             xform,
@@ -503,11 +505,16 @@ impl Warpainter
                     {
                         self.editing_image = Some(image.blank_with_same_size());
                     }
+                    self.editing_offset = [layer.offset[0] as f32, layer.offset[1] as f32];
                 }
             }
         }
     }
     
+    fn get_editing_offset(&self) -> [f32; 2]
+    {
+        self.editing_offset
+    }
     fn get_editing_image(&mut self) -> Option<&mut Image<4>>
     {
         self.editing_image.as_mut()
@@ -615,7 +622,15 @@ impl Warpainter
                         *current_image = image;
                         
                         self.redo_buffer = Vec::new();
-                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer, layer.edited_dirty_rect);
+                        let mut rect : Option<[[f32; 2]; 2]> = layer.edited_dirty_rect;
+                        println!("A? {:?}", rect);
+                        if let Some(rect) = &mut rect
+                        {
+                            rect[0] = vec_sub(&rect[0], &layer.offset);
+                            rect[1] = vec_sub(&rect[1], &layer.offset);
+                        }
+                        println!("B? {:?}", rect);
+                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer, rect);
                         self.undo_buffer.push(event.compress());
                     }
                 }
@@ -677,7 +692,8 @@ impl Warpainter
                             println!("undo done");
                         }
                         let r = event.rect;
-                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
@@ -719,7 +735,8 @@ impl Warpainter
                             println!("redo done");
                         }
                         let r = event.rect;
-                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
@@ -753,7 +770,7 @@ impl Warpainter
         }
     }
     
-    fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
+    fn mark_current_layer_dirty(&mut self, mut rect : [[f32; 2]; 2])
     {
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)

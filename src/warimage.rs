@@ -264,117 +264,6 @@ impl Image<4>
         Self { width : w, height : h, data }
     }
     
-    pub (crate) fn loop_rect_threaded(&mut self, rect : [[f32; 2]; 2], func : &(dyn Fn(usize, usize, [f32; 4]) -> [f32; 4] + Sync + Send))
-    {
-        let min_x = 0.max(rect[0][0].floor() as isize) as usize;
-        let max_x = (self.width as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
-        let min_y = 0.max(rect[0][1].floor() as isize) as usize;
-        let max_y = (self.height as isize).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
-        
-        let self_width = self.width;
-        
-        macro_rules! do_loop
-        {
-            ($bottom:expr, $bottom_read_f:expr, $bottom_write_f:expr) =>
-            {
-                {
-                    let mut thread_count = 16;
-                    if let Some(count) = std::thread::available_parallelism().ok()
-                    {
-                        thread_count = count.get();
-                    }
-                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
-                    if !bottom.is_some()
-                    {
-                        return;
-                    }
-                    let mut bottom = bottom.unwrap();
-                    let infos =
-                    {
-                        let row_count = max_y - min_y + 1;
-                        if row_count < thread_count { vec!((bottom, min_y)) }
-                        else
-                        {
-                            let chunk_size_rows = row_count/thread_count;
-                            let chunk_size_pixels = chunk_size_rows*self_width;
-                            let mut ret = Vec::new();
-                            for i in 0..thread_count
-                            {
-                                if i+1 < thread_count
-                                {
-                                    let (split, remainder) = bottom.split_at_mut(chunk_size_pixels);
-                                    bottom = remainder;
-                                    ret.push((split, min_y + chunk_size_rows*i));
-                                }
-                            }
-                            if bottom.len() > 0
-                            {
-                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1)));
-                            }
-                            ret
-                        }
-                    };
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        // FEARLESS CONCURRENCY
-                        crossbeam::scope(|s|
-                        {
-                            for info in infos
-                            {
-                                let func = &func;
-                                s.spawn(move |_|
-                                {
-                                    let bottom = info.0;
-                                    let offset = info.1;
-                                    let min_y = 0;
-                                    let max_y = bottom.len()/self_width;
-                                    for y in min_y..max_y
-                                    {
-                                        let self_index_y_part = y*self_width;
-                                        for x in min_x..max_x
-                                        {
-                                            let bottom_index = self_index_y_part + x;
-                                            let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                            bottom_pixel = func(x, y + offset, bottom_pixel);
-                                            bottom[bottom_index] = $bottom_write_f(bottom_pixel);
-                                        }
-                                    }
-                                });
-                            }
-                        }).unwrap();
-                    }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        for info in infos
-                        {
-                            let bottom = info.0;
-                            let offset = info.1;
-                            let min_y = 0;
-                            let max_y = bottom.len()/self_width;
-                            for y in min_y..max_y
-                            {
-                                let self_index_y_part = y*self_width;
-                                for x in min_x..max_x
-                                {
-                                    let bottom_index = self_index_y_part + x;
-                                    let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                    bottom_pixel = func(x, y + offset, bottom_pixel);
-                                    bottom[bottom_index] = $bottom_write_f(bottom_pixel);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        match &mut self.data
-        {
-            ImageData::<4>::Float(bottom) => do_loop!(bottom, nop, nop),
-            ImageData::<4>::Int(bottom)   => do_loop!(bottom, px_to_float, px_to_int),
-        }
-    }
-    
     #[inline(never)]
     pub (crate) fn blend_rect_from(&mut self, mut rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
@@ -420,6 +309,8 @@ impl Image<4>
                     {
                         thread_count = count.get();
                     }
+                    thread_count = 4;
+                    //println!("threadcount {}", thread_count);
                     let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
                     if !bottom.is_some()
                     {
@@ -454,12 +345,12 @@ impl Image<4>
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         // FEARLESS CONCURRENCY
-                        crossbeam::scope(|s|
+                        std::thread::scope(|s|
                         {
                             for info in infos
                             {
                                 let get_opacity = &get_opacity;
-                                s.spawn(move |_|
+                                s.spawn(move ||
                                 {
                                     let blend_mode = info.2;
                                     
@@ -493,7 +384,7 @@ impl Image<4>
                                     }
                                 });
                             }
-                        }).unwrap();
+                        });
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
@@ -733,15 +624,126 @@ impl<const N : usize> Image<N>
         }
         ret
     }
-    pub (crate) fn clear_rect_with_color_float(&mut self, rect : [[f32; 2]; 2], color : [f32; N])
+    
+    pub (crate) fn loop_rect_threaded(&mut self, rect : [[f32; 2]; 2], func : &(dyn Fn(usize, usize, [f32; N]) -> [f32; N] + Sync + Send))
     {
-        for y in rect[0][1].floor().max(0.0) as isize..=(rect[1][1].ceil() as isize).min(self.height as isize - 1)
+        let min_x = 0.max(rect[0][0].floor() as isize) as usize;
+        let max_x = (self.width as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
+        let min_y = 0.max(rect[0][1].floor() as isize) as usize;
+        let max_y = (self.height as isize).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
+        
+        let self_width = self.width;
+        
+        macro_rules! do_loop
         {
-            for x in rect[0][0].floor().max(0.0) as isize..=(rect[1][0].ceil() as isize).min(self.width as isize - 1)
+            ($bottom:expr, $bottom_read_f:expr, $bottom_write_f:expr) =>
             {
-                self.set_pixel_float_wrapped(x, y, color);
+                {
+                    let mut thread_count = 16;
+                    if let Some(count) = std::thread::available_parallelism().ok()
+                    {
+                        thread_count = count.get();
+                    }
+                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
+                    if !bottom.is_some()
+                    {
+                        return;
+                    }
+                    let mut bottom = bottom.unwrap();
+                    let infos =
+                    {
+                        let row_count = max_y - min_y + 1;
+                        if row_count < thread_count { vec!((bottom, min_y)) }
+                        else
+                        {
+                            let chunk_size_rows = row_count/thread_count;
+                            let chunk_size_pixels = chunk_size_rows*self_width;
+                            let mut ret = Vec::new();
+                            for i in 0..thread_count
+                            {
+                                if i+1 < thread_count
+                                {
+                                    let (split, remainder) = bottom.split_at_mut(chunk_size_pixels);
+                                    bottom = remainder;
+                                    ret.push((split, min_y + chunk_size_rows*i));
+                                }
+                            }
+                            if bottom.len() > 0
+                            {
+                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1)));
+                            }
+                            ret
+                        }
+                    };
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        // FEARLESS CONCURRENCY
+                        std::thread::scope(|s|
+                        {
+                            for info in infos
+                            {
+                                let func = &func;
+                                s.spawn(move ||
+                                {
+                                    let bottom = info.0;
+                                    let offset = info.1;
+                                    let min_y = 0;
+                                    let max_y = bottom.len()/self_width;
+                                    for y in min_y..max_y
+                                    {
+                                        let self_index_y_part = y*self_width;
+                                        for x in min_x..max_x
+                                        {
+                                            let bottom_index = self_index_y_part + x;
+                                            let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                            bottom_pixel = func(x, y + offset, bottom_pixel);
+                                            bottom[bottom_index] = $bottom_write_f(bottom_pixel);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        for info in infos
+                        {
+                            let bottom = info.0;
+                            let offset = info.1;
+                            let min_y = 0;
+                            let max_y = bottom.len()/self_width;
+                            for y in min_y..max_y
+                            {
+                                let self_index_y_part = y*self_width;
+                                for x in min_x..max_x
+                                {
+                                    let bottom_index = self_index_y_part + x;
+                                    let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                    bottom_pixel = func(x, y + offset, bottom_pixel);
+                                    bottom[bottom_index] = $bottom_write_f(bottom_pixel);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+        
+        match &mut self.data
+        {
+            ImageData::<N>::Float(bottom) => do_loop!(bottom, nop, nop),
+            ImageData::<N>::Int(bottom)   => do_loop!(bottom, px_to_float, px_to_int),
+        }
+    }
+    
+    pub (crate) fn clear_rect_with_color_float(&mut self, rect : [[f32; 2]; 2], color : [f32; N])
+    {
+        self.loop_rect_threaded(rect,
+            &|_x, _y, _color : [f32; N]|
+            {
+                color
+            }
+        );
     }
     pub (crate) fn clear_rect_alpha_float(&mut self, rect : [[f32; 2]; 2], alpha : f32)
     {
