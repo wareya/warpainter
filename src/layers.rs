@@ -267,7 +267,7 @@ impl Layer
         let mut reference = None;
         for child in self.children.iter()
         {
-            if let Some(inner) = child.get_flatten_dirty_rect()
+            if let Some(mut inner) = child.get_flatten_dirty_rect()
             {
                 if reference.is_some()
                 {
@@ -281,7 +281,7 @@ impl Layer
         }
         reference
     }
-    pub(crate) fn dirtify_rect(&mut self, inner : [[f32; 2]; 2])
+    pub(crate) fn dirtify_rect(&mut self, mut inner : [[f32; 2]; 2])
     {
         if self.flattened_dirty_rect.is_some()
         {
@@ -318,18 +318,28 @@ impl Layer
     }
     pub(crate) fn dirtify_all(&mut self)
     {
-        let mut size = [0.0f32, 0.0f32];
+        let mut reference = None;
         // FIXME cache somehow??? or is it not worth it
         self.visit_layers(0, &mut |layer, _|
         {
             if let Some(image) = &layer.data
             {
-                size[0] = size[0].max(image.width as f32);
-                size[1] = size[1].max(image.height as f32);
+                let rect = [layer.offset, vec_add(&layer.offset, &[image.width as f32, image.height as f32])];
+                if reference.is_some()
+                {
+                    reference = Some(rect_enclose_rect(reference.unwrap(), rect));
+                }
+                else
+                {
+                    reference = Some(rect);
+                }
             }
             Some(())
         });
-        self.dirtify_rect([self.offset, vec_add(&self.offset, &size)]);
+        if let Some(x) = reference
+        {
+            self.dirtify_rect(x);
+        }
     }
     pub(crate) fn flatten<'a, 'b>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&'b Image<4>>, mask : Option<&'b Image<1>>) -> &'b Image<4> where 'a: 'b
     {
@@ -351,6 +361,7 @@ impl Layer
     {
         let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()
+        //if self.flattened_data.is_none() && self.flattened_data.is_some()
         {
             return self.flattened_data.as_ref().unwrap();
         }
@@ -367,6 +378,7 @@ impl Layer
             #[allow(clippy::unnecessary_unwrap)] // broken lint
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
+                println!("asdf");
                 new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
                 self.flattened_data = Some(Image::blank(canvas_width, canvas_height));
             }
@@ -374,6 +386,7 @@ impl Layer
             {
                 //new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
                 new_dirty_rect = dirty_rect.unwrap();
+                println!("clearing rect {:?} (layer {})...", new_dirty_rect, self.name);
                 self.flattened_data.as_mut().unwrap().clear_rect_with_color_float(new_dirty_rect, [0.0, 0.0, 0.0, 0.0]);
             }
             // We keep track of what's "first" (bottommost) in a given group to give it a special blend mode against the empty flattening target layer.
@@ -389,117 +402,119 @@ impl Layer
             for i in (0..self.children.len()).rev()
             {
                 let (a, b) = self.children.split_at_mut(i);
+                let child = b.first_mut().unwrap();
+                if !child.visible
+                {
+                    child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                    continue;
+                }
                 let alen = a.len();
                 let mut above = a.last_mut();
-                let child = b.first_mut().unwrap();
                 let mut n = 0;
                 while above.is_some() && !above.as_ref().unwrap().visible && n < alen
                 {
                     n += 1;
                     above = a.get_mut(alen - 1 - n);
                 }
-                if child.visible
+                let mut mode = child.blend_mode.clone();
+                if mode == "Custom"
                 {
-                    let mut mode = child.blend_mode.clone();
-                    if mode == "Custom"
-                    {
-                        mode += &("\n".to_string() + &child.custom_blend_mode);
-                    }
-                    let opacity = child.opacity;
-                    let child_clipped = child.clipped;
+                    mode += &("\n".to_string() + &child.custom_blend_mode);
+                }
+                let opacity = child.opacity;
+                let child_clipped = child.clipped;
+                
+                //println!("???{:?}", self.offset);
+                let mut above_offset = [0, 0];
+                if child.data.is_some()
+                {
+                    above_offset = [child.offset[0] as isize, child.offset[1] as isize];
+                }
+                
+                let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                
+                #[allow(clippy::unnecessary_unwrap)] // broken lint
+                if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
+                {
+                    // child is a clip target, get into clip target mode
+                    // for color
+                    stash = Some(source_data.clone());
+                    stash_offs = above_offset;
+                    // remove alpha
+                    stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
+                    // for alpha, we restore the color bit's alpha with this later
+                    stash_clean = Some(source_data.clone());
+                    stash_is_first = first;
+                    stash_opacity = opacity;
+                    stash_blend_mode = mode.clone();
                     
-                    //println!("???{:?}", self.offset);
-                    let mut above_offset = [0, 0];
-                    if child.data.is_some()
-                    {
-                        above_offset = [child.offset[0] as isize, child.offset[1] as isize];
-                    }
+                    let mut rect = new_dirty_rect;
+                    rect[0][0] -= above_offset[0] as f32;
+                    rect[0][1] -= above_offset[1] as f32;
+                    rect[1][0] -= above_offset[0] as f32;
+                    rect[1][1] -= above_offset[1] as f32;
                     
-                    let source_data = child.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                    // blend top into it
+                    let above = above.unwrap();
+                    above_offset[0] = above.offset[0] as isize - stash_offs[0];
+                    above_offset[1] = above.offset[1] as isize - stash_offs[1];
+                    let above_opacity = above.opacity;
+                    let above_mode = &above.blend_mode.clone();
+                    let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                    stash.as_mut().unwrap().blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
+                }
+                else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
+                {
+                    // done with the clipping mask sequence, blend into rest of group
+                    // restore original alpha
+                    let mut rect = new_dirty_rect;
+                    rect[0][0] -= stash_offs[0] as f32;
+                    rect[0][1] -= stash_offs[1] as f32;
+                    rect[1][0] -= stash_offs[0] as f32;
+                    rect[1][1] -= stash_offs[1] as f32;
                     
-                    #[allow(clippy::unnecessary_unwrap)] // broken lint
-                    if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
+                    stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, [0, 0], "Clip Alpha");
+                    above_offset = stash_offs;
+                    if stash_is_first
                     {
-                        // child is a clip target, get into clip target mode
-                        // for color
-                        stash = Some(source_data.clone());
-                        stash_offs = above_offset;
-                        // remove alpha
-                        stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
-                        // for alpha, we restore the color bit's alpha with this later
-                        stash_clean = Some(source_data.clone());
-                        stash_is_first = first;
-                        stash_opacity = opacity;
-                        stash_blend_mode = mode.clone();
-                        
-                        let mut rect = new_dirty_rect;
-                        rect[0][0] -= above_offset[0] as f32;
-                        rect[0][1] -= above_offset[1] as f32;
-                        rect[1][0] -= above_offset[0] as f32;
-                        rect[1][1] -= above_offset[1] as f32;
-                        
-                        // blend top into it
-                        let above = above.unwrap();
-                        above_offset[0] = above.offset[0] as isize - stash_offs[0];
-                        above_offset[1] = above.offset[1] as isize - stash_offs[1];
-                        let above_opacity = above.opacity;
-                        let above_mode = &above.blend_mode.clone();
-                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        stash.as_mut().unwrap().blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
-                    }
-                    else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
-                    {
-                        // done with the clipping mask sequence, blend into rest of group
-                        // restore original alpha
-                        let mut rect = new_dirty_rect;
-                        rect[0][0] -= stash_offs[0] as f32;
-                        rect[0][1] -= stash_offs[1] as f32;
-                        rect[1][0] -= stash_offs[0] as f32;
-                        rect[1][1] -= stash_offs[1] as f32;
-                        
-                        stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, [0, 0], "Clip Alpha");
-                        above_offset = stash_offs;
-                        if stash_is_first
-                        {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, "Copy");
-                        }
-                        else
-                        {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, &stash_blend_mode);
-                        }
-                        
-                        stash = None;
-                        stash_clean = None;
-                    }
-                    else if let (Some(above), Some(ref mut stash)) = (above, stash.as_mut()) // above.is_some() is redundant with the above if branch, but left in for clarity
-                    {
-                        // continuing a clip mask blend
-                        let above_opacity = above.opacity;
-                        above_offset[0] = above.offset[0] as isize - stash_offs[0];
-                        above_offset[1] = above.offset[1] as isize - stash_offs[1];
-                        let above_mode = &above.blend_mode.clone();
-                        let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
-                        let mut rect = new_dirty_rect;
-                        rect[0][0] -= stash_offs[0] as f32;
-                        rect[0][1] -= stash_offs[1] as f32;
-                        rect[1][0] -= stash_offs[0] as f32;
-                        rect[1][1] -= stash_offs[1] as f32;
-                        stash.blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, "Copy");
                     }
                     else
                     {
-                        // normal layer blending
-                        if first
-                        {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, "Copy");
-                        }
-                        else
-                        {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &mode);
-                        }
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), mask, stash_opacity, above_offset, &stash_blend_mode);
                     }
-                    first = false;
+                    
+                    stash = None;
+                    stash_clean = None;
                 }
+                else if let (Some(above), Some(ref mut stash)) = (above, stash.as_mut()) // above.is_some() is redundant with the above if branch, but left in for clarity
+                {
+                    // continuing a clip mask blend
+                    let above_opacity = above.opacity;
+                    above_offset[0] = above.offset[0] as isize - stash_offs[0];
+                    above_offset[1] = above.offset[1] as isize - stash_offs[1];
+                    let above_mode = &above.blend_mode.clone();
+                    let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data, mask);
+                    let mut rect = new_dirty_rect;
+                    rect[0][0] -= stash_offs[0] as f32;
+                    rect[0][1] -= stash_offs[1] as f32;
+                    rect[1][0] -= stash_offs[0] as f32;
+                    rect[1][1] -= stash_offs[1] as f32;
+                    stash.blend_rect_from(rect, above_data, mask, above_opacity, above_offset, above_mode);
+                }
+                else
+                {
+                    // normal layer blending
+                    if first
+                    {
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, "Copy");
+                    }
+                    else
+                    {
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &mode);
+                    }
+                }
+                first = false;
             }
             self.flattened_dirty_rect = None;
             return self.flattened_data.as_ref().unwrap();
