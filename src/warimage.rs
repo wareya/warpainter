@@ -224,6 +224,22 @@ fn nop<T>(t : T) -> T
     t
 }
 
+fn get_thread_count() -> usize
+{
+    let mut thread_count = 4;
+    if let Some(count) = std::thread::available_parallelism().ok()
+    {
+        thread_count = count.get();
+    }
+    thread_count
+}
+use std::sync::OnceLock;
+static THREAD_POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
+fn get_pool() -> &'static rayon::ThreadPool
+{
+    THREAD_POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(get_thread_count()).build().unwrap())
+}
+
 impl Image<4>
 {
     pub (crate) fn from_rgbaimage(input : &image::RgbaImage) -> Self
@@ -301,15 +317,10 @@ impl Image<4>
         
         macro_rules! do_loop
         {
-            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr) =>
+            ($bottom:expr, $top:expr, $bottom_read_f:expr, $top_read_f:expr, $bottom_write_f:expr, $find_blend_func:expr, $find_post_func:expr) =>
             {
                 {
-                    let mut thread_count = 4;
-                    if let Some(count) = std::thread::available_parallelism().ok()
-                    {
-                        thread_count = count.get();
-                    }
-                    thread_count = 4;
+                    let thread_count = get_thread_count();
                     //println!("threadcount {}", thread_count);
                     let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
                     if !bottom.is_some()
@@ -342,101 +353,87 @@ impl Image<4>
                             ret
                         }
                     };
+                    
+                    macro_rules! apply_info { ($info:expr, $get_opacity:expr) =>
+                    {
+                        let blend_mode = $info.2;
+                        
+                        let blend_f = $find_blend_func(blend_mode);
+                        let post_f = $find_post_func(blend_mode);
+                        
+                        let bottom = $info.0;
+                        let offset = $info.1;
+                        let min_y = 0;
+                        let max_y = bottom.len()/self_width;
+                        
+                        for y in min_y..max_y
+                        {
+                            let self_index_y_part = y*self_width;
+                            let top_index_y_part = (y as isize + offset as isize - top_offset[1]) as usize * top_width;
+                            
+                            for x in min_x..max_x
+                            {
+                                let bottom_index = self_index_y_part + x;
+                                let top_index = (top_index_y_part as isize + x as isize - top_offset[0]) as usize;
+                                
+                                let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                let top_pixel = $top_read_f($top[top_index]);
+                                let opacity = $get_opacity(x, y + offset);
+                                
+                                let c = blend_f(top_pixel, bottom_pixel, opacity);
+                                let c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                
+                                bottom[bottom_index] = $bottom_write_f(c);
+                            }
+                        }
+                    } };
+                    
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         // FEARLESS CONCURRENCY
-                        std::thread::scope(|s|
+                        get_pool().install(||
                         {
-                            for info in infos
+                            rayon::scope(|s|
                             {
-                                let get_opacity = &get_opacity;
-                                s.spawn(move ||
+                                for info in infos
                                 {
-                                    let blend_mode = info.2;
-                                    
-                                    let blend_f = find_blend_func_float(blend_mode);
-                                    let post_f = find_post_func_float(blend_mode);
-                                    
-                                    let bottom = info.0;
-                                    let offset = info.1;
-                                    let min_y = 0;
-                                    let max_y = bottom.len()/self_width;
-                                    
-                                    for y in min_y..max_y
+                                    let get_opacity = &get_opacity;
+                                    s.spawn(move |_|
                                     {
-                                        let self_index_y_part = y*self_width;
-                                        let top_index_y_part = (y as isize + offset as isize - top_offset[1]) as usize * top_width;
-                                        
-                                        for x in min_x..max_x
-                                        {
-                                            let bottom_index = self_index_y_part + x;
-                                            let top_index = (top_index_y_part as isize + x as isize - top_offset[0]) as usize;
-                                            
-                                            let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                            let top_pixel = $top_read_f($top[top_index]);
-                                            let opacity = get_opacity(x, y + offset);
-                                            
-                                            let c = blend_f(top_pixel, bottom_pixel, opacity);
-                                            let c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
-                                            
-                                            bottom[bottom_index] = $bottom_write_f(c);
-                                        }
-                                    }
-                                });
-                            }
+                                        apply_info!(info, get_opacity);
+                                    });
+                                }
+                            });
                         });
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
                         for info in infos
                         {
-                            let blend_mode = info.2;
-                            
-                            let blend_f = find_blend_func_float(blend_mode);
-                            let post_f = find_post_func_float(blend_mode);
-                            
-                            let bottom = info.0;
-                            let offset = info.1;
-                            let min_y = 0;
-                            let max_y = bottom.len()/self_width;
-                            
-                            for y in min_y..max_y
-                            {
-                                let self_index_y_part = y*self_width;
-                                let top_index_y_part = (y as isize + offset as isize - top_offset[1]) as usize * top_width;
-                                
-                                for x in min_x..max_x
-                                {
-                                    let bottom_index = self_index_y_part + x;
-                                    let top_index = (top_index_y_part as isize + x as isize - top_offset[0]) as usize;
-                                    
-                                    let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                    let top_pixel = $top_read_f($top[top_index]);
-                                    let opacity = get_opacity(x, y + offset);
-                                    
-                                    let c = blend_f(top_pixel, bottom_pixel, opacity);
-                                    let c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
-                                    
-                                    bottom[bottom_index] = $bottom_write_f(c);
-                                }
-                            }
+                            apply_info!(info, get_opacity);
                         }
                     }
                 }
             }
         }
         
+        //use std::time::Instant;
+        //let start = Instant::now();
+
         match (&mut self.data, &top.data)
         {
             (ImageData::<4>::Float(bottom), ImageData::<4>::Float(top)) =>
-                do_loop!(bottom, top,         nop,         nop,       nop),
+                do_loop!(bottom, top,         nop,         nop,       nop, find_blend_func_float, find_post_func_float),
             (ImageData::<4>::Float(bottom), ImageData::<4>::Int(top)) =>
-                do_loop!(bottom, top,         nop, px_to_float,       nop),
+                do_loop!(bottom, top,         nop, px_to_float,       nop, find_blend_func_float, find_post_func_float),
             (ImageData::<4>::Int(bottom), ImageData::<4>::Float(top)) =>
-                do_loop!(bottom, top, px_to_float,         nop, px_to_int),
+                do_loop!(bottom, top, px_to_float,         nop, px_to_int, find_blend_func_float, find_post_func_float),
             (ImageData::<4>::Int(bottom), ImageData::<4>::Int(top)) =>
-                do_loop!(bottom, top, px_to_float, px_to_float, px_to_int),
+                do_loop!(bottom, top, nop, nop, nop, find_blend_func, find_post_func),
         }
+        
+        //let elapsed = start.elapsed().as_secs_f32();
+        //println!("Blended in {:.6} seconds", elapsed);
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {

@@ -411,7 +411,7 @@ impl Layer
                 let alen = a.len();
                 let mut above = a.last_mut();
                 let mut n = 0;
-                while above.is_some() && !above.as_ref().unwrap().visible && n < alen
+                while above.is_some() && !above.as_ref().unwrap().visible && n + 1 < alen
                 {
                     n += 1;
                     above = a.get_mut(alen - 1 - n);
