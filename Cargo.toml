@@ -28,7 +28,6 @@ base64 = "0.21.0"
 ouroboros = "0.15.6"
 getrandom = { version = "0.2.11", features = ["js"] }
 rand = "0.8.0"
-psd = { git = "https://github.com/wareya/psd.git" }
 poll-promise = { version = "0.3.0", features = ["web"] }
 
 [target.'cfg(target_os = "android")'.dependencies]

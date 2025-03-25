@@ -1,140 +1,93 @@
 use std::collections::HashMap;
 
-use psd::{ColorMode, Psd, PsdChannelCompression};
-
 use crate::*;
 
-fn packbits_decompress(input : &[u8]) -> Vec<u8>
+pub (crate) fn get_blend_mode(mode : &str) -> String
 {
-    let mut output = Vec::new();
-    let mut i = 0;
-    while i < input.len()
+    match mode
     {
-        let byte = input[i];
-        i += 1;
-        if byte <= 127
-        {
-            let len = byte as usize + 1;
-            if i + len > input.len()
-            {
-                break;
-            }
-            output.extend_from_slice(&input[i..i + len]);
-            i += len;
-        }
-        else if byte != 128
-        {
-            let len = 257usize.wrapping_sub(byte as usize);
-            if i >= input.len()
-            {
-                break;
-            }
-            output.extend(std::iter::repeat(input[i]).take(len));
-            i += 1;
-        }
-    }
-    output
+        "pass" => "Normal",
+        "norm" => "Normal",
+        "diss" => "Dither",
+        "dark" => "Darken",
+        "mul " => "Multiply",
+        "idiv" => "Color Burn",
+        "lbrn" => "Linear Burn",
+        "dkCl" => "Darken",
+        "lite" => "Lighten",
+        "scrn" => "Screen",
+        "div " => "Color Dodge",
+        "lddg" => "Glow Dodge",
+        "lgCl" => "Lighten",
+        "over" => "Overlay",
+        "sLit" => "SoftLight",
+        "hLit" => "Hard Light",
+        "vLit" => "Vivid Light",
+        "lLit" => "Linear Light",
+        "pLit" => "Pin Light",
+        "hMix" => "Hard Mix",
+        "diff" => "Difference",
+        "smud" => "Exclusion",
+        "fsub" => "Subtract",
+        "fdiv" => "Divide",
+        "hue " => "Hue",
+        "sat " => "Saturation",
+        "colr" => "Color",
+        "lum " => "Luminosity",
+        _ => "Normal",
+    }.to_string()
 }
+
+use crate::wpsd_raw::*;
 
 pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
 {
-    let psd = Psd::from_bytes(&bytes).unwrap();
+    let psd_data = parse_psd_metadata(&bytes);
+    let psd_layers = parse_layer_records(&bytes);
     
     app.layers = Layer::new_group("___root___");
-    app.canvas_width = psd.width() as usize;
-    app.canvas_height = psd.height() as usize;
+    app.canvas_width = psd_data.width as usize;
+    app.canvas_height = psd_data.height as usize;
     
-    let mut group = Layer::new_group("PSD File");
-    let group_uuid = group.uuid;
+    let mut root = Layer::new_group("PSD File");
+    let mut stack = vec!(root);
     
-    let mut layers = HashMap::<usize, Layer>::new();
-    
-    for (i, layer) in psd.layers().iter().enumerate() {
-        let pxbytes : Vec<u8> = layer.rgba();
-        
-        use psd::IntoRgba;
-        use psd::PsdChannelKind;
-        
-        let w = layer.width() as u32;
-        let h = layer.height() as u32;
-        let mut rgba = vec![255; (w*h*4) as usize];
-        
-        use psd::ChannelBytes;
-        let insert = |rgba : &mut [u8], offs : usize, bytes : & ChannelBytes|
-        {
-            let bytes = match bytes {
-                ChannelBytes::RawData(channel_bytes) => channel_bytes.to_vec(),
-                ChannelBytes::RleCompressed(channel_bytes) => packbits_decompress(&channel_bytes),
-            };
-            for i in 0..bytes.len()
-            {
-                rgba[i as usize*4 + offs] = bytes[i as usize];
-            }
-        };
-        let r = layer.get_channel(PsdChannelKind::Red).unwrap();
-        let g = layer.get_channel(PsdChannelKind::Green).unwrap_or(r);
-        let b = layer.get_channel(PsdChannelKind::Blue).unwrap_or(r);
-        insert(&mut rgba, 0, r);
-        insert(&mut rgba, 1, g);
-        insert(&mut rgba, 2, b);
-        if let Some(a) = layer.get_channel(PsdChannelKind::TransparencyMask)
-        {
-            insert(&mut rgba, 3, a);
-        }
-        
-        //println!("cough: {} {} {}", rgba.len(), layer.width(), layer.height());
-        
-        if let Some(img) = image::RgbaImage::from_raw(w, h, rgba)
+    for (i, layerdata) in psd_layers.into_iter().enumerate()
+    {
+        let w = layerdata.w as u32;
+        let h = layerdata.h as u32;
+        if let Some(img) = image::RgbaImage::from_raw(w, h, layerdata.image_data_rgba)
         {
             let img = Image::<4>::from_rgbaimage(&img);
-            let mut image_layer = Layer::new_layer_from_image("New Layer", img);
-            image_layer.name = layer.name().to_string();
-            image_layer.offset[0] = layer.layer_left() as f32;
-            image_layer.offset[1] = layer.layer_top() as f32;
-            image_layer.clipped = !layer.is_clipping_mask();
-            image_layer.visible = layer.visible();
-            //println!("!!!!{:?}", image_layer.offset);
-            use psd::*;
-            image_layer.blend_mode = match layer.blend_mode()
+            let mut layer = if layerdata.group_opener { Layer::new_group("New Layer") } else { Layer::new_layer_from_image("New Layer", img) };
+            layer.name = layerdata.name.to_string();
+            layer.offset[0] = layerdata.x as f32;
+            layer.offset[1] = layerdata.y as f32;
+            layer.clipped = layerdata.is_clipped;
+            layer.visible = layerdata.is_visible;
+            //println!("!!!!{:?}", layer.offset);
+            layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
+            //println!("layer {}: {} (of {:?})", i, layer.name, layer.parent_id());
+            println!("layer {}: {}", i, layer.name);
+            
+            if layerdata.group_closer
             {
-                BlendMode::PassThrough   => "Normal",
-                BlendMode::Normal        => "Normal",
-                BlendMode::Dissolve      => "Dither",
-                BlendMode::Darken        => "Darken",
-                BlendMode::Multiply      => "Multiply",
-                BlendMode::ColorBurn     => "Color Burn",
-                BlendMode::LinearBurn    => "Linear Burn",
-                BlendMode::DarkerColor   => "Darken",
-                BlendMode::Lighten       => "Lighten",
-                BlendMode::Screen        => "Screen",
-                BlendMode::ColorDodge    => "Color Dodge",
-                BlendMode::LinearDodge   => "Glow Dodge",
-                BlendMode::LighterColor  => "Lighten",
-                BlendMode::Overlay       => "Overlay",
-                BlendMode::SoftLight     => "SoftLight",
-                BlendMode::HardLight     => "Hard Light",
-                BlendMode::VividLight    => "Vivid Light",
-                BlendMode::LinearLight   => "Linear Light",
-                BlendMode::PinLight      => "Pin Light",
-                BlendMode::HardMix       => "Hard Mix",
-                BlendMode::Difference    => "Difference",
-                BlendMode::Exclusion     => "Exclusion",
-                BlendMode::Subtract      => "Subtract",
-                BlendMode::Divide        => "Divide",
-                BlendMode::Hue           => "Hue",
-                BlendMode::Saturation    => "Saturation",
-                BlendMode::Color         => "Color",
-                BlendMode::Luminosity    => "Luminosity",
-                _ => "Normal",
-            }.to_string();
-            println!("layer {}: {} (of {:?})", i, image_layer.name, layer.parent_id());
-            //group.children.insert(0, image_layer);
-            group.children.push(image_layer);
-            //layers.insert(i, image_layer);
+                stack.push(layer);
+            }
+            else if layerdata.group_opener
+            {
+                let mut temp = stack.pop().unwrap();
+                std::mem::swap(&mut temp.children, &mut layer.children);
+                stack.last_mut().unwrap().children.insert(0, layer);
+            }
+            else
+            {
+                stack.last_mut().unwrap().children.insert(0, layer);
+            }
         }
     }
-    
-    app.layers.children = vec!(group);
+    assert!(stack.len() == 1);
+    app.layers.children = vec!(stack.pop().unwrap());
     //for (i, group) in psd.groups() {
     //    let name = group.name();
     //    println!("group {}: {}", i, name);

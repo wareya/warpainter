@@ -2373,14 +2373,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afbdc74edc00b6f6a218ca6a5364d6226a259d4b8ea1af4a0ea063f27e179f4d"
 
 [[package]]
-name = "psd"
-version = "0.3.5"
-source = "git+https://github.com/wareya/psd.git#683c5747384a7c44287dedb5dc2933304bfb4f73"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "qoi"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3093,7 +3085,6 @@ dependencies = [
  "ndk-sys 0.4.1+23.1.7779620",
  "ouroboros",
  "poll-promise",
- "psd",
  "rand",
  "rfd",
  "snap",

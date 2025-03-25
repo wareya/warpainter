@@ -392,6 +392,10 @@ impl Image<4>
         //println!("{:?}, {}, {}", top_offset, self.height, max_y);
         
         let self_width = self.width;
+        if self_width == 0
+        {
+            return;
+        }
         let top_width = top.width;
         
         let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask

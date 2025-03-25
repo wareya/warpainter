@@ -17,6 +17,7 @@ use eframe::egui_glow::glow;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 mod wpsd;
+mod wpsd_raw;
 mod warimage;
 mod transform;
 mod widgets;
