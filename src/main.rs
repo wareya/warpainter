@@ -158,6 +158,9 @@ impl Default for Warpainter
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
+        let mut xform = Transform::ident();
+        xform.scale(16.0);
+        
         use rand::Rng;
         Self {
             layers : root_layer,
@@ -171,7 +174,7 @@ impl Default for Warpainter
             editing_image : None,
             
             //image_preview : None,
-            xform : Transform::ident(),
+            xform,
             debug_text : Vec::new(),
             
             eraser_mode : false,
@@ -1726,10 +1729,27 @@ fn main()
     //options.initial_window_size = Some([1280.0, 720.0].into());
     options.viewport = egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]).with_drag_and_drop(true);
     
+    let mut wp = Box::<Warpainter>::default();
+    
+    let fname = std::env::args().nth(1).unwrap_or_default();
+    
+    if fname.ends_with(".psd")
+    {
+        let bytes = std::fs::read(fname).unwrap();
+        wpsd_open(&mut *wp, &bytes);
+    }
+    else
+    {
+        // FIXME handle error
+        let img = image::io::Reader::open(fname).unwrap().decode().unwrap().to_rgba8();
+        let img = Image::<4>::from_rgbaimage(&img);
+        wp.load_from_img(img);
+    }
+    
     eframe::run_native (
         "Warpainter",
         options,
-        Box::new(|_| Ok(Box::<Warpainter>::default())),
+        Box::new(|_| Ok(wp)),
     ).unwrap();
 }
 

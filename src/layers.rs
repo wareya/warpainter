@@ -372,6 +372,7 @@ impl Layer
             }
             else
             {
+                //new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
                 new_dirty_rect = dirty_rect.unwrap();
                 self.flattened_data.as_mut().unwrap().clear_rect_with_color_float(new_dirty_rect, [0.0, 0.0, 0.0, 0.0]);
             }
@@ -388,8 +389,15 @@ impl Layer
             for i in (0..self.children.len()).rev()
             {
                 let (a, b) = self.children.split_at_mut(i);
-                let above = a.last_mut();
+                let alen = a.len();
+                let mut above = a.last_mut();
                 let child = b.first_mut().unwrap();
+                let mut n = 0;
+                while above.is_some() && !above.as_ref().unwrap().visible && n < alen
+                {
+                    n += 1;
+                    above = a.get_mut(alen - 1 - n);
+                }
                 if child.visible
                 {
                     let mut mode = child.blend_mode.clone();
@@ -449,7 +457,7 @@ impl Layer
                         rect[1][0] -= stash_offs[0] as f32;
                         rect[1][1] -= stash_offs[1] as f32;
                         
-                        stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, above_offset, "Clip Alpha");
+                        stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), mask, stash_opacity, [0, 0], "Clip Alpha");
                         above_offset = stash_offs;
                         if stash_is_first
                         {
@@ -490,8 +498,8 @@ impl Layer
                             self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, mask, opacity, above_offset, &mode);
                         }
                     }
+                    first = false;
                 }
-                first = false;
             }
             self.flattened_dirty_rect = None;
             return self.flattened_data.as_ref().unwrap();

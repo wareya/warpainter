@@ -298,6 +298,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         let blend_mode = String::from_utf8_lossy(&blend_mode_key).to_string();
 
         let opacity = read_u8(&mut cursor) as f32 / 255.0;
+        println!("opacity: {}", opacity * 100.0);
         let clipping = read_u8(&mut cursor);
         let flags = read_u8(&mut cursor);
         let _filler = read_u8(&mut cursor);
@@ -407,6 +408,8 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             is_alpha_locked : (flags & 1) != 0,
             is_visible : (flags & 2) == 0,
         };
+        
+        //println!("--- {:X}", cursor.position());
         
         while cursor.position() < exdat_start + exdat_len
         {
