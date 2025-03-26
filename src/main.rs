@@ -770,7 +770,7 @@ impl Warpainter
         }
     }
     
-    fn mark_current_layer_dirty(&mut self, mut rect : [[f32; 2]; 2])
+    fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -1038,7 +1038,7 @@ impl eframe::App for Warpainter
                         {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Supported Image Formats",
-                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
+                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi", "psd"])
                                 //.add_filter("Warpainter Project",
                                 //    &["wrp"])
                                 .pick_file()

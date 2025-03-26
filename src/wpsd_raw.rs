@@ -1,7 +1,20 @@
 use std::io::Cursor;
 use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
+use std::any::Any;
+
+#[derive(Clone, Debug, Default)]
+pub enum DescItem
+{
+    long(i32),
+    doub(f64),
+    bool(bool),
+    TEXT(String),
+    Err(String),
+    Objc(Box<Descriptor>),
+    #[default] Xxx
+}
+
+type Descriptor = (String, Vec<(String, DescItem)>);
 
 #[derive(Clone, Debug, Default)]
 pub struct MaskData {
@@ -38,6 +51,9 @@ pub struct LayerInfo {
     pub is_clipped : bool,
     pub is_alpha_locked : bool,
     pub is_visible : bool,
+    pub adjustment_type : String,
+    pub adjustment_info : Vec<f32>,
+    pub adjustment_desc : Option<Descriptor>,
 }
 
 fn read_u8(cursor: &mut Cursor<&[u8]>) -> u8
@@ -73,6 +89,13 @@ fn read_f32(cursor: &mut Cursor<&[u8]>) -> f32
     let mut buf = [0; 4];
     cursor.read_exact(&mut buf).expect("Failed to read f32");
     f32::from_be_bytes(buf)
+}
+
+fn read_f64(cursor: &mut Cursor<&[u8]>) -> f64
+{
+    let mut buf = [0; 8];
+    cursor.read_exact(&mut buf).expect("Failed to read f64");
+    f64::from_be_bytes(buf)
 }
 
 pub fn parse_psd_metadata(data : &[u8]) -> PsdMetadata
@@ -407,6 +430,9 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             is_clipped : clipping == 1,
             is_alpha_locked : (flags & 1) != 0,
             is_visible : (flags & 2) == 0,
+            adjustment_type : "".to_string(),
+            adjustment_info : vec!(),
+            adjustment_desc : None,
         };
         
         //println!("--- {:X}", cursor.position());
@@ -426,6 +452,65 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             let start = cursor.position();
             
             println!("reading metadata.... {}", name.as_str());
+            
+            fn read_descriptor(c : &mut Cursor<&[u8]>) -> Descriptor
+            {
+                // skip name. usually/often blank
+                let n = read_u32(c) as u64;
+                c.set_position(c.position() + n * 2);
+                
+                let mut idlen = read_u32(c);
+                if idlen == 0 { idlen = 4; }
+                let mut id = vec![0; idlen as usize];
+                c.read_exact(&mut id).unwrap();
+                let id = String::from_utf8_lossy(&id).to_string();
+                
+                let mut data = vec!();
+                
+                let itemcount = read_u32(c);
+                
+                for _ in 0..itemcount
+                {
+                    let mut namelen = read_u32(c);
+                    if namelen == 0 { namelen = 4; }
+                    let mut name = vec![0; namelen as usize];
+                    c.read_exact(&mut name).unwrap();
+                    let name = String::from_utf8_lossy(&name).to_string();
+                    
+                    let mut id = vec![0; 4];
+                    c.read_exact(&mut id).unwrap();
+                    let id = String::from_utf8_lossy(&id).to_string();
+                    
+                    match id.as_str()
+                    {
+                        "long" => data.push((name, DescItem::long(read_i32(c)))),
+                        "doub" => data.push((name, DescItem::doub(read_f64(c)))),
+                        "Objc" => data.push((name, DescItem::Objc(Box::new(read_descriptor(c))))),
+                        "bool" => data.push((name, DescItem::bool(read_u8(c) != 0))),
+                        "TEXT" =>
+                        {
+                            let len = read_u32(c) as u64;
+                            let mut text = vec![0; len as usize * 2];
+                            for i in 0..len
+                            {
+                                text[i as usize] = read_u16(c);
+                            }
+                            let text = String::from_utf16_lossy(&text).to_string();
+                            data.push((name, DescItem::TEXT(text)));
+                        }
+                        _ =>
+                        {
+                            println!("!!! errant descriptor subobject type... {}", id);
+                            data.push((name, DescItem::Err(id)));
+                            break;
+                        }
+                    }
+                }
+                
+                //
+                
+                (id, data)
+            };
             
             match name.as_str()
             {
@@ -452,6 +537,111 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                         name[i as usize] = read_u16(&mut cursor);
                     }
                     layer.name = String::from_utf16_lossy(&name).to_string();
+                }
+                // adjustment layers
+                "post" =>
+                {
+                    let mut data = vec!();
+                    data.push(read_u16(&mut cursor) as f32); // number of levels
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "nvrt" =>
+                {
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = vec!();
+                }
+                "brit" =>
+                {
+                    let mut data = vec!();
+                    data.push(read_u16(&mut cursor) as f32); // brightness
+                    data.push(read_u16(&mut cursor) as f32); // contrast
+                    data.push(read_u16(&mut cursor) as f32); // "Mean value for brightness and contrast"
+                    data.push(read_u8(&mut cursor) as f32); // "Lab color only"
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "thrs" =>
+                {
+                    let mut data = vec!();
+                    data.push(read_u16(&mut cursor) as f32);
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "hue2" =>
+                {
+                    let mut data = vec!();
+                    
+                    assert!(read_u16(&mut cursor) == 2);
+                    data.push(read_u8(&mut cursor) as f32); // if 1, is absolute/colorization (rather than relative)
+                    read_u8(&mut cursor);
+                    
+                    // "colorization"
+                    data.push(read_u16(&mut cursor) as i16 as f32); // hue
+                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // sat
+                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // lightness (-1 to +1)
+                    
+                    // "master"
+                    data.push(read_u16(&mut cursor) as i16 as f32); // hue
+                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // sat
+                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // lightness (-1 to +1)
+                    
+                    println!("hsl data: {:?}", data);
+                    
+                    // todo: read hextant values?
+                    
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "levl" =>
+                {
+                    let mut data = vec!();
+                    
+                    assert!(read_u16(&mut cursor) == 2);
+                    for i in 0..28
+                    {
+                        data.push(read_u16(&mut cursor) as f32 / 255.0); // in floor
+                        data.push(read_u16(&mut cursor) as f32 / 255.0); // in ceil
+                        data.push(read_u16(&mut cursor) as f32 / 255.0); // out floor
+                        data.push(read_u16(&mut cursor) as f32 / 255.0); // out ceil
+                        data.push(read_u16(&mut cursor) as f32 / 100.0); // gamma
+                    }
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "curv" =>
+                {
+                    let mut data = vec!();
+                    
+                    read_u8(&mut cursor);
+                    assert!(read_u16(&mut cursor) == 1);
+                    let enabled = read_u32(&mut cursor);
+                    
+                    for i in 0..32
+                    {
+                        if (enabled & (1u32 << i)) != 0
+                        {
+                            let n = read_u16(&mut cursor);
+                            data.push(n as f32); // number of points
+                            for _ in 0..n
+                            {
+                                data.push(read_u16(&mut cursor) as f32 / 255.0); // x
+                                data.push(read_u16(&mut cursor) as f32 / 255.0); // y
+                            }
+                        }
+                        else
+                        {
+                            data.push(0.0); // number of points
+                        }
+                    }
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_info = data;
+                }
+                "blwh" =>
+                {
+                    assert!(read_u32(&mut cursor) == 16);
+                    layer.adjustment_type = name.clone();
+                    layer.adjustment_desc = Some(read_descriptor(&mut cursor));
                 }
                 _ => {}
             }

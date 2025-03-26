@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::*;
 
@@ -49,7 +48,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
     app.canvas_width = psd_data.width as usize;
     app.canvas_height = psd_data.height as usize;
     
-    let mut root = Layer::new_group("PSD File");
+    let root = Layer::new_group("PSD File");
     let mut stack = vec!(root);
     
     for (i, layerdata) in psd_layers.into_iter().enumerate()

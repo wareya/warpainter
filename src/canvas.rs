@@ -1,6 +1,5 @@
 
 use alloc::sync::Arc;
-use alloc::rc::Rc;
 
 use eframe::egui;
 use eframe::egui_glow;

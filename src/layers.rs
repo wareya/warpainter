@@ -267,7 +267,7 @@ impl Layer
         let mut reference = None;
         for child in self.children.iter()
         {
-            if let Some(mut inner) = child.get_flatten_dirty_rect()
+            if let Some(inner) = child.get_flatten_dirty_rect()
             {
                 if reference.is_some()
                 {
@@ -281,7 +281,7 @@ impl Layer
         }
         reference
     }
-    pub(crate) fn dirtify_rect(&mut self, mut inner : [[f32; 2]; 2])
+    pub(crate) fn dirtify_rect(&mut self, inner : [[f32; 2]; 2])
     {
         if self.flattened_dirty_rect.is_some()
         {

@@ -281,7 +281,7 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, mut rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         //rect[0][0] += top_offset[0] as f32;
         //rect[1][0] += top_offset[0] as f32;

@@ -500,7 +500,7 @@ impl Tool for Pencil
         if new_input.held[0] || self.prev_input.held[0]
         {
             let do_smooth = self.smooth_mode;
-            let mut prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
+            let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
             let mut coord = vec_floor(&new_input.canvas_mouse_coord);
             
             // broken lint
