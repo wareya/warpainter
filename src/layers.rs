@@ -390,6 +390,15 @@ impl Layer
     }
     pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>) -> &'a Image<4>
     {
+        if self.adjustment.is_some()
+        {
+            if self.flattened_data.is_none()
+            {
+                self.flattened_data = Some(Image::blank(1, 1));
+            }
+            return self.flattened_data.as_ref().unwrap();
+        }
+        
         let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()
         //if self.flattened_data.is_none() && self.flattened_data.is_some()
@@ -480,7 +489,7 @@ impl Layer
                 };
                 
                 #[allow(clippy::unnecessary_unwrap)] // broken lint
-                if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped
+                if above.is_some() && above.as_ref().unwrap().clipped && !child_clipped && !child.adjustment.is_some()
                 {
                     // child is a clip target, get into clip target mode
                     // for color
@@ -510,21 +519,28 @@ impl Layer
                     let above_mode = &above.blend_mode.clone();
                     //let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);
                     
-                    above.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                    let above_data = if above.would_override(override_uuid, override_data)
+                    if let Some(adjustment) = &above.adjustment
                     {
-                        override_data.unwrap()
-                    }
-                    else if above.flattened_data.is_some()
-                    {
-                        above.flattened_data.as_ref().unwrap()
+                        stash.as_mut().unwrap().apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_mode);
                     }
                     else
                     {
-                        above.data.as_ref().unwrap()
-                    };
-                    
-                    stash.as_mut().unwrap().blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                        above.flatten(canvas_width, canvas_height, override_uuid, override_data);
+                        let above_data = if above.would_override(override_uuid, override_data)
+                        {
+                            override_data.unwrap()
+                        }
+                        else if above.flattened_data.is_some()
+                        {
+                            above.flattened_data.as_ref().unwrap()
+                        }
+                        else
+                        {
+                            above.data.as_ref().unwrap()
+                        };
+                        
+                        stash.as_mut().unwrap().blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                    }
                 }
                 else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
                 {
@@ -561,37 +577,51 @@ impl Layer
                     above_offset[1] = above.offset[1] as isize - stash_offs[1];
                     let above_mode = &above.blend_mode.clone();
                     
-                    above.flatten(canvas_width, canvas_height, override_uuid, override_data);
-                    let above_data = if above.would_override(override_uuid, override_data)
-                    {
-                        override_data.unwrap()
-                    }
-                    else if above.flattened_data.is_some()
-                    {
-                        above.flattened_data.as_ref().unwrap()
-                    }
-                    else
-                    {
-                        above.data.as_ref().unwrap()
-                    };
-                    
                     let mut rect = new_dirty_rect;
                     rect[0][0] -= stash_offs[0] as f32;
                     rect[0][1] -= stash_offs[1] as f32;
                     rect[1][0] -= stash_offs[0] as f32;
                     rect[1][1] -= stash_offs[1] as f32;
-                    stash.blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
-                }
-                else
-                {
-                    // normal layer blending
-                    if first
+                    
+                    if let Some(adjustment) = &above.adjustment
                     {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, "Copy");
+                        stash.apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_mode);
                     }
                     else
                     {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, &mode);
+                        above.flatten(canvas_width, canvas_height, override_uuid, override_data);
+                        let above_data = if above.would_override(override_uuid, override_data)
+                        {
+                            override_data.unwrap()
+                        }
+                        else if above.flattened_data.is_some()
+                        {
+                            above.flattened_data.as_ref().unwrap()
+                        }
+                        else
+                        {
+                            above.data.as_ref().unwrap()
+                        };
+                        stash.blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                    }
+                }
+                else
+                {
+                    if let Some(adjustment) = &child.adjustment
+                    {
+                        self.flattened_data.as_mut().unwrap().apply_adjustment(new_dirty_rect, &adjustment, child.mask.as_ref(), child.mask_info.as_ref(), opacity, &mode);
+                    }
+                    else
+                    {
+                        // normal layer blending
+                        if first
+                        {
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, "Copy");
+                        }
+                        else
+                        {
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, &mode);
+                        }
                     }
                 }
                 first = false;

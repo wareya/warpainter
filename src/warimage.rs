@@ -5,6 +5,8 @@ use crate::UndoEvent;
 use crate::pixelmath::*;
 use crate::transform::*;
 use crate::wpsd_raw::MaskInfo;
+use crate::Adjustment;
+
 /*
 // for flattened slices. not used right now
 #[inline]
@@ -319,6 +321,172 @@ impl Image<4>
         }
         Self { width : w, height : h, data }
     }
+    #[inline(never)]
+    pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, blend_mode : &str)
+    {
+        let min_x = 0.max(rect[0][0].floor() as isize) as usize;
+        let max_x = (self.width  as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
+        let min_y = 0.max(rect[0][1].floor() as isize) as usize;
+        let max_y = (self.height as isize).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
+        
+        //println!("{:?}, {}, {}", top_offset, self.height, max_y);
+        
+        let self_width = self.width;
+        if self_width == 0
+        {
+            return;
+        }
+        let _info = mask_info.cloned();
+        let info = mask_info.as_ref();
+        let xoffs = info.map(|n| n.x).unwrap_or(0) as isize;
+        let yoffs = info.map(|n| n.y).unwrap_or(0) as isize;
+        let default = mask_info.map(|n| n.default_color as f32 / 255.0).unwrap_or(0.0);
+        
+        //println!("{:?}", mask);
+        println!("???????? {:?}", mask_info);
+        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let (Some(mask), false) = (mask, mask_info.map(|x| x.disabled).unwrap_or(false))
+        //let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
+        {
+            Box::new(|x : usize, y : usize| mask.get_pixel_float_default(x as isize - xoffs, y as isize - yoffs, default)[0] * top_opacity)
+        }
+        else
+        {
+            Box::new(|_x : usize, _y : usize| top_opacity)
+        };
+        
+        fn do_adjustment_float(mut c : [f32; 4], adjustment : &Adjustment) -> [f32; 4]
+        {
+            for i in 0..3
+            {
+                c[i] = if c[i] > 0.5 { 1.0 } else { 0.0 };
+            }
+            c
+        }
+        fn do_adjustment(mut c : [u8; 4], adjustment : &Adjustment) -> [u8; 4]
+        {
+            for i in 0..3
+            {
+                c[i] = if c[i] > 127 { 255 } else { 0 };
+            }
+            c
+        }
+        
+        // separate from loop_rect_threaded because this is used by layer stack flattening, and needs to be as fast as possible
+        // so we do everything purely with a macro to ensure that as much inlining can be done as the compiler is capable of
+        
+        macro_rules! do_loop
+        {
+            ($bottom:expr, $find_blend_func:expr, $find_post_func:expr, $do_adjustment:expr) =>
+            {
+                {
+                    let thread_count = get_thread_count();
+                    let bottom = $bottom.get_mut(min_y*self_width..max_y*self_width);
+                    if !bottom.is_some()
+                    {
+                        return;
+                    }
+                    let mut bottom = bottom.unwrap();
+                    let infos =
+                    {
+                        let row_count = max_y - min_y + 1;
+                        if row_count < thread_count { vec!((bottom, min_y, blend_mode.clone())) }
+                        else
+                        {
+                            let chunk_size_rows = row_count/thread_count;
+                            let chunk_size_pixels = chunk_size_rows*self_width;
+                            let mut ret = Vec::new();
+                            for i in 0..thread_count
+                            {
+                                if i+1 < thread_count
+                                {
+                                    let (split, remainder) = bottom.split_at_mut(chunk_size_pixels);
+                                    bottom = remainder;
+                                    ret.push((split, min_y + chunk_size_rows*i, blend_mode.clone()));
+                                }
+                            }
+                            if bottom.len() > 0
+                            {
+                                ret.push((bottom, min_y + chunk_size_rows*(thread_count-1), blend_mode.clone()));
+                            }
+                            ret
+                        }
+                    };
+                    
+                    macro_rules! apply_info { ($info:expr, $get_opacity:expr) =>
+                    {
+                        let blend_mode = $info.2;
+                        
+                        let blend_f = $find_blend_func(blend_mode);
+                        let post_f = $find_post_func(blend_mode);
+                        
+                        let bottom = $info.0;
+                        let offset = $info.1;
+                        let min_y = 0;
+                        let max_y = bottom.len()/self_width;
+                        
+                        for y in min_y..max_y
+                        {
+                            let self_index_y_part = y*self_width;
+                            
+                            for x in min_x..max_x
+                            {
+                                let bottom_index = self_index_y_part + x;
+                                
+                                let mut bottom_pixel = bottom[bottom_index];
+                                let opacity = $get_opacity(x, y + offset);
+                                
+                                let top_pixel = $do_adjustment(bottom_pixel, adjustment);
+                                
+                                let c = blend_f(top_pixel, bottom_pixel, opacity);
+                                let mut c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
+                                c[3] = bottom_pixel[3];
+                                
+                                bottom[bottom_index] = c;
+                            }
+                        }
+                    } };
+                    
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        // FEARLESS CONCURRENCY
+                        get_pool().install(||
+                        {
+                            rayon::scope(|s|
+                            {
+                                for info in infos
+                                {
+                                    let get_opacity = &get_opacity;
+                                    s.spawn(move |_|
+                                    {
+                                        apply_info!(info, get_opacity);
+                                    });
+                                }
+                            });
+                        });
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        for info in infos
+                        {
+                            apply_info!(info, get_opacity);
+                        }
+                    }
+                }
+            }
+        }
+        
+        //use std::time::Instant;
+        //let start = Instant::now();
+
+        match (&mut self.data)
+        {
+            (ImageData::<4>::Float(bottom)) =>
+                do_loop!(bottom, find_blend_func_float, find_post_func_float, do_adjustment_float),
+            (ImageData::<4>::Int(bottom)) =>
+                do_loop!(bottom, find_blend_func, find_post_func, do_adjustment),
+        }
+        
+    }
     
     #[inline(never)]
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
@@ -328,7 +496,6 @@ impl Image<4>
         //rect[0][1] += top_offset[1] as f32;
         //rect[1][1] += top_offset[1] as f32;
         
-        // top opacity is ignored if a mask is used
         let min_x = 0.max(rect[0][0].floor() as isize).max(top_offset[0]) as usize;
         let max_x = ((self.width  as isize).min(top.width  as isize + top_offset[0])).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
         let min_y = 0.max(rect[0][1].floor() as isize).max(top_offset[1]) as usize;
