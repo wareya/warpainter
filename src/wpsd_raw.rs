@@ -584,18 +584,19 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     let mut data = vec!();
                     
                     //assert!(read_u16(&mut cursor) == 2);
+                    read_u16(&mut cursor); // version
                     data.push(read_u8(&mut cursor) as f32); // if 1, is absolute/colorization (rather than relative)
                     read_u8(&mut cursor);
                     
                     // "colorization"
                     data.push(read_u16(&mut cursor) as i16 as f32); // hue
-                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // sat
-                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // lightness (-1 to +1)
+                    data.push(read_u16(&mut cursor) as i16 as f32); // sat
+                    data.push(read_u16(&mut cursor) as i16 as f32); // lightness (-1 to +1)
                     
                     // "master"
                     data.push(read_u16(&mut cursor) as i16 as f32); // hue
-                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // sat
-                    data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // lightness (-1 to +1)
+                    data.push(read_u16(&mut cursor) as i16 as f32); // sat
+                    data.push(read_u16(&mut cursor) as i16 as f32); // lightness (-1 to +1)
                     
                     // todo: read hextant values?
                     

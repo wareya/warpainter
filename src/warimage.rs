@@ -322,7 +322,7 @@ impl Image<4>
         Self { width : w, height : h, data }
     }
     #[inline(never)]
-    pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, blend_mode : &str)
+    pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width  as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -338,8 +338,8 @@ impl Image<4>
         }
         let _info = mask_info.cloned();
         let info = mask_info.as_ref();
-        let xoffs = info.map(|n| n.x).unwrap_or(0) as isize;
-        let yoffs = info.map(|n| n.y).unwrap_or(0) as isize;
+        let xoffs = info.map(|n| n.x).unwrap_or(0) as isize + top_offset[0];
+        let yoffs = info.map(|n| n.y).unwrap_or(0) as isize + top_offset[1];
         let default = mask_info.map(|n| n.default_color as f32 / 255.0).unwrap_or(0.0);
         
         //println!("{:?}", mask);
@@ -388,10 +388,29 @@ impl Image<4>
                     let b = n[0] / 100.0;
                     let cx = n[1] / 100.0 + 1.0;
                     let m = n[2] / 255.0;
+                    let is_legacy = n[3] == 1.0;
                     for i in 0..3
                     {
                         c[i] = (c[i] - m) * cx + m + b;
                     }
+                }
+                Adjustment::HueSatLum(n) =>
+                {
+                    let mut hsl = rgb_to_hsl(c);
+                    hsl[0] = ((hsl[0] + n[0]) % 360.0 + 360.0) % 360.0;
+                    let s = n[1] / 100.0 + 1.0;
+                    //println!("-------{:?} {}", n, s);
+                    if s <= 1.0
+                    {
+                        hsl[1] *= s;
+                    }
+                    else
+                    {
+                        hsl[1] /= (1.0 - (s-1.0)*0.996);
+                    }
+                    let mut l = n[2] / 100.0;
+                    hsl[2] = hsl[2] * (1.0 - l.abs()) + if l > 0.0 { 1.0 } else { 0.0 } * l;
+                    c = hsl_to_rgb(hsl);
                 }
                 _ =>
                 {
@@ -413,7 +432,7 @@ impl Image<4>
         
         macro_rules! do_loop
         {
-            ($bottom:expr, $find_blend_func:expr, $find_post_func:expr, $do_adjustment:expr) =>
+            ($bottom:expr, $find_blend_func:expr, $find_post_func:expr, $do_adjustment:expr, $maxval:expr) =>
             {
                 {
                     let thread_count = get_thread_count();
@@ -472,7 +491,8 @@ impl Image<4>
                                 let mut bottom_pixel = bottom[bottom_index];
                                 let opacity = $get_opacity(x, y + offset);
                                 
-                                let top_pixel = $do_adjustment(bottom_pixel, adjustment);
+                                let mut top_pixel = $do_adjustment(bottom_pixel, adjustment);
+                                top_pixel[3] = $maxval;
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity);
                                 let mut c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
@@ -518,9 +538,9 @@ impl Image<4>
         match (&mut self.data)
         {
             (ImageData::<4>::Float(bottom)) =>
-                do_loop!(bottom, find_blend_func_float, find_post_func_float, do_adjustment_float),
+                do_loop!(bottom, find_blend_func_float, find_post_func_float, do_adjustment_float, 1.0),
             (ImageData::<4>::Int(bottom)) =>
-                do_loop!(bottom, find_blend_func, find_post_func, do_adjustment),
+                do_loop!(bottom, find_blend_func, find_post_func, do_adjustment, 255),
         }
         
     }
@@ -554,7 +574,7 @@ impl Image<4>
         let default = mask_info.map(|n| n.default_color as f32 / 255.0).unwrap_or(0.0);
         
         //println!("{:?}", mask);
-        println!("???????? {:?}", mask_info);
+        //println!("???????? {:?}", mask_info);
         let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let (Some(mask), false) = (mask, mask_info.map(|x| x.disabled).unwrap_or(false))
         //let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
         {

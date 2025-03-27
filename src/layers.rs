@@ -525,7 +525,7 @@ impl Layer
                     
                     if let Some(adjustment) = &above.adjustment
                     {
-                        stash.as_mut().unwrap().apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_mode);
+                        stash.as_mut().unwrap().apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
                     }
                     else
                     {
@@ -589,7 +589,7 @@ impl Layer
                     
                     if let Some(adjustment) = &above.adjustment
                     {
-                        stash.apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_mode);
+                        stash.apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
                     }
                     else
                     {
@@ -613,7 +613,7 @@ impl Layer
                 {
                     if let Some(adjustment) = &child.adjustment
                     {
-                        self.flattened_data.as_mut().unwrap().apply_adjustment(new_dirty_rect, &adjustment, child.mask.as_ref(), child.mask_info.as_ref(), opacity, &mode);
+                        self.flattened_data.as_mut().unwrap().apply_adjustment(new_dirty_rect, &adjustment, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, &mode);
                     }
                     else
                     {

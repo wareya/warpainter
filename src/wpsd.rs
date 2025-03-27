@@ -89,7 +89,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                 "post" => Some(Adjustment::Posterize(layerdata.adjustment_info[0])),
                 "thrs" => Some(Adjustment::Threshold(layerdata.adjustment_info[0])),
                 "brit" => Some(Adjustment::BrightContrast(<[f32; 5]>::try_from(&layerdata.adjustment_info[0..5]).unwrap())),
-                "hue2" => Some(Adjustment::HueSatLum(<[f32; 3]>::try_from(&layerdata.adjustment_info[0..3]).unwrap())),
+                "hue2" => Some(Adjustment::HueSatLum(<[f32; 3]>::try_from(&layerdata.adjustment_info[4..7]).unwrap())),
                 "levl" => 
                 {
                     let mut data = vec!();
