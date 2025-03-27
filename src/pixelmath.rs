@@ -415,11 +415,11 @@ pub (crate) trait BlendModeTriad
 
 
 // functions to implement SVG-style Hue/Sat/Color/etc blend modes
-fn calc_y(rgb : [f32; 3]) -> f32
+pub (crate) fn calc_y(rgb : [f32; 3]) -> f32
 {
     rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11
 }
-fn color_clipped(rgb : [f32; 3]) -> [f32; 3]
+pub (crate) fn color_clipped(rgb : [f32; 3]) -> [f32; 3]
 {
     let y = calc_y(rgb);
     let low  = rgb[0].min(rgb[1]).min(rgb[2]);
@@ -442,18 +442,18 @@ fn color_clipped(rgb : [f32; 3]) -> [f32; 3]
     // lerp towards gray to prevent overshoot
     [lerp(rgb[0], y, f), lerp(rgb[1], y, f), lerp(rgb[2], y, f)]
 }
-fn apply_y(rgb : [f32; 3], y : f32) -> [f32; 3]
+pub (crate) fn apply_y(rgb : [f32; 3], y : f32) -> [f32; 3]
 {
     let delta = y - calc_y(rgb);
     color_clipped([rgb[0] + delta, rgb[1] + delta, rgb[2] + delta])
 }
-fn calc_sat(rgb : [f32; 3]) -> f32
+pub (crate) fn calc_sat(rgb : [f32; 3]) -> f32
 {
     let low  = rgb[0].min(rgb[1]).min(rgb[2]);
     let high = rgb[0].max(rgb[1]).max(rgb[2]);
     high - low
 }
-fn apply_sat_and_y(rgb : [f32; 3], sat : f32, y : f32) -> [f32; 3]
+pub (crate) fn apply_sat_and_y(rgb : [f32; 3], sat : f32, y : f32) -> [f32; 3]
 {
     fn lowest(v : &[f32]) -> usize
     {

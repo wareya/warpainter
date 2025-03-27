@@ -28,6 +28,7 @@ mod layers;
 mod quadrender;
 mod vecmap;
 mod pixelmath;
+mod spline;
 
 use wpsd::*;
 use warimage::*;

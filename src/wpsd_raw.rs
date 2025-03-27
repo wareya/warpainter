@@ -635,8 +635,9 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                             data.push(n as f32); // number of points
                             for _ in 0..n
                             {
+                                let y = read_u16(&mut cursor) as f32 / 255.0;
                                 data.push(read_u16(&mut cursor) as f32 / 255.0); // x
-                                data.push(read_u16(&mut cursor) as f32 / 255.0); // y
+                                data.push(y); // y
                             }
                         }
                         else

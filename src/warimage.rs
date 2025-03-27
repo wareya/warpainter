@@ -6,6 +6,7 @@ use crate::pixelmath::*;
 use crate::transform::*;
 use crate::wpsd_raw::MaskInfo;
 use crate::Adjustment;
+use crate::spline::*;
 
 /*
 // for flattened slices. not used right now
@@ -376,41 +377,84 @@ impl Image<4>
                 }
                 Adjustment::Threshold(mut n) =>
                 {
-                    n *= 1.0/255.0;
-                    for i in 0..3
-                    {
-                        c[i] = if c[i] > n { 1.0 } else { 0.0 };
-                    }
+                    n = n * (1.0/255.0);
+                    let v = calc_y([c[0], c[1], c[2]]);
+                    let v = if v >= n { 1.0 } else { 0.0 };
+                    c[0] = v;
+                    c[1] = v;
+                    c[2] = v;
                 }
                 Adjustment::BrightContrast(n) =>
                 {
                     //println!("-------{:?}", n);
-                    let b = n[0] / 100.0;
-                    let cx = n[1] / 100.0 + 1.0;
+                    let b = n[0] / 100.0 * 0.4*0.99;
+                    let mut cx = n[1] / 100.0 + 1.0;
                     let m = n[2] / 255.0;
                     let is_legacy = n[3] == 1.0;
+                    if cx > 1.0
+                    {
+                        cx = 1.0/(1.0 - (cx-1.0)*0.99);
+                    }
                     for i in 0..3
                     {
-                        c[i] = (c[i] - m) * cx + m + b;
+                        c[i] += b;
+                        c[i] = (c[i] - m) * cx + m;// + b;
                     }
                 }
                 Adjustment::HueSatLum(n) =>
                 {
-                    let mut hsl = rgb_to_hsl(c);
-                    hsl[0] = ((hsl[0] + n[0]) % 360.0 + 360.0) % 360.0;
-                    let s = n[1] / 100.0 + 1.0;
-                    //println!("-------{:?} {}", n, s);
-                    if s <= 1.0
+                    let mut l = n[2] / 100.0;
+                    for i in 0..3
                     {
-                        hsl[1] *= s;
+                        c[i] = c[i] * (1.0 - l.abs()) + if l > 0.0 { l } else { 0.0 };
+                        c[i] = c[i].clamp(0.0, 1.0);
+                    }
+                    
+                    let mut hsl = rgb_to_hsl(c);
+                    let mut h = n[0];
+                    hsl[0] = ((hsl[0] + h) % 360.0 + 360.0) % 360.0;
+                    let mut s = n[1] / 100.0;
+                    if s <= 0.0
+                    {
+                        hsl[1] *= s + 1.0;
                     }
                     else
                     {
-                        hsl[1] /= (1.0 - (s-1.0)*0.996);
+                        hsl[1] /= (1.0 - s*0.99);
                     }
-                    let mut l = n[2] / 100.0;
-                    hsl[2] = hsl[2] * (1.0 - l.abs()) + if l > 0.0 { 1.0 } else { 0.0 } * l;
+                    hsl[1] = hsl[1].clamp(0.0, 1.0);
                     c = hsl_to_rgb(hsl);
+                }
+                Adjustment::Curves(v) =>
+                {
+                    let points = &v[0];
+                    let tans = compute_spline_tangents(points);
+                    //println!("----- {:?}", points);
+                    for i in 0..3
+                    {
+                        let n = binary_search_last_lt(points, c[i]);
+                        c[i] = interpolate_spline(c[i], points, &tans, n);
+                    }
+                }
+                Adjustment::Levels(v) =>
+                {
+                    let apply_levels = |c : f32, data : &[f32; 5]|
+                    {
+                        let mut c = c;
+                        c -= data[0];
+                        c /= data[1] - data[0];
+                        c = c.powf(1.0/data[4]);
+                        c *= data[3] - data[2];
+                        c += data[2];
+                        c
+                    };
+                    c[0] = apply_levels(c[0], &v[0]);
+                    c[1] = apply_levels(c[1], &v[0]);
+                    c[2] = apply_levels(c[2], &v[0]);
+                    for i in 0..3
+                    {
+                        c[i] = apply_levels(c[i], &v[i+1]);
+                    }
                 }
                 _ =>
                 {
@@ -489,14 +533,15 @@ impl Image<4>
                                 let bottom_index = self_index_y_part + x;
                                 
                                 let mut bottom_pixel = bottom[bottom_index];
+                                let a = bottom_pixel[3];
+                                bottom_pixel[3] = $maxval;
                                 let opacity = $get_opacity(x, y + offset);
                                 
                                 let mut top_pixel = $do_adjustment(bottom_pixel, adjustment);
-                                top_pixel[3] = $maxval;
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity);
                                 let mut c = post_f(c, top_pixel, bottom_pixel, opacity, [x, y + offset]);
-                                c[3] = bottom_pixel[3];
+                                c[3] = a;
                                 
                                 bottom[bottom_index] = c;
                             }
