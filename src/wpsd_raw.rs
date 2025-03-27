@@ -16,7 +16,7 @@ pub enum DescItem
 type Descriptor = (String, Vec<(String, DescItem)>);
 
 #[derive(Clone, Debug, Default)]
-pub struct MaskData {
+pub struct MaskInfo {
     pub x : i32,
     pub y : i32,
     pub w : u32,
@@ -43,8 +43,10 @@ pub struct LayerInfo {
     pub image_data_has_b : bool,
     pub image_data_has_a : bool,
     pub mask_channel_count : u16,
-    pub mask_data : MaskData,
-    pub image_data_masks : Vec<u8>,
+    pub mask_info : MaskInfo,
+    //pub global_mask_opacity : u16,
+    //pub global_mask_kind : u16,
+    pub image_data_mask : Vec<u8>,
     pub group_opener : bool,
     pub group_closer : bool,
     pub is_clipped : bool,
@@ -133,7 +135,7 @@ pub fn parse_psd_metadata(data : &[u8]) -> PsdMetadata
 }
 pub fn append_img_data(cursor : &mut Cursor<&[u8]>, output : &mut Vec<u8>, size : u64, h : u64)
 {
-    println!("starting at: {:X}\t", cursor.position());
+    //println!("starting at: {:X}\t", cursor.position());
     let mode = read_u16(cursor);
     if mode == 0
     {
@@ -145,7 +147,7 @@ pub fn append_img_data(cursor : &mut Cursor<&[u8]>, output : &mut Vec<u8>, size 
         c2.set_position(c2.position() + h * 2);
         for _ in 0..h
         {
-            println!("at: {:X} - {:X}\t", cursor.position(), c2.position());
+            //println!("at: {:X} - {:X}\t", cursor.position(), c2.position());
             let len = read_u16(cursor);
             let start = c2.position();
             // FIXME: ignore overflow and pad out underflow?
@@ -295,7 +297,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         cursor.set_position(channel_info_start);
         let mut image_data_rgba : Vec<u8> = vec![255u8; (w * h * 4) as usize];
         let mut image_data_k : Vec<u8> = vec!();
-        let mut image_data_masks : Vec<u8> = vec!();
+        let mut image_data_mask : Vec<u8> = vec!();
         
         let mut rgba_count = 0;
         let mut has_g = false;
@@ -335,16 +337,16 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         let mleft = read_i32(&mut cursor);
         let mbottom = read_i32(&mut cursor);
         let mright = read_i32(&mut cursor);
-        let mut mask_data = MaskData::default();
-        mask_data.x = mleft;
-        mask_data.y = mtop;
-        mask_data.w = (mright - mleft) as u32;
-        mask_data.h = (mbottom - mtop) as u32;
-        mask_data.default_color = read_u8(&mut cursor);
+        let mut mask_info = MaskInfo::default();
+        mask_info.x = mleft;
+        mask_info.y = mtop;
+        mask_info.w = (mright - mleft) as u32;
+        mask_info.h = (mbottom - mtop) as u32;
+        mask_info.default_color = read_u8(&mut cursor);
         let mflags = read_u8(&mut cursor);
-        mask_data.relative = (mflags & 1) != 0;
-        mask_data.disabled = (mflags & 2) != 0;
-        mask_data.invert = (mflags & 4) != 0;
+        mask_info.relative = (mflags & 1) != 0;
+        mask_info.disabled = (mflags & 2) != 0;
+        mask_info.invert = (mflags & 4) != 0;
         
         cursor.set_position(maskdat_start + maskdat_len);
         
@@ -386,7 +388,8 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 aux_count += 1;
                 if channel_length > 2
                 {
-                    append_img_data(&mut idata_c, &mut image_data_masks, channel_length as u64, mask_data.h as u64);
+                    //println!("adding mask data...");
+                    append_img_data(&mut idata_c, &mut image_data_mask, channel_length as u64, mask_info.h as u64);
                 }
                 else
                 {
@@ -422,8 +425,8 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             image_data_has_b : has_b,
             image_data_has_a : has_a,
             mask_channel_count : aux_count,
-            mask_data,
-            image_data_masks,
+            mask_info,
+            image_data_mask,
             group_opener : false,
             group_closer : false,
             is_clipped : clipping == 1,

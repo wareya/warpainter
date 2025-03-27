@@ -4,7 +4,7 @@ use crate::LayerPaint;
 use crate::UndoEvent;
 use crate::pixelmath::*;
 use crate::transform::*;
-
+use crate::wpsd_raw::MaskInfo;
 /*
 // for flattened slices. not used right now
 #[inline]
@@ -199,9 +199,27 @@ impl<const N : usize> Image<N>
     #[inline]
     pub (crate) fn get_pixel_float_wrapped(&self, x : isize, y : isize) -> [f32; N]
     {
+        if self.width == 0 || self.height == 0
+        {
+            return [0.0; N];
+        }
         let x = (x % self.width as isize) as usize;
         let y = (y % self.height as isize) as usize;
         let index = y*self.width + x;
+        match &self.data
+        {
+            ImageData::Int(data) => px_to_float(data[index]),
+            ImageData::Float(data) => data[index],
+        }
+    }
+    #[inline]
+    pub (crate) fn get_pixel_float_default(&self, x : isize, y : isize, default : f32) -> [f32; N]
+    {
+        if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
+        {
+            return [default; N];
+        }
+        let index = y as usize*self.width + x as usize;
         match &self.data
         {
             ImageData::Int(data) => px_to_float(data[index]),
@@ -240,6 +258,28 @@ fn get_pool() -> &'static rayon::ThreadPool
     THREAD_POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(get_thread_count()).build().unwrap())
 }
 
+impl Image<1>
+{
+    pub (crate) fn from_yimage(input : &image::GrayImage, inverted : bool) -> Self
+    {
+        let (w, h) = input.dimensions();
+        let data = ImageData::<1>::new_int(w as usize, h as usize);
+        let mut ret = Self { width : w as usize, height : h as usize, data };
+        for y in 0..ret.height
+        {
+            for x in 0..ret.width
+            {
+                let mut px = input.get_pixel(x as u32, y as u32).0;
+                if inverted
+                {
+                    px[0] = 255 - px[0];
+                }
+                ret.set_pixel(x as isize, y as isize, px);
+            }
+        }
+        ret
+    }
+}
 impl Image<4>
 {
     pub (crate) fn from_rgbaimage(input : &image::RgbaImage) -> Self
@@ -281,7 +321,7 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
         //rect[0][0] += top_offset[0] as f32;
         //rect[1][0] += top_offset[0] as f32;
@@ -303,9 +343,18 @@ impl Image<4>
         }
         let top_width = top.width;
         
-        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
+        let _info = mask_info.cloned();
+        let info = mask_info.as_ref();
+        let xoffs = info.map(|n| n.x).unwrap_or(0) as isize + top_offset[0];
+        let yoffs = info.map(|n| n.y).unwrap_or(0) as isize + top_offset[1];
+        let default = mask_info.map(|n| n.default_color as f32 / 255.0).unwrap_or(0.0);
+        
+        //println!("{:?}", mask);
+        println!("???????? {:?}", mask_info);
+        let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let (Some(mask), false) = (mask, mask_info.map(|x| x.disabled).unwrap_or(false))
+        //let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
         {
-            Box::new(|x : usize, y : usize| mask.get_pixel_float_wrapped(x as isize, y as isize)[0])
+            Box::new(|x : usize, y : usize| mask.get_pixel_float_default(x as isize - xoffs, y as isize - yoffs, default)[0] * top_opacity)
         }
         else
         {
@@ -435,9 +484,9 @@ impl Image<4>
         //let elapsed = start.elapsed().as_secs_f32();
         //println!("Blended in {:.6} seconds", elapsed);
     }
-    pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
-        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, top_opacity, top_offset, blend_mode)
+        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, mask_info, top_opacity, top_offset, blend_mode)
     }
     
     pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128, rect : Option<[[f32; 2]; 2]>) -> UndoEvent

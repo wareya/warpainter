@@ -51,14 +51,28 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
     let root = Layer::new_group("PSD File");
     let mut stack = vec!(root);
     
-    for (i, layerdata) in psd_layers.into_iter().enumerate()
+    for (i, mut layerdata) in psd_layers.into_iter().enumerate()
     {
         let w = layerdata.w as u32;
         let h = layerdata.h as u32;
+        let mut mask_img = None;
+        if layerdata.mask_channel_count != 0
+        {
+            mask_img = image::GrayImage::from_raw(layerdata.mask_info.w, layerdata.mask_info.h, layerdata.image_data_mask);
+        }
+        //println!("{:?}", mask_img);
         if let Some(img) = image::RgbaImage::from_raw(w, h, layerdata.image_data_rgba)
         {
+            let mask = mask_img.map(|x| Image::<1>::from_yimage(&x, layerdata.mask_info.invert));
+            if layerdata.mask_info.invert { layerdata.mask_info.default_color = 255 - layerdata.mask_info.default_color; }
+            layerdata.mask_info.invert = false;
+            layerdata.mask_info.x -= layerdata.x as i32;
+            layerdata.mask_info.y -= layerdata.y as i32;
             let img = Image::<4>::from_rgbaimage(&img);
             let mut layer = if layerdata.group_opener { Layer::new_group("New Layer") } else { Layer::new_layer_from_image("New Layer", img) };
+            layer.mask_info = if mask.is_some() { Some(layerdata.mask_info) } else { None };
+            layer.mask = mask;
+            //println!("{:?}", layer.mask);
             layer.name = layerdata.name.to_string();
             layer.offset[0] = layerdata.x as f32;
             layer.offset[1] = layerdata.y as f32;

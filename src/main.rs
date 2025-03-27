@@ -523,7 +523,7 @@ impl Warpainter
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
-            Some(layer.flatten(self.canvas_width, self.canvas_height, None, None, None))
+            Some(layer.flatten(self.canvas_width, self.canvas_height, None, None))
         }
         else
         {
@@ -550,11 +550,11 @@ impl Warpainter
         if let Some(override_image) = self.get_temp_edit_image()
         {
             // FIXME convey whether the edit is a direct edit
-            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image), None)
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image))
         }
         else
         {
-            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None, None)
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, None, None)
         }
     }
     fn flatten_use(&self) -> Option<&Image<4>>
@@ -578,7 +578,7 @@ impl Warpainter
                                 if !self.edit_ignores_selection
                                 {
                                     let mut under = current_image.clone();
-                                    under.blend_from(edit_image, Some(selection_mask), 1.0, [0, 0], "Interpolate");
+                                    under.blend_from(edit_image, Some(selection_mask), None, 1.0, [0, 0], "Interpolate");
                                     return Some(under);
                                 }
                             }
@@ -587,14 +587,14 @@ impl Warpainter
                         else
                         {
                             let mut drawn = current_image.clone(); // FIXME performance drain, find a way to use a dirty rect here
-                            drawn.blend_from(edit_image, None, 1.0, [0, 0], "Normal"); // FIXME use drawing opacity / brush alpha
+                            drawn.blend_from(edit_image, None, None, 1.0, [0, 0], "Normal"); // FIXME use drawing opacity / brush alpha
                             
                             if let Some(selection_mask) = &self.selection_mask
                             {
                                 if !self.edit_ignores_selection
                                 {
                                     let mut under = current_image.clone();
-                                    under.blend_from(&drawn, Some(selection_mask), 1.0, [0, 0], "Interpolate");
+                                    under.blend_from(&drawn, Some(selection_mask), None, 1.0, [0, 0], "Interpolate");
                                     return Some(under);
                                 }
                             }
@@ -1436,7 +1436,7 @@ impl eframe::App for Warpainter
                     {
                         layer.visit_layers(0, &mut |layer, depth|
                         {
-                            layer_info.push((layer.name.clone(), layer.uuid, depth));
+                            layer_info.push((layer.name.clone(), layer.uuid, depth, layer.mask.is_some(), layer.clipped, layer.children.len()));
                             Some(())
                         });
                     }
@@ -1445,7 +1445,20 @@ impl eframe::App for Warpainter
                         ui.horizontal(|ui|
                         {
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
-                            let mut button = egui::Button::new(info.0);
+                            let mut name = info.0;
+                            if info.5 > 0
+                            {
+                                name += "[g]";
+                            }
+                            if info.4
+                            {
+                                name += "[c]";
+                            }
+                            if info.3
+                            {
+                                name += "[m]";
+                            }
+                            let mut button = egui::Button::new(name);
                             if info.1 == self.current_layer
                             {
                                 button = button.stroke(focused_outline);
