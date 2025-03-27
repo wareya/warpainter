@@ -42,7 +42,7 @@ pub (crate) enum Adjustment
     Invert,
     Posterize(f32),
     Threshold(f32),
-    BrightContrast([f32; 2]),
+    BrightContrast([f32; 5]),
     HueSatLum([f32; 3]),
     Levels(Vec<[f32; 5]>),
     Curves(Vec<Vec<[f32; 2]>>),
@@ -363,6 +363,10 @@ impl Layer
             }
             Some(())
         });
+        if self.adjustment.is_some()
+        {
+            reference = Some([[0.0, 0.0], [1000000.0, 1000000.0]]);
+        }
         if let Some(x) = reference
         {
             self.dirtify_rect(x);

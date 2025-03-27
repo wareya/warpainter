@@ -356,19 +356,56 @@ impl Image<4>
         
         fn do_adjustment_float(mut c : [f32; 4], adjustment : &Adjustment) -> [f32; 4]
         {
-            for i in 0..3
+            match adjustment
             {
-                c[i] = if c[i] > 0.5 { 1.0 } else { 0.0 };
+                Adjustment::Invert =>
+                {
+                    for i in 0..3
+                    {
+                        c[i] = 1.0 - c[i];
+                    }
+                }
+                Adjustment::Posterize(n) =>
+                {
+                    for i in 0..3
+                    {
+                        c[i] = (c[i] * n * 0.99999).floor() / (n-1.0);
+                        //c[i] = (c[i] * (n)).round() / (n);
+                        //c[i] = (c[i] * (n-1.0)).round() / (n-1.0);
+                    }
+                }
+                Adjustment::Threshold(mut n) =>
+                {
+                    n *= 1.0/255.0;
+                    for i in 0..3
+                    {
+                        c[i] = if c[i] > n { 1.0 } else { 0.0 };
+                    }
+                }
+                Adjustment::BrightContrast(n) =>
+                {
+                    //println!("-------{:?}", n);
+                    let b = n[0] / 100.0;
+                    let cx = n[1] / 100.0 + 1.0;
+                    let m = n[2] / 255.0;
+                    for i in 0..3
+                    {
+                        c[i] = (c[i] - m) * cx + m + b;
+                    }
+                }
+                _ =>
+                {
+                    for i in 0..3
+                    {
+                        //c[i] = if c[i] > 0.5 { 1.0 } else { 0.0 };
+                    }
+                }
             }
             c
         }
         fn do_adjustment(mut c : [u8; 4], adjustment : &Adjustment) -> [u8; 4]
         {
-            for i in 0..3
-            {
-                c[i] = if c[i] > 127 { 255 } else { 0 };
-            }
-            c
+            px_to_int(do_adjustment_float(px_to_float(c), adjustment))
         }
         
         // separate from loop_rect_threaded because this is used by layer stack flattening, and needs to be as fast as possible

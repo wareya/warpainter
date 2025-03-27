@@ -1,5 +1,6 @@
 use std::io::Cursor;
 use std::io::Read;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Default)]
 pub enum DescItem
@@ -11,6 +12,13 @@ pub enum DescItem
     Err(String),
     Objc(Box<Descriptor>),
     #[default] Xxx
+}
+
+impl DescItem
+{
+    fn long(&self) -> i32 { match self { DescItem::long(x) => return *x, _ => panic!(), } }
+    fn doub(&self) -> f64 { match self { DescItem::doub(x) => return *x, _ => panic!(), } }
+    fn bool(&self) -> bool { match self { DescItem::bool(x) => return *x, _ => panic!(), } }
 }
 
 type Descriptor = (String, Vec<(String, DescItem)>);
@@ -560,6 +568,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     data.push(read_u16(&mut cursor) as f32); // contrast
                     data.push(read_u16(&mut cursor) as f32); // "Mean value for brightness and contrast"
                     data.push(read_u8(&mut cursor) as f32); // "Lab color only"
+                    data.push(1.0); // legacy mode
                     layer.adjustment_type = name.clone();
                     layer.adjustment_info = data;
                 }
@@ -574,7 +583,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 {
                     let mut data = vec!();
                     
-                    assert!(read_u16(&mut cursor) == 2);
+                    //assert!(read_u16(&mut cursor) == 2);
                     data.push(read_u8(&mut cursor) as f32); // if 1, is absolute/colorization (rather than relative)
                     read_u8(&mut cursor);
                     
@@ -587,8 +596,6 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     data.push(read_u16(&mut cursor) as i16 as f32); // hue
                     data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // sat
                     data.push(read_u16(&mut cursor) as i16 as f32 / 100.0f32); // lightness (-1 to +1)
-                    
-                    println!("hsl data: {:?}", data);
                     
                     // todo: read hextant values?
                     
@@ -644,6 +651,29 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     assert!(read_u32(&mut cursor) == 16);
                     layer.adjustment_type = name.clone();
                     layer.adjustment_desc = Some(read_descriptor(&mut cursor));
+                }
+                "CgEd" =>
+                {
+                    assert!(read_u32(&mut cursor) == 16);
+                    //layer.adjustment_type = name.clone();
+                    //layer.adjustment_type = "brit".to_string();
+                    let temp = read_descriptor(&mut cursor).1;
+                    println!("{:?}", temp);
+                    let mut n = HashMap::new();
+                    for t in temp
+                    {
+                        n.insert(t.0, t.1);
+                    }
+                    println!("{:?}", n);
+                    //("null", [("Vrsn", long(1)), ("Brgh", long(9)), ("Cntr", long(30)), ("means", long(127)), ("Lab ", bool(false)), ("useLegacy", bool(true)), ("Auto", bool(true))])
+                    let mut data = vec!();
+                    data.push(n.get("Brgh").unwrap().long() as f32);
+                    data.push(n.get("Cntr").unwrap().long() as f32);
+                    data.push(n.get("means").unwrap().long() as f32);
+                    data.push(n.get("Lab ").unwrap().bool() as u8 as f32);
+                    data.push(n.get("useLegacy").unwrap().bool() as u8 as f32);
+                    println!("??????????? {:?}", data);
+                    layer.adjustment_info = data;
                 }
                 _ => {}
             }
