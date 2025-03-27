@@ -1755,7 +1755,7 @@ fn main()
         let bytes = std::fs::read(fname).unwrap();
         wpsd_open(&mut *wp, &bytes);
     }
-    else
+    else if fname != ""
     {
         // FIXME handle error
         let img = image::io::Reader::open(fname).unwrap().decode().unwrap().to_rgba8();

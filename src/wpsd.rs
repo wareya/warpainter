@@ -67,6 +67,49 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             layer.opacity = layerdata.opacity;
             //println!("!!!!{:?}", layer.offset);
             layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
+            
+            layer.adjustment = match layerdata.adjustment_type.as_str()
+            {
+                "" => None,
+                "nvrt" => Some(Adjustment::Invert),
+                "post" => Some(Adjustment::Posterize(layerdata.adjustment_info[0])),
+                "thrs" => Some(Adjustment::Threshold(layerdata.adjustment_info[0])),
+                "brit" => Some(Adjustment::BrightContrast(<[f32; 2]>::try_from(&layerdata.adjustment_info[0..2]).unwrap())),
+                "hue2" => Some(Adjustment::HueSatLum(<[f32; 3]>::try_from(&layerdata.adjustment_info[0..3]).unwrap())),
+                "levl" => 
+                {
+                    let mut data = vec!();
+                    let mut i = 0;
+                    for _ in 0..6
+                    {
+                        data.push(<[f32; 5]>::try_from(&layerdata.adjustment_info[i..i+5]).unwrap());
+                        i += 5;
+                    }
+                    Some(Adjustment::Levels(data))
+                }
+                "curv" =>
+                {
+                    let mut data = vec!();
+                    let mut i = 0;
+                    for _ in 0..6
+                    {
+                        let mut n = layerdata.adjustment_info[i];
+                        i += 1;
+                        let mut nodes = vec!();
+                        for j in 0..n as usize
+                        {
+                            nodes.push([layerdata.adjustment_info[i], layerdata.adjustment_info[i+1]]);
+                            i += 2;
+                        }
+                        data.push(nodes);
+                    }
+                    Some(Adjustment::Curves(data))
+                }
+                "blwh" => None, // TODO
+                //_ => panic!(),
+                _ => None,
+            };
+            
             //println!("layer {}: {} (of {:?})", i, layer.name, layer.parent_id());
             println!("layer {}: {}", i, layer.name);
             

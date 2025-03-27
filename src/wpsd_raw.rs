@@ -1,6 +1,5 @@
 use std::io::Cursor;
 use std::io::Read;
-use std::any::Any;
 
 #[derive(Clone, Debug, Default)]
 pub enum DescItem

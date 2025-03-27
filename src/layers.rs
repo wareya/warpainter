@@ -35,12 +35,26 @@ impl LayerInfo
     }
 }
 
+pub (crate) enum Adjustment
+{
+    Invert,
+    Posterize(f32),
+    Threshold(f32),
+    BrightContrast([f32; 2]),
+    HueSatLum([f32; 3]),
+    Levels(Vec<[f32; 5]>),
+    Curves(Vec<Vec<[f32; 2]>>),
+    BlackWhite(([f32; 6], bool, [f32; 3])),
+}
+
 pub (crate) struct Layer
 {
     pub (crate) uuid : u128,
     
     pub (crate) data : Option<Image<4>>,
     pub (crate) children : Vec<Layer>,
+    
+    pub (crate) mask : Option<Image<1>>,
     
     pub (crate) flattened_data : Option<Image<4>>,
     pub (crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
@@ -60,6 +74,8 @@ pub (crate) struct Layer
     pub (crate) alpha_locked : bool,
     
     pub (crate) old_info_for_undo : LayerInfo,
+    
+    pub (crate) adjustment : Option<Adjustment>,
 }
 
 impl Layer
@@ -100,6 +116,8 @@ impl Layer
             custom_blend_mode : "".to_string(),
             
             data : Some(image),
+            mask : None,
+            adjustment : None,
             children : vec!(),
             
             flattened_data : None,
@@ -132,6 +150,8 @@ impl Layer
             custom_blend_mode : "".to_string(),
             
             data : None,
+            mask : None,
+            adjustment : None,
             children : vec!(),
             
             flattened_data : None,
@@ -357,8 +377,12 @@ impl Layer
             self.flatten_as_root(canvas_width, canvas_height, override_uuid, override_data, mask)
         }
     }
-    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>, mask : Option<&Image<1>>) -> &'a Image<4>
+    pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>, mut mask : Option<&'a Image<1>>) -> &'a Image<4>
     {
+        if self.mask.is_some()
+        {
+            mask = self.mask.as_ref();
+        }
         let dirty_rect = self.get_flatten_dirty_rect();
         if dirty_rect.is_none() && self.flattened_data.is_some()
         //if self.flattened_data.is_none() && self.flattened_data.is_some()
