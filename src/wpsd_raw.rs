@@ -548,6 +548,14 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     }
                     layer.name = String::from_utf16_lossy(&name).to_string();
                 }
+                "tsly" =>
+                {
+                    let thing = read_u8(&mut cursor);
+                    if thing == 0 && layer.blend_mode == "lddg"
+                    {
+                        layer.blend_mode = "lddg_glow".to_string();
+                    }
+                }
                 // adjustment layers
                 "post" =>
                 {
