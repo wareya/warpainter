@@ -456,6 +456,40 @@ impl Image<4>
                         c[i] = apply_levels(c[i], &v[i+1]);
                     }
                 }
+                Adjustment::BlackWhite((v, _colorized, _color)) =>
+                {
+                    fn rgb_to_rygcbml(rgb: &[f32]) -> [f32; 7]
+                    {
+                        let [r, g, b] = [rgb[0], rgb[1], rgb[2]];
+
+                        let l = r.min(g).min(b);
+
+                        let r = r - l;
+                        let g = g - l;
+                        let b = b - l;
+
+                        let y = r.min(g);
+                        let c = g.min(b);
+                        let m = r.min(b);
+                        let r2 = r - y - m;
+                        let g2 = g - y - c;
+                        let b2 = b - c - m;
+
+                        [r2, y, g2, c, b2, m, l]
+                    }
+                    
+                    let mut sept = rgb_to_rygcbml(&c);
+                    let mut l = sept[6];
+                    for i in 0..6
+                    {
+                        let a = sept[i] * (v[i] * 0.01);
+                        l += a;
+                    }
+                    
+                    c[0] = l;
+                    c[1] = l;
+                    c[2] = l;
+                }
                 _ =>
                 {
                     for i in 0..3

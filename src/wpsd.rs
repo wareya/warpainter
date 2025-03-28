@@ -1,4 +1,4 @@
-
+use std::collections::HashMap;
 use crate::*;
 
 pub (crate) fn get_blend_mode(mode : &str) -> String
@@ -119,7 +119,27 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                     }
                     Some(Adjustment::Curves(data))
                 }
-                "blwh" => None, // TODO
+                "blwh" =>
+                {
+                    let mut data = [0.0; 6];
+                    let mut tintColor = false; // TODO
+                    let mut data2 = [0.0; 3]; // TODO
+                    
+                    let mut n = HashMap::new();
+                    for t in &layerdata.adjustment_desc.unwrap().1
+                    {
+                        n.insert(t.0.clone(), t.1.clone());
+                    }
+                    
+                    data[0] = n.get("Rd  ").unwrap().long() as f32;
+                    data[1] = n.get("Yllw").unwrap().long() as f32;
+                    data[2] = n.get("Grn ").unwrap().long() as f32;
+                    data[3] = n.get("Cyn ").unwrap().long() as f32;
+                    data[4] = n.get("Bl  ").unwrap().long() as f32;
+                    data[5] = n.get("Mgnt").unwrap().long() as f32;
+                    
+                    Some(Adjustment::BlackWhite((data, tintColor, data2)))
+                }
                 //_ => panic!(),
                 _ => None,
             };

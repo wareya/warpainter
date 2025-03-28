@@ -16,9 +16,9 @@ pub enum DescItem
 
 impl DescItem
 {
-    fn long(&self) -> i32 { match self { DescItem::long(x) => return *x, _ => panic!(), } }
-    fn doub(&self) -> f64 { match self { DescItem::doub(x) => return *x, _ => panic!(), } }
-    fn bool(&self) -> bool { match self { DescItem::bool(x) => return *x, _ => panic!(), } }
+    pub fn long(&self) -> i32 { match self { DescItem::long(x) => return *x, _ => panic!(), } }
+    pub fn doub(&self) -> f64 { match self { DescItem::doub(x) => return *x, _ => panic!(), } }
+    pub fn bool(&self) -> bool { match self { DescItem::bool(x) => return *x, _ => panic!(), } }
 }
 
 type Descriptor = (String, Vec<(String, DescItem)>);
