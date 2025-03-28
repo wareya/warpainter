@@ -800,10 +800,10 @@ impl Image<4>
         let mut max_y = 0;
         if let Some(rect) = rect
         {
-            min_x = rect[0][0].floor() as usize;
-            min_y = rect[0][1].floor() as usize;
-            max_x = rect[1][0].ceil() as usize;
-            max_y = rect[1][1].ceil() as usize;
+            min_x = min_x.max(rect[0][0].floor() as usize);
+            min_y = min_y.max(rect[0][1].floor() as usize);
+            max_x = max_x.min(rect[1][0].ceil() as usize);
+            max_y = max_y.min(rect[1][1].ceil() as usize);
         }
         //macro_rules! do_loop { ($y_outer:expr, $outer_range:expr, $inner_range:expr, $target:expr, $f:expr) =>
         //{
