@@ -197,16 +197,19 @@ pub fn copy_img_data(cursor : &mut Cursor<&[u8]>, output : &mut [u8], stride : u
         let mut c2 = cursor.clone();
         c2.set_position(c2.position() + h * 2);
         let mut i = 0;
+        let mut j = 2;
         for _ in 0..h
         {
             let i2 = i;
             //print!("at: {:X} - {:X}\t", cursor.position(), c2.position());
             let len = read_u16(cursor);
+            j += 2;
             let start = c2.position();
             // FIXME: ignore overflow and pad out underflow?
             while c2.position() - start < len as u64
             {
                 let n = read_u8(&mut c2) as i8;
+                j += 1;
                 if n >= 0
                 {
                     for _ in 0..n as u64 + 1
@@ -217,6 +220,7 @@ pub fn copy_img_data(cursor : &mut Cursor<&[u8]>, output : &mut [u8], stride : u
                             output[i*stride] = c;
                         }
                         i += 1;
+                        j += 1;
                     }
                 }
                 else if n != -128
@@ -230,15 +234,17 @@ pub fn copy_img_data(cursor : &mut Cursor<&[u8]>, output : &mut [u8], stride : u
                         }
                         i += 1;
                     }
+                    j += 1;
                 }
             }
             //println!("effective w: {}", i - i2);
             c2.set_position(start + len as u64);
         }
+        assert!(j == size, "{} {}", j, size);
     }
     else
     {
-        panic!("unsupported compression format at 0x{:X}", cursor.position() - 2);
+        panic!("unsupported compression format {} at 0x{:X}", mode, pos);
     }
     cursor.set_position(pos + size);
 }
@@ -315,10 +321,14 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         
         let mut cdat_cursor = cursor.clone();
         
+        let mut has_neg2 = false;
+        let mut has_neg3 = false;
         for _ in 0..image_channel_count
         {
-            let _channel_id = read_u16(&mut cursor) as i16;
+            let channel_id = read_u16(&mut cursor) as i16;
             let _channel_length = read_u32(&mut cursor) as usize;
+            has_neg2 = has_neg2 || channel_id == -2;
+            has_neg3 = has_neg3 || channel_id == -3;
         }
         
         let mut blend_mode_signature = [0; 4];
@@ -358,19 +368,19 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         
         cursor.set_position(maskdat_start + maskdat_len);
         
-        for _ in 0..image_channel_count
+        for n in 0..image_channel_count
         {
             let channel_id = read_u16(&mut cdat_cursor) as i16;
             has_g |= channel_id == 1;
             has_b |= channel_id == 2;
             has_a |= channel_id == -1;
             let channel_length = read_u32(&mut cdat_cursor) as usize;
-            println!("channel... {} {}", channel_id, channel_length);
+            println!("channel... {} {} at 0x{:X}", channel_id, channel_length, idata_c.position());
             if channel_id >= -1 && channel_id <= 2
             {
                 rgba_count += 1;
                 let pos = if channel_id >= 0 { channel_id } else { 3 } as usize;
-                //println!("{} {} {} {}", w, h, pos, channel_length);
+                println!("{} {} {} {}", w, h, pos, channel_length);
                 if channel_length > 2
                 {
                     copy_img_data(&mut idata_c, &mut image_data_rgba[pos..], 4, channel_length as u64, h as u64);
@@ -393,10 +403,15 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             }
             else
             {
+                println!("mask... {} {} {}", mask_info.w, mask_info.h, channel_length);
                 aux_count += 1;
-                if channel_length > 2
+                if aux_count > 1
                 {
-                    //println!("adding mask data...");
+                    idata_c.set_position(idata_c.position() + channel_length as u64);
+                }
+                else if channel_length > 2
+                {
+                    println!("adding mask data...");
                     append_img_data(&mut idata_c, &mut image_data_mask, channel_length as u64, mask_info.h as u64);
                 }
                 else

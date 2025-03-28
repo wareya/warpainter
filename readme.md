@@ -17,7 +17,7 @@ I expect to have all of the following features. This is sorted in order of devel
 - [x] fill tool
 - [x] eraser tool
 - [x] eyedropper tool
-- [ ] line tool
+- [x] line tool
 - [ ] other shape tools (rectangle, circle, polyline, arrow line, etc. with outline/stroke and non-fill variants)
 - [x] selection tool (arbitrary alpha-mask-based selections, not shape-based selections)
 - [x] move tool
