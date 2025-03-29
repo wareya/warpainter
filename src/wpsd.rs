@@ -78,6 +78,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             layer.offset[0] = layerdata.x as f32;
             layer.offset[1] = layerdata.y as f32;
             layer.funny_flag = layerdata.funny_flag;
+            if layerdata.group_opener { layer.funny_flag = true; }
             layer.clipped = layerdata.is_clipped;
             layer.visible = layerdata.is_visible;
             layer.opacity = layerdata.opacity;

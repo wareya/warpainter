@@ -267,6 +267,7 @@ impl Warpainter
             ("merge down",                 include_bytes!("icons/merge down.png")                .to_vec()),
             ("lock",                       include_bytes!("icons/lock.png")                      .to_vec()),
             ("lock alpha",                 include_bytes!("icons/lock alpha.png")                .to_vec()),
+            ("funny alpha",                include_bytes!("icons/funny alpha.png")               .to_vec()),
             ("visible",                    include_bytes!("icons/visible.png")                   .to_vec()),
             ("visible_big",                include_bytes!("icons/visible_big.png")               .to_vec()),
             ("clipping mask",              include_bytes!("icons/clipping mask.png")             .to_vec()),
@@ -1349,6 +1350,7 @@ impl eframe::App for Warpainter
                     ui.spacing_mut().button_padding = [0.0, 0.0].into();
                     
                     let layer = self.layers.find_layer_mut(self.current_layer);
+                    let funny_flag   = layer.as_ref().map_or(false, |layer| layer.funny_flag  );
                     let visible      = layer.as_ref().map_or(false, |layer| layer.visible     );
                     let clipped      = layer.as_ref().map_or(false, |layer| layer.clipped     );
                     let locked       = layer.as_ref().map_or(false, |layer| layer.locked      );
@@ -1385,6 +1387,16 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.alpha_locked = !layer.alpha_locked;
+                            self.log_layer_info_change();
+                        }
+                    }
+                    
+                    if add_button!(ui, "funny alpha", "Funny Alpha Flag", funny_flag).clicked()
+                    {
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            layer.funny_flag = !layer.funny_flag;
+                            self.full_rerender();
                             self.log_layer_info_change();
                         }
                     }
