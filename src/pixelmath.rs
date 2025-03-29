@@ -28,7 +28,7 @@ pub (crate) fn px_lerp(a : [u8; 4], b : [u8; 4], amount : f32) -> [u8; 4]
 }
 
 #[inline]
-pub (crate) fn px_lerp_biased_float(a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32) -> [f32; 4]
+pub (crate) fn px_lerp_biased_float(a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32, _flag : bool) -> [f32; 4]
 {
     let total_a = lerp(b[3], a[3], amount);
     
@@ -48,9 +48,9 @@ pub (crate) fn px_lerp_biased_float(a : [f32; 4], b : [f32; 4], amount : f32, _m
     r
 }
 #[inline]
-pub (crate) fn px_lerp_biased(a : [u8; 4], b : [u8; 4], amount : f32, _modifier : f32) -> [u8; 4]
+pub (crate) fn px_lerp_biased(a : [u8; 4], b : [u8; 4], amount : f32, _modifier : f32, _flag : bool) -> [u8; 4]
 {
-    px_to_int(px_lerp_biased_float(px_to_float(a), px_to_float(b), amount, _modifier))
+    px_to_int(px_lerp_biased_float(px_to_float(a), px_to_float(b), amount, _modifier, _flag))
 }
 
 
@@ -59,17 +59,13 @@ impl BlendModeSimpleExtra for BlendModeHardMix
 {
     fn blend(mut top : f32, bottom : f32, opacity : f32, mut fill : f32) -> f32
     {
-        //(((top + bottom - 1.0 - 0.5/255.0) * 2.0 * 255.0_f32.powf(fill*2.0)/255.0) + 0.5).clamp(0.0, 1.0)
-        //(((top + bottom - 1.0 - 0.5/255.0) * (fill*2.0).powf(7.0) * 2.0) + 0.5).clamp(0.0, 1.0)
-        //top = lerp(bottom, top, fill*0.5+0.5);
         top = lerp(bottom, top, (fill * (1.0/0.75)).clamp(0.0, 1.0));
-        //top = lerp(bottom, top, (fill).clamp(0.0, 1.0));
         fill *= 2.0;
         let mut n = (top + bottom - 1.0 - 0.5/255.0) * 2.0;
         n = if fill > 1.0
         {
-            //let mut f = 1.0 / ((2.0 - fill) * (0.97));
-            let mut f = 1.0 / (2.0 - fill);
+            let mut f = 1.0 / ((2.0 - fill) * (0.97));
+            //let mut f = 1.0 / (2.0 - fill);
             (n * (f * 0.75)) + 0.5
         }
         else
@@ -82,10 +78,10 @@ impl BlendModeSimpleExtra for BlendModeHardMix
 }
 #[inline]
 pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
-    (mut a : [f32; 4], b : [f32; 4], amount : f32, mut modifier : f32)
+    (mut a : [f32; 4], b : [f32; 4], amount : f32, mut modifier : f32, funny_flag : bool)
     -> [f32; 4]
 {
-    if false
+    if funny_flag
     {
         modifier *= a[3];
         a[3] = amount;
@@ -95,19 +91,6 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
         a[3] *= amount;
     }
     
-    /*
-    if a[3] * modifier == 0.0
-    {
-        return b;
-    }
-    else if b[3] == 0.0
-    {
-        let mut a = a;
-        a[3] *= modifier;
-        return a;
-    }
-    */
-
     let mut r = [0.0; 4];
     
     // a is top layer, b is bottom
@@ -118,33 +101,13 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
     let a_a = a[3] * m;
     let b_a = b_under_a * m;
     
-    //if a[3] != 1.0
     {
         for i in 0..3
         {
-          //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), b[3]) * a_a + b[i] * b_a;
-            //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), 1.0 - b_under_a) * a_a + b[i] * b_a;
-            //r[i] = lerp(a[i], T::blend(a[i], b[i], amount * (1.0-b[3]), modifier), b[3]);
-            //r[i] = lerp(a[i], T::blend(a[i], b[i], a[3], modifier), b[3] * m);
             let mut n = T::blend(a[i], b[i], a[3], modifier);
             n = lerp(n, b[i], 1.0 - a[3]);
             n = lerp(a[i], n, b[3] * m);
             r[i] = n;
-            //r[i] = T::blend(a[i], b[i], amount, modifier);
-            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * b[3]);
-            //r[i] = lerp(r[i], b[i], 1.0 - a_a * (modifier*2.0).clamp(0.0, 1.0));
-            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
-            
-            
-            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
-            //r[i] = lerp(r[i], b[i], b_a * (modifier*2.0).clamp(0.0, 1.0));
-            //r[i] = lerp(r[i], b[i], 1.0 - (1.0 - b_a) * (modifier*4.0).clamp(0.0, 1.0));
-            //r[i] = lerp(b[i], r[i], a[3] * (1.0 - ((1.0 - b[3]) * a[3])));
-            //r[i] = lerp(r[i], b[i], lerp(b_under_a, 1.0 - a[3], modifier));
-            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
-            //r[i] = lerp(r[i], b[i], b[3] * (1.0 - a[3]));
-            //r[i] = lerp(b[i], r[i], a[3] * modifier * (1.0 - b[3]));
-            //r[i] = lerp(r[i], b[i], b_under_a);
         }
     }
     
@@ -153,7 +116,7 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
 
 #[inline]
 pub (crate) fn px_func_extra<T : BlendModeSimpleExtra>
-    (a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32)
+    (a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32, funny_flag : bool)
     -> [u8; 4]
 {
     if a[3] == 0 || amount == 0.0 || modifier == 0.0
@@ -166,14 +129,14 @@ pub (crate) fn px_func_extra<T : BlendModeSimpleExtra>
     }
 
     // a is top layer, b is bottom
-    px_to_int(px_func_extra_float::<T>(px_to_float(a), px_to_float(b), amount, modifier))
+    px_to_int(px_func_extra_float::<T>(px_to_float(a), px_to_float(b), amount, modifier, funny_flag))
 }
 
 
 
 #[inline]
 pub (crate) fn px_func_float<T : BlendModeSimple>
-    (mut a : [f32; 4], b : [f32; 4], amount : f32, modifier : f32)
+    (mut a : [f32; 4], b : [f32; 4], amount : f32, modifier : f32, _funny_flag : bool)
     -> [f32; 4]
 {
     a[3] *= amount;
@@ -207,7 +170,7 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
 }
 #[inline]
 pub (crate) fn px_func<T : BlendModeSimple>
-    (a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32)
+    (a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32, funny_flag : bool)
     -> [u8; 4]
 {
     if a[3] == 0 || amount == 0.0 || modifier == 0.0
@@ -220,7 +183,7 @@ pub (crate) fn px_func<T : BlendModeSimple>
     }
 
     // a is top layer, b is bottom
-    px_to_int(px_func_float::<T>(px_to_float(a), px_to_float(b), amount, modifier))
+    px_to_int(px_func_float::<T>(px_to_float(a), px_to_float(b), amount, modifier, funny_flag))
 }
 
 
@@ -477,7 +440,7 @@ impl BlendModeSimple for BlendModeExclusion
 
 
 #[inline]
-pub (crate) fn px_func_triad_float<T : BlendModeTriad>(mut a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32) -> [f32; 4]
+pub (crate) fn px_func_triad_float<T : BlendModeTriad>(mut a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32, _flag : bool) -> [f32; 4]
 {
     a[3] *= amount;
     
@@ -513,9 +476,9 @@ pub (crate) fn px_func_triad_float<T : BlendModeTriad>(mut a : [f32; 4], b : [f3
     
 }
 #[inline]
-pub (crate) fn px_func_triad<T : BlendModeTriad>(a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32) -> [u8; 4]
+pub (crate) fn px_func_triad<T : BlendModeTriad>(a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32, flag : bool) -> [u8; 4]
 {
-    px_to_int(px_func_triad_float::<T>(px_to_float(a), px_to_float(b), amount, modifier))
+    px_to_int(px_func_triad_float::<T>(px_to_float(a), px_to_float(b), amount, modifier, flag))
 }
 
 pub (crate) trait BlendModeTriad
@@ -718,14 +681,14 @@ impl BlendModeTriad for BlendModeLightness
 
 
 #[inline]
-pub (crate) fn px_func_full_float<T : BlendModeFull>(a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32) -> [f32; 4]
+pub (crate) fn px_func_full_float<T : BlendModeFull>(a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32, _flag : bool) -> [f32; 4]
 {
     T::blend(a, b, amount)
 }
 #[inline]
-pub (crate) fn px_func_full<T : BlendModeFull>(a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32) -> [u8; 4]
+pub (crate) fn px_func_full<T : BlendModeFull>(a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32, flag : bool) -> [u8; 4]
 {
-    px_to_int(px_func_full_float::<T>(px_to_float(a), px_to_float(b), amount, modifier))
+    px_to_int(px_func_full_float::<T>(px_to_float(a), px_to_float(b), amount, modifier, flag))
 }
 pub (crate) trait BlendModeFull
 {
@@ -809,8 +772,8 @@ impl BlendModeFull for BlendModeGlowDodge
     }
 }
 
-type FloatBlendFn = dyn Fn([f32; 4], [f32; 4], f32, f32) -> [f32; 4];
-type IntBlendFn = fn([u8; 4], [u8; 4], f32, f32) -> [u8; 4];
+type FloatBlendFn = dyn Fn([f32; 4], [f32; 4], f32, f32, bool) -> [f32; 4];
+type IntBlendFn = fn([u8; 4], [u8; 4], f32, f32, bool) -> [u8; 4];
 
 pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
 {
@@ -866,20 +829,20 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         
         "Interpolate" => px_lerp_biased_float,
         
-        "Clip Alpha" => |a, b, _amount, _modifier| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
-        "Copy Alpha" => |a, b, _amount, _modifier| [b[0], b[1], b[2], a[3]], // used internally
-        "Copy" => |a, _b, amount, _modifier| [a[0], a[1], a[2], a[3] * amount], // used internally
+        "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
+        "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
+        "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], a[3] * amount], // used internally
         
-        "Dither" => |mut a, b, _amount, _modifier|
+        "Dither" => |mut a, b, _amount, _modifier, flag|
         {
             // normal blending, but ignore amount and top alpha (handled by post func)
             a[3] = 1.0;
-            px_func_float::<BlendModeNormal>(a, b, 1.0, 1.0)
+            px_func_float::<BlendModeNormal>(a, b, 1.0, 1.0, flag)
         },
         
-        "Weld" => |a, b, amount, modifier|
+        "Weld" => |a, b, amount, modifier, flag|
         {
-            let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier);
+            let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier, flag);
             out[3] = (a[3] + b[3]*amount).clamp(0.0, 1.0);
             out
         },
@@ -942,20 +905,20 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         
         "Interpolate" => px_lerp_biased,
         
-        "Clip Alpha" => |a, b, _amount, _modifier| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
-        "Copy Alpha" => |a, b, _amount, _modifier| [b[0], b[1], b[2], a[3]], // used internally
-        "Copy" => |a, _b, amount, _modifier| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
+        "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
+        "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
+        "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
         
-        "Dither" => |mut a, b, _amount, _modifier|
+        "Dither" => |mut a, b, _amount, _modifier, flag|
         {
             // normal blending, but ignore amount and top alpha (handled by post func)
             a[3] = 255;
-            px_func::<BlendModeNormal>(a, b, 1.0, 1.0)
+            px_func::<BlendModeNormal>(a, b, 1.0, 1.0, flag)
         },
         
-        "Weld" => |a, b, amount, modifier|
+        "Weld" => |a, b, amount, modifier, flag|
         {
-            let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier);
+            let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
             out[3] = to_int(to_float(a[3]) + to_float(b[3])*amount);
             out
         },
@@ -985,33 +948,33 @@ fn dither<T : Sized>(blended : T, base : T, mut amount : f32, coord : [usize; 2]
     }
 }
 
-type FloatPostFn = fn([f32; 4], [f32; 4], [f32; 4], f32, f32, [usize; 2]) -> [f32; 4];
-type IntPostFn = fn([u8; 4], [u8; 4], [u8; 4], f32, f32, [usize; 2]) -> [u8; 4];
+type FloatPostFn = fn([f32; 4], [f32; 4], [f32; 4], f32, f32, bool, [usize; 2]) -> [f32; 4];
+type IntPostFn = fn([u8; 4], [u8; 4], [u8; 4], f32, f32, bool, [usize; 2]) -> [u8; 4];
 
 pub (crate) fn find_post_func_float(blend_mode : &str) -> FloatPostFn
 {
     match blend_mode
     {
-        "Dither" => |blended, top, base, mut amount, _modifier, coord|
+        "Dither" => |blended, top, base, mut amount, _modifier, _flag, coord|
         {
             // blend original top alpha into amount because we threw it out in the blending stage
             amount *= top[3];
             dither::<[f32; 4]>(blended, base, amount, coord)
         },
-        _ => |blended, _top, _base, _amount, _modifier, _coord| blended,
+        _ => |blended, _top, _base, _amount, _modifier, _coord, _flag| blended,
     }
 }
 pub (crate) fn find_post_func(blend_mode : &str) -> IntPostFn
 {
     match blend_mode
     {
-        "Dither" => |blended, top, base, mut amount, _modifier, coord|
+        "Dither" => |blended, top, base, mut amount, _modifier, _flag, coord|
         {
             // blend original top alpha into amount because we threw it out in the blending stage
             amount *= to_float(top[3]);
             dither::<[u8; 4]>(blended, base, amount, coord)
         },
-        _ => |blended, _top, _base, _amount, _modifier, _coord| blended,
+        _ => |blended, _top, _base, _amount, _modifier, _coord, _flag| blended,
     }
 }
 

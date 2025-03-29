@@ -58,6 +58,7 @@ pub struct LayerInfo {
     pub image_data_mask : Vec<u8>,
     pub group_opener : bool,
     pub group_closer : bool,
+    pub funny_flag : bool,
     pub is_clipped : bool,
     pub is_alpha_locked : bool,
     pub is_visible : bool,
@@ -455,7 +456,8 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             image_data_mask,
             group_opener : false,
             group_closer : false,
-            is_clipped : clipping == 1,
+            funny_flag : false,
+            is_clipped : false,
             is_alpha_locked : (flags & 1) != 0,
             is_visible : (flags & 2) == 0,
             adjustment_type : "".to_string(),
@@ -569,10 +571,8 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 "tsly" =>
                 {
                     let thing = read_u8(&mut cursor);
-                    if thing == 0 && layer.blend_mode == "lddg"
-                    {
-                        layer.blend_mode = "lddg_glow".to_string();
-                    }
+                    layer.funny_flag = thing == 0;
+                    println!("{}", layer.funny_flag);
                 }
                 "iOpa" =>
                 {

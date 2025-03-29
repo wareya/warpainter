@@ -323,7 +323,7 @@ impl Image<4>
         Self { width : w, height : h, data }
     }
     #[inline(never)]
-    pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width  as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -573,8 +573,8 @@ impl Image<4>
                                 
                                 let mut top_pixel = $do_adjustment(bottom_pixel, adjustment);
                                 
-                                let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier);
-                                let mut c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, [x, y + offset]);
+                                let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
+                                let mut c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag, [x, y + offset]);
                                 c[3] = a;
                                 
                                 bottom[bottom_index] = c;
@@ -625,7 +625,7 @@ impl Image<4>
     }
     
     #[inline(never)]
-    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_offset : [isize; 2], blend_mode : &str)
+    pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
         //rect[0][0] += top_offset[0] as f32;
         //rect[1][0] += top_offset[0] as f32;
@@ -732,8 +732,8 @@ impl Image<4>
                                 let mut top_pixel = $top_read_f($top[top_index]);
                                 let opacity = $get_opacity(x, y + offset);
                                 
-                                let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier);
-                                let c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, [x, y + offset]);
+                                let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
+                                let c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag, [x, y + offset]);
                                 
                                 bottom[bottom_index] = $bottom_write_f(c);
                             }
@@ -789,7 +789,7 @@ impl Image<4>
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
-        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, mask_info, top_opacity, 1.0, top_offset, blend_mode)
+        self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, mask_info, top_opacity, 1.0, false, top_offset, blend_mode)
     }
     
     pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128, rect : Option<[[f32; 2]; 2]>) -> UndoEvent

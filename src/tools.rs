@@ -1002,7 +1002,7 @@ impl Tool for MoveTool
                     {
                         let offset = [self.offset[0] as isize, self.offset[1] as isize];
                         *editing_image = base_image.clone();
-                        editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, None, 1.0, 1.0, offset, "Weld");
+                        editing_image.blend_rect_from([[0.0, 0.0], canvas_size], move_image, None, None, 1.0, 1.0, false, offset, "Weld");
                     }
                     
                     app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
