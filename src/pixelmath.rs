@@ -69,12 +69,12 @@ impl BlendModeSimpleExtra for BlendModeHardMix
         n = if fill > 1.0
         {
             //let mut f = 1.0 / ((2.0 - fill) * (0.97));
-            let mut f = 1.0 / ((2.0 - fill) * (1.333));
-            (n * f + 0.5)
+            let mut f = 1.0 / (2.0 - fill);
+            (n * (f * 0.75)) + 0.5
         }
         else
         {
-            ((n * fill * 0.75) + 0.5)
+            (n * (fill * 0.75)) + 0.5
         };
         n = lerp(bottom, n, (fill).clamp(0.0, 1.0));
         n.clamp(0.0, 1.0)
@@ -82,19 +82,31 @@ impl BlendModeSimpleExtra for BlendModeHardMix
 }
 #[inline]
 pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
-    (mut a : [f32; 4], b : [f32; 4], amount : f32, modifier : f32)
+    (mut a : [f32; 4], b : [f32; 4], amount : f32, mut modifier : f32)
     -> [f32; 4]
 {
-    a[3] *= amount;
+    if false
+    {
+        modifier *= a[3];
+        a[3] = amount;
+    }
+    else
+    {
+        a[3] *= amount;
+    }
     
+    /*
     if a[3] * modifier == 0.0
     {
         return b;
     }
     else if b[3] == 0.0
     {
+        let mut a = a;
+        a[3] *= modifier;
         return a;
     }
+    */
 
     let mut r = [0.0; 4];
     
@@ -102,23 +114,26 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
     let b_under_a = b[3] * (1.0 - a[3] * modifier);
     r[3] = a[3] * modifier + b_under_a;
     
-    for i in 0..3
-    {
-        r[i] = T::blend(a[i], b[i], amount, modifier);
-    }
-    
     let m = 1.0 / r[3];
     let a_a = a[3] * m;
     let b_a = b_under_a * m;
     
-    //if b[3] != 1.0
+    //if a[3] != 1.0
     {
         for i in 0..3
         {
           //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), b[3]) * a_a + b[i] * b_a;
             //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), 1.0 - b_under_a) * a_a + b[i] * b_a;
             r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), b[3]);
-            r[i] = lerp(r[i], b[i], b[3] * (1.0 - a[3]));
+            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * b[3]);
+            r[i] = lerp(r[i], b[i], 1.0 - a_a * (modifier*2.0).clamp(0.0, 1.0));
+            //r[i] = lerp(r[i], b[i], b_a * (modifier*2.0).clamp(0.0, 1.0));
+            //r[i] = lerp(r[i], b[i], 1.0 - (1.0 - b_a) * (modifier*4.0).clamp(0.0, 1.0));
+            //r[i] = lerp(b[i], r[i], a[3] * (1.0 - ((1.0 - b[3]) * a[3])));
+            //r[i] = lerp(r[i], b[i], lerp(b_under_a, 1.0 - a[3], modifier));
+            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
+            //r[i] = lerp(r[i], b[i], b[3] * (1.0 - a[3]));
+            //r[i] = lerp(b[i], r[i], a[3] * modifier * (1.0 - b[3]));
             //r[i] = lerp(r[i], b[i], b_under_a);
         }
     }

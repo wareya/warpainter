@@ -167,6 +167,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
     }
     assert!(stack.len() == 1);
     app.layers.children = vec!(stack.pop().unwrap());
+    app.current_layer = app.layers.children[0].uuid;
     //for (i, group) in psd.groups() {
     //    let name = group.name();
     //    println!("group {}: {}", i, name);
