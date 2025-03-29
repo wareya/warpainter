@@ -57,7 +57,7 @@ pub (crate) fn px_lerp_biased(a : [u8; 4], b : [u8; 4], amount : f32, _modifier 
 pub (crate) struct BlendModeHardMix;
 impl BlendModeSimpleExtra for BlendModeHardMix
 {
-    fn blend(mut top : f32, bottom : f32, _opacity : f32, mut fill : f32) -> f32
+    fn blend(mut top : f32, bottom : f32, opacity : f32, mut fill : f32) -> f32
     {
         //(((top + bottom - 1.0 - 0.5/255.0) * 2.0 * 255.0_f32.powf(fill*2.0)/255.0) + 0.5).clamp(0.0, 1.0)
         //(((top + bottom - 1.0 - 0.5/255.0) * (fill*2.0).powf(7.0) * 2.0) + 0.5).clamp(0.0, 1.0)
@@ -124,9 +124,19 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
         {
           //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), b[3]) * a_a + b[i] * b_a;
             //r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), 1.0 - b_under_a) * a_a + b[i] * b_a;
-            r[i] = lerp(a[i], T::blend(a[i], b[i], amount, modifier), b[3]);
+            //r[i] = lerp(a[i], T::blend(a[i], b[i], amount * (1.0-b[3]), modifier), b[3]);
+            //r[i] = lerp(a[i], T::blend(a[i], b[i], a[3], modifier), b[3] * m);
+            let mut n = T::blend(a[i], b[i], a[3], modifier);
+            n = lerp(n, b[i], 1.0 - a[3]);
+            n = lerp(a[i], n, b[3] * m);
+            r[i] = n;
+            //r[i] = T::blend(a[i], b[i], amount, modifier);
             //r[i] = lerp(r[i], b[i], 1.0 - a[3] * b[3]);
-            r[i] = lerp(r[i], b[i], 1.0 - a_a * (modifier*2.0).clamp(0.0, 1.0));
+            //r[i] = lerp(r[i], b[i], 1.0 - a_a * (modifier*2.0).clamp(0.0, 1.0));
+            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
+            
+            
+            //r[i] = lerp(r[i], b[i], 1.0 - a[3] * (modifier*2.0).clamp(0.0, 1.0));
             //r[i] = lerp(r[i], b[i], b_a * (modifier*2.0).clamp(0.0, 1.0));
             //r[i] = lerp(r[i], b[i], 1.0 - (1.0 - b_a) * (modifier*4.0).clamp(0.0, 1.0));
             //r[i] = lerp(b[i], r[i], a[3] * (1.0 - ((1.0 - b[3]) * a[3])));
