@@ -11,6 +11,7 @@ pub (crate) struct LayerInfo
     pub (crate) blend_mode : String,
     
     pub (crate) opacity : f32,
+    pub (crate) fill_opacity : f32,
     pub (crate) visible : bool,
     
     pub (crate) clipped : bool,
@@ -27,6 +28,7 @@ impl LayerInfo
             blend_mode : "Normal".to_string(),
             
             opacity : 1.0,
+            fill_opacity : 1.0,
             visible : true,
             
             clipped : false,
@@ -72,6 +74,7 @@ pub (crate) struct Layer
     pub (crate) custom_blend_mode : String,
     
     pub (crate) opacity : f32,
+    pub (crate) fill_opacity : f32,
     pub (crate) visible : bool,
     
     pub (crate) clipped : bool,
@@ -91,6 +94,7 @@ impl Layer
             name : self.name.clone(),
             blend_mode : self.blend_mode.clone(),
             opacity : self.opacity,
+            fill_opacity : self.fill_opacity,
             visible : self.visible,
             clipped : self.clipped,
             locked : self.locked,
@@ -102,6 +106,7 @@ impl Layer
         self.name = info.name.clone();
         self.blend_mode = info.blend_mode.clone();
         self.opacity = info.opacity;
+        self.fill_opacity = info.fill_opacity;
         self.visible = info.visible;
         self.clipped = info.clipped;
         self.locked = info.locked;
@@ -135,6 +140,7 @@ impl Layer
             offset : [0.0, 0.0],
             
             opacity : 1.0,
+            fill_opacity : 1.0,
             visible : true,
             
             clipped : false,
@@ -170,6 +176,7 @@ impl Layer
             offset : [0.0, 0.0],
             
             opacity : 1.0,
+            fill_opacity : 1.0,
             visible : true,
             
             clipped : false,
@@ -444,6 +451,7 @@ impl Layer
             let mut stash_mask = None;
             let mut stash_mask_info = None;
             let mut stash_opacity = 0.0;
+            let mut stash_fill_opacity = 0.0;
             let mut stash_blend_mode = "".to_string();
             for i in (0..self.children.len()).rev()
             {
@@ -468,6 +476,7 @@ impl Layer
                     mode += &("\n".to_string() + &child.custom_blend_mode);
                 }
                 let opacity = child.opacity;
+                let fill_opacity = child.fill_opacity;
                 let child_clipped = child.clipped;
                 
                 //println!("???{:?}", self.offset);
@@ -507,6 +516,7 @@ impl Layer
                     stash_clean = Some(source_data.clone());
                     stash_is_first = first;
                     stash_opacity = opacity;
+                    stash_fill_opacity = fill_opacity;
                     stash_blend_mode = mode.clone();
                     
                     let mut rect = new_dirty_rect;
@@ -520,12 +530,13 @@ impl Layer
                     above_offset[0] = above.offset[0] as isize - stash_offs[0];
                     above_offset[1] = above.offset[1] as isize - stash_offs[1];
                     let above_opacity = above.opacity;
+                    let above_fill_opacity = above.fill_opacity;
                     let above_mode = &above.blend_mode.clone();
                     //let above_data = above.flatten(canvas_width, canvas_height, override_uuid, override_data);
                     
                     if let Some(adjustment) = &above.adjustment
                     {
-                        stash.as_mut().unwrap().apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                        stash.as_mut().unwrap().apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_fill_opacity, above_offset, above_mode);
                     }
                     else
                     {
@@ -543,7 +554,7 @@ impl Layer
                             above.data.as_ref().unwrap()
                         };
                         
-                        stash.as_mut().unwrap().blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                        stash.as_mut().unwrap().blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_fill_opacity, above_offset, above_mode);
                     }
                 }
                 else if stash.is_some() && (above.is_none() || !above.as_ref().unwrap().clipped)
@@ -556,16 +567,16 @@ impl Layer
                     rect[1][1] -= stash_offs[1] as f32;
                     
                     // restore original alpha
-                    stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), None, None, stash_opacity, [0, 0], "Clip Alpha");
+                    stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), None, None, stash_opacity, stash_fill_opacity, [0, 0], "Clip Alpha");
                     
                     above_offset = stash_offs;
                     if stash_is_first
                     {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, above_offset, "Copy");
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, stash_fill_opacity, above_offset, "Copy");
                     }
                     else
                     {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, above_offset, &stash_blend_mode);
+                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, stash_fill_opacity, above_offset, &stash_blend_mode);
                     }
                     
                     stash = None;
@@ -577,6 +588,7 @@ impl Layer
                 {
                     // continuing a clip mask blend
                     let above_opacity = above.opacity;
+                    let above_fill_opacity = above.fill_opacity;
                     above_offset[0] = above.offset[0] as isize - stash_offs[0];
                     above_offset[1] = above.offset[1] as isize - stash_offs[1];
                     let above_mode = &above.blend_mode.clone();
@@ -589,7 +601,7 @@ impl Layer
                     
                     if let Some(adjustment) = &above.adjustment
                     {
-                        stash.apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                        stash.apply_adjustment(rect, &adjustment, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_fill_opacity, above_offset, above_mode);
                     }
                     else
                     {
@@ -606,25 +618,25 @@ impl Layer
                         {
                             above.data.as_ref().unwrap()
                         };
-                        stash.blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_offset, above_mode);
+                        stash.blend_rect_from(rect, above_data, above.mask.as_ref(), above.mask_info.as_ref(), above_opacity, above_fill_opacity, above_offset, above_mode);
                     }
                 }
                 else
                 {
                     if let Some(adjustment) = &child.adjustment
                     {
-                        self.flattened_data.as_mut().unwrap().apply_adjustment(new_dirty_rect, &adjustment, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, &mode);
+                        self.flattened_data.as_mut().unwrap().apply_adjustment(new_dirty_rect, &adjustment, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, above_offset, &mode);
                     }
                     else
                     {
                         // normal layer blending
                         if first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, "Copy");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, above_offset, "Copy");
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, above_offset, &mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, above_offset, &mode);
                         }
                     }
                 }

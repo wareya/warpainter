@@ -80,6 +80,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             layer.clipped = layerdata.is_clipped;
             layer.visible = layerdata.is_visible;
             layer.opacity = layerdata.opacity;
+            layer.fill_opacity = layerdata.fill_opacity;
             //println!("!!!!{:?}", layer.offset);
             layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
             

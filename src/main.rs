@@ -161,7 +161,8 @@ impl Default for Warpainter
         root_layer.children = vec!(image_layer);
         
         let mut xform = Transform::ident();
-        xform.scale(16.0);
+        xform.scale(4.0);
+        xform.translate([200.0, 0.0]);
         
         use rand::Rng;
         Self {
@@ -1289,9 +1290,13 @@ impl eframe::App for Warpainter
                     }
                     
                     let old_opacity = layer.opacity * 100.0;
+                    let old_fill_opacity = layer.fill_opacity * 100.0;
                     let mut opacity = old_opacity;
+                    let mut fill_opacity = old_fill_opacity;
                     let slider_response = ui.add(egui::Slider::new(&mut opacity, 0.0..=100.0).clamping(SliderClamping::Always));
+                    let slider_response2 = ui.add(egui::Slider::new(&mut fill_opacity, 0.0..=100.0).clamping(SliderClamping::Always));
                     layer.opacity = opacity/100.0;
+                    layer.fill_opacity = fill_opacity/100.0;
                     
                     #[allow(clippy::if_same_then_else)]
                     
@@ -1304,13 +1309,17 @@ impl eframe::App for Warpainter
                     {
                         self.log_layer_info_change();
                     }
+                    else if old_fill_opacity != fill_opacity && !slider_response2.dragged()
+                    {
+                        self.log_layer_info_change();
+                    }
                     else if slider_response.drag_stopped()
                     {
                         println!("making undo for opacity");
                         self.log_layer_info_change();
                     }
                     
-                    if old_opacity != opacity || rerender
+                    if old_opacity != opacity || old_fill_opacity != fill_opacity || rerender
                     {
                         self.full_rerender();
                     }
@@ -1537,6 +1546,16 @@ impl eframe::App for Warpainter
         {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
+                let hsv = 
+                ui.label(format!("{} {} {} {} / {} {} {}",
+                    (self.main_color_rgb[0] * 255.0) as u8,
+                    (self.main_color_rgb[1] * 255.0) as u8,
+                    (self.main_color_rgb[2] * 255.0) as u8,
+                    (self.main_color_rgb[3] * 255.0) as u8,
+                    (self.main_color_hsv[0]) as u8,
+                    (self.main_color_hsv[1] * 100.0) as u8,
+                    (self.main_color_hsv[2] * 100.0) as u8,
+                ));
                 ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
                 ui.separator();
                 

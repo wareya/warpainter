@@ -39,6 +39,7 @@ pub struct MaskInfo {
 pub struct LayerInfo {
     pub name : String,
     pub opacity : f32,
+    pub fill_opacity : f32,
     pub blend_mode : String,
     pub x : i32,
     pub y : i32,
@@ -351,6 +352,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         let maskdat_len = read_u32(&mut cursor) as u64;
         let maskdat_start = cursor.position();
         
+        // FIXME: support maskdat_len == 0 case
         let mtop = read_i32(&mut cursor);
         let mleft = read_i32(&mut cursor);
         let mbottom = read_i32(&mut cursor);
@@ -436,6 +438,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         let mut layer = LayerInfo {
             name,
             opacity,
+            fill_opacity : 1.0,
             blend_mode,
             x,
             y,
@@ -570,6 +573,10 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     {
                         layer.blend_mode = "lddg_glow".to_string();
                     }
+                }
+                "iOpa" =>
+                {
+                    layer.fill_opacity = read_u8(&mut cursor) as f32 / 255.0;
                 }
                 // adjustment layers
                 "post" =>
