@@ -59,19 +59,28 @@ impl BlendModeSimpleExtra for BlendModeHardMix
 {
     fn blend(mut top : f32, bottom : f32, opacity : f32, mut fill : f32) -> f32
     {
-        top = lerp(bottom, top, (fill * (1.0/0.75)).clamp(0.0, 1.0));
+        //fill /= opacity;
+        top = lerp(bottom, top, (fill * (1.0/0.75)).clamp(0.6, 1.0));
+        //top = lerp(bottom, top, (fill.clamp(0.5, 1.0) * (1.0/0.75)).clamp(0.0, 1.0));
+        top = top.clamp(0.0, 1.0);
         fill *= 2.0;
-        let mut n = (top + bottom - 1.0 - 0.5/255.0) * 1.5;
-        n = if fill > 1.0
+        let mut n = (top + bottom - (1.0 - 0.5/255.0)) * 1.3333;
+        //n = n.clamp(-0.5, 0.5);
+        //n = n.clamp(-0.6, 0.6);
+        n = if fill >= 1.0
         {
-            let mut f = 1.0 / ((2.0 - fill) * (0.999));
+            let mut f = 1.0 / ((2.0 - fill) * (0.9));
             (n * f) + 0.5
         }
         else
         {
-            (n * fill) + 0.5
+            //(n * fill) + 0.5
+            n + 0.5
         };
-        n = lerp(bottom, n, (fill * (1.0/0.75)).clamp(0.0, 1.0));
+        //n = n.clamp(0.0, 1.0);
+        n = lerp(bottom, n, (fill * 0.82).clamp(0.0, 1.0));
+        //n = lerp(bottom, n, fill.clamp(0.0, 1.0));
+        //n = lerp(bottom, n, fill);
         n.clamp(0.0, 1.0)
     }
 }
