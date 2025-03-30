@@ -976,7 +976,7 @@ impl eframe::App for Warpainter
             egui::Area::new("New File Dummy BG".into()).interactable(true).fixed_pos(egui::Pos2::ZERO).show(ctx, |ui|
             {
                 let screen_rect = ui.ctx().input(|i| i.screen_rect);
-                ui.painter().rect_filled(screen_rect, egui::Rounding::ZERO, egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5));
+                ui.painter().rect_filled(screen_rect, egui::CornerRadius::ZERO, egui::Rgba::from_rgba_unmultiplied(0.1, 0.1, 0.1, 0.5));
                 
                 let mut still_open = true;
                 let window_response = egui::Window::new("New File")
@@ -1462,7 +1462,7 @@ impl eframe::App for Warpainter
                 
                 ui.separator();
                 
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui|
+                egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui|
                 {
                     let mut layer_info = vec!();
                     for layer in self.layers.children.iter()
@@ -1487,6 +1487,7 @@ impl eframe::App for Warpainter
                                .on_hover_text($tooltip)
                     } }
                     
+                    ui.style_mut().spacing.item_spacing.y = 1.0;
                     for info in layer_info
                     {
                         ui.horizontal(|ui|
@@ -1502,14 +1503,7 @@ impl eframe::App for Warpainter
                             }
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
                             let mut name = info.0.clone();
-                            if info.5 > 0
-                            {
-                                name += "[g]";
-                            }
-                            if info.4
-                            {
-                                name += "[c]";
-                            }
+                            
                             if info.3
                             {
                                 name += "[m]";
@@ -1520,25 +1514,25 @@ impl eframe::App for Warpainter
                                 current : info.1 == self.current_layer,
                                 layer : self.layers.find_layer(info.1).as_ref().unwrap(),
                             };
-                            if ui.allocate_ui([150.0, 26.0].into(), |ui|
+                            let active = self.current_layer == info.1;
+                            ui.allocate_ui([150.0, 27.0].into(), |ui|
                             {
-                                let mut stroke : egui::Stroke = (1.0, egui::Color32::GRAY).into();
-                                if self.current_layer == info.1
+                                let mut stroke : egui::Stroke = (1.0, ui.style().visuals.widgets.active.weak_bg_fill).into();
+                                if active
                                 {
                                     stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
-                                Frame::group(ui.style()).rounding(1.0).inner_margin(Margin::same(4.0))
+                                Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::same(4))
                                 .stroke(stroke)
                                 .show(ui, |ui|
                                 {
                                     if info.4
                                     {
-                                        //let rect = ui.allocate_space((2.0, ui.available_height()).into()).1;
                                         let mut rect = ui.max_rect();
-                                        rect.min.y -= 3.0;
-                                        rect.min.x -= 3.0;
+                                        rect.min.y -= 4.0;
+                                        rect.max.y += 4.0;
+                                        rect.min.x -= 4.0;
                                         rect.max.x = rect.min.x + 2.0;
-                                        rect.max.y += 3.0;
                                         ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 125, 255, 255));
                                     }
                                     if info.5 > 0
@@ -1547,15 +1541,13 @@ impl eframe::App for Warpainter
                                             self.icons.get("icon group").unwrap().0.id(), [14.0, 14.0]
                                         )));
                                     }
-                                    ui.add(egui::Label::new(&info.0).selectable(false));
                                     
-                                    //ui.interact(ui.min_rect(), ui.id(), egui::Sense::click_and_drag())
-                                    ui.response().interact(egui::Sense::click_and_drag())
-                                }).inner
-                            }).inner.clicked()
-                            {
-                                self.current_layer = info.1;
-                            }
+                                    if ui.add(egui::Label::new(&name).selectable(false).sense(egui::Sense::click())).clicked()
+                                    {
+                                        self.current_layer = info.1;
+                                    }
+                                });
+                            });
                         });
                     }
                 });
@@ -1749,8 +1741,8 @@ impl eframe::App for Warpainter
         }
         
         let frame = egui::Frame {
-            inner_margin: egui::Margin::same(0.0),
-            rounding: egui::Rounding::ZERO,
+            inner_margin: egui::Margin::same(0),
+            //rounding: egui::Rounding::ZERO,
             fill: ctx.style().visuals.window_fill(),
             stroke: Default::default(),
             ..Default::default()
@@ -1878,7 +1870,11 @@ fn main()
     eframe::run_native (
         "Warpainter",
         options,
-        Box::new(|_| Ok(wp)),
+        Box::new(|ctx|
+        {
+            //ctx.egui_ctx.set_theme(egui::Theme::Dark);
+            Ok(wp)
+        }),
     ).unwrap();
 }
 

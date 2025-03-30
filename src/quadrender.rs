@@ -68,7 +68,7 @@ fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<
             0, // border
             glow::RGBA,
             input_type,
-            Some(bytes)
+            glow::PixelUnpackData::Slice(Some(bytes))
         );
         gl.generate_mipmap(glow::TEXTURE_2D);
     }
@@ -97,7 +97,7 @@ fn upload_data(gl : &glow::Context, handle : glow::Texture, data : &[[f32; 4]])
             0, // border
             glow::RGBA,
             glow::FLOAT,
-            Some(bytes)
+            glow::PixelUnpackData::Slice(Some(bytes))
         );
     }
 }
