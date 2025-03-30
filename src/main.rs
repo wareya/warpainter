@@ -162,7 +162,7 @@ impl Default for Warpainter
         
         let mut xform = Transform::ident();
         xform.scale(4.0);
-        xform.translate([200.0, 0.0]);
+        xform.translate([-200.0, 0.0]);
         
         use rand::Rng;
         Self {
