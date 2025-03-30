@@ -126,6 +126,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                 "blwh" =>
                 {
                     let mut data = [0.0; 6];
+                    #[allow(non_snake_case)]
                     let tintColor = false; // TODO
                     let data2 = [0.0; 3]; // TODO
                     

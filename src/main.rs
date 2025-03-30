@@ -957,7 +957,7 @@ struct LayerPanel<'a> {
     layer : &'a Layer,
 }
 
-use egui::{Widget, Response, Margin, Frame};
+use egui::{Margin, Frame};
 
 impl eframe::App for Warpainter
 {
@@ -1192,7 +1192,6 @@ impl eframe::App for Warpainter
         
         macro_rules! layer_panel { () => { |ui : &mut Ui|
         {
-                let focused_outline = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 255, 255, 255));
                 if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                 {
                     let old_blend_mode = layer.blend_mode.clone();
@@ -1496,7 +1495,7 @@ impl eframe::App for Warpainter
                             if add_button!(ui, if info.6 { "visible" } else { "invisible" }, "Toggle Visibility", false).clicked()
                             {
                                 let mut layer = self.layers.find_layer_mut(info.1);
-                                let mut layer = layer.as_mut().unwrap();
+                                let layer = layer.as_mut().unwrap();
                                 layer.visible = !layer.visible;
                                 self.full_rerender();
                                 self.log_layer_info_change();
@@ -1509,24 +1508,20 @@ impl eframe::App for Warpainter
                                 name += "[m]";
                             }
                             
-                            let panel = LayerPanel {
-                                info : info.clone(),
-                                current : info.1 == self.current_layer,
-                                layer : self.layers.find_layer(info.1).as_ref().unwrap(),
-                            };
                             let active = self.current_layer == info.1;
                             ui.allocate_ui([150.0, 27.0].into(), |ui|
                             {
                                 let mut stroke : egui::Stroke = (1.0, ui.style().visuals.widgets.active.weak_bg_fill).into();
                                 if active
                                 {
+                                    //stroke = egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(64, 64, 192, 255));
                                     stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
                                 if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::same(4))
                                 .stroke(stroke)
                                 .show(ui, |ui|
                                 {
-                                    let mut clicked = false;;
+                                    let mut clicked = false;
                                     if info.4
                                     {
                                         let mut rect = ui.max_rect();
@@ -1880,9 +1875,9 @@ fn main()
     eframe::run_native (
         "Warpainter",
         options,
-        Box::new(|ctx|
+        Box::new(|_ctx|
         {
-            //ctx.egui_ctx.set_theme(egui::Theme::Dark);
+            //_ctx.egui_ctx.set_theme(egui::Theme::Dark);
             Ok(wp)
         }),
     ).unwrap();
