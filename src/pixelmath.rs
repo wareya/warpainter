@@ -61,18 +61,17 @@ impl BlendModeSimpleExtra for BlendModeHardMix
     {
         top = lerp(bottom, top, (fill * (1.0/0.75)).clamp(0.0, 1.0));
         fill *= 2.0;
-        let mut n = (top + bottom - 1.0 - 0.5/255.0) * 2.0;
+        let mut n = (top + bottom - 1.0 - 0.5/255.0) * 1.5;
         n = if fill > 1.0
         {
-            let mut f = 1.0 / ((2.0 - fill) * (0.97));
-            //let mut f = 1.0 / (2.0 - fill);
-            (n * (f * 0.75)) + 0.5
+            let mut f = 1.0 / ((2.0 - fill) * (0.999));
+            (n * f) + 0.5
         }
         else
         {
-            (n * (fill * 0.75)) + 0.5
+            (n * fill) + 0.5
         };
-        n = lerp(bottom, n, (fill).clamp(0.0, 1.0));
+        n = lerp(bottom, n, (fill * (1.0/0.75)).clamp(0.0, 1.0));
         n.clamp(0.0, 1.0)
     }
 }
@@ -98,14 +97,12 @@ pub (crate) fn px_func_extra_float<T : BlendModeSimpleExtra>
     r[3] = a[3] * modifier + b_under_a;
     
     let m = 1.0 / r[3];
-    let a_a = a[3] * m;
-    let b_a = b_under_a * m;
     
     {
         for i in 0..3
         {
             let mut n = T::blend(a[i], b[i], a[3], modifier);
-            n = lerp(n, b[i], 1.0 - a[3]);
+            n = lerp(b[i], n, a[3]);
             n = lerp(a[i], n, b[3] * m);
             r[i] = n;
         }
