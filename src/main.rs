@@ -269,6 +269,7 @@ impl Warpainter
             ("lock alpha",                 include_bytes!("icons/lock alpha.png")                .to_vec()),
             ("funny alpha",                include_bytes!("icons/funny alpha.png")               .to_vec()),
             ("visible",                    include_bytes!("icons/visible.png")                   .to_vec()),
+            ("invisible",                  include_bytes!("icons/invisible.png")                 .to_vec()),
             ("visible_big",                include_bytes!("icons/visible_big.png")               .to_vec()),
             ("clipping mask",              include_bytes!("icons/clipping mask.png")             .to_vec()),
             ("move layer up",              include_bytes!("icons/move layer up.png")             .to_vec()),
@@ -283,6 +284,8 @@ impl Warpainter
             ("tool select cursor",         include_bytes!("icons/tool select cursor.png")        .to_vec()),
             ("tool move",                  include_bytes!("icons/tool move.png")                 .to_vec()),
             ("tool move cursor",           include_bytes!("icons/tool move cursor.png")          .to_vec()),
+            
+            ("icon group",                 include_bytes!("icons/icon group.png")                .to_vec()),
             
             ("undo",                       include_bytes!("icons/undo.png")                      .to_vec()),
             ("redo",                       include_bytes!("icons/redo.png")                      .to_vec()),
@@ -694,7 +697,7 @@ impl Warpainter
                             data.undo_edit(event);
                             println!("undo done");
                         }
-                        let r = event.rect;
+                        let _r = event.rect;
                         //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
                         layer.dirtify_all();
                     }
@@ -737,7 +740,7 @@ impl Warpainter
                             data.redo_edit(event);
                             println!("redo done");
                         }
-                        let r = event.rect;
+                        let _r = event.rect;
                         //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
                         layer.dirtify_all();
                     }
@@ -947,6 +950,14 @@ impl Warpainter
         }
     }
 }
+
+struct LayerPanel<'a> {
+    info : (String, u128, usize, bool, bool, usize, bool),
+    current : bool,
+    layer : &'a Layer,
+}
+
+use egui::{Widget, Response, Margin, Frame};
 
 impl eframe::App for Warpainter
 {
@@ -1458,16 +1469,39 @@ impl eframe::App for Warpainter
                     {
                         layer.visit_layers(0, &mut |layer, depth|
                         {
-                            layer_info.push((layer.name.clone(), layer.uuid, depth, layer.mask.is_some(), layer.clipped, layer.children.len()));
+                            layer_info.push((
+                                layer.name.clone(),
+                                layer.uuid,
+                                depth,
+                                layer.mask.is_some(),
+                                layer.clipped,
+                                layer.children.len(),
+                                layer.visible,
+                            ));
                             Some(())
                         });
                     }
+                    
+                    macro_rules! add_button { ($ui:expr, $icon:expr, $tooltip:expr, $selected:expr) => {
+                            $ui.add(egui::widgets::ImageButton::new(egui::load::SizedTexture::new(self.icons.get($icon).unwrap().0.id(), [14.0, 14.0])).selected($selected))
+                               .on_hover_text($tooltip)
+                    } }
+                    
                     for info in layer_info
                     {
                         ui.horizontal(|ui|
                         {
+                            ui.style_mut().spacing.item_spacing.x = 3.0;
+                            if add_button!(ui, if info.6 { "visible" } else { "invisible" }, "Toggle Visibility", false).clicked()
+                            {
+                                let mut layer = self.layers.find_layer_mut(info.1);
+                                let mut layer = layer.as_mut().unwrap();
+                                layer.visible = !layer.visible;
+                                self.full_rerender();
+                                self.log_layer_info_change();
+                            }
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
-                            let mut name = info.0;
+                            let mut name = info.0.clone();
                             if info.5 > 0
                             {
                                 name += "[g]";
@@ -1480,12 +1514,45 @@ impl eframe::App for Warpainter
                             {
                                 name += "[m]";
                             }
-                            let mut button = egui::Button::new(name);
-                            if info.1 == self.current_layer
+                            
+                            let panel = LayerPanel {
+                                info : info.clone(),
+                                current : info.1 == self.current_layer,
+                                layer : self.layers.find_layer(info.1).as_ref().unwrap(),
+                            };
+                            if ui.allocate_ui([150.0, 26.0].into(), |ui|
                             {
-                                button = button.stroke(focused_outline);
-                            }
-                            if ui.add(button).clicked()
+                                let mut stroke : egui::Stroke = (1.0, egui::Color32::GRAY).into();
+                                if self.current_layer == info.1
+                                {
+                                    stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
+                                }
+                                Frame::group(ui.style()).rounding(1.0).inner_margin(Margin::same(4.0))
+                                .stroke(stroke)
+                                .show(ui, |ui|
+                                {
+                                    if info.4
+                                    {
+                                        //let rect = ui.allocate_space((2.0, ui.available_height()).into()).1;
+                                        let mut rect = ui.max_rect();
+                                        rect.min.y -= 3.0;
+                                        rect.min.x -= 3.0;
+                                        rect.max.x = rect.min.x + 2.0;
+                                        rect.max.y += 3.0;
+                                        ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 125, 255, 255));
+                                    }
+                                    if info.5 > 0
+                                    {
+                                        ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                                            self.icons.get("icon group").unwrap().0.id(), [14.0, 14.0]
+                                        )));
+                                    }
+                                    ui.add(egui::Label::new(&info.0).selectable(false));
+                                    
+                                    //ui.interact(ui.min_rect(), ui.id(), egui::Sense::click_and_drag())
+                                    ui.response().interact(egui::Sense::click_and_drag())
+                                }).inner
+                            }).inner.clicked()
                             {
                                 self.current_layer = info.1;
                             }
@@ -1558,7 +1625,7 @@ impl eframe::App for Warpainter
         {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
-                let hsv = 
+                //let hsv = 
                 ui.label(format!("{} {} {} {} / {} {} {}",
                     (self.main_color_rgb[0] * 255.0) as u8,
                     (self.main_color_rgb[1] * 255.0) as u8,

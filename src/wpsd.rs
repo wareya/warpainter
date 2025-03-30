@@ -111,10 +111,10 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                     let mut i = 0;
                     for _ in 0..6
                     {
-                        let mut n = layerdata.adjustment_info[i];
+                        let n = layerdata.adjustment_info[i];
                         i += 1;
                         let mut nodes = vec!();
-                        for j in 0..n as usize
+                        for _j in 0..n as usize
                         {
                             nodes.push([layerdata.adjustment_info[i], layerdata.adjustment_info[i+1]]);
                             i += 2;
@@ -126,8 +126,8 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                 "blwh" =>
                 {
                     let mut data = [0.0; 6];
-                    let mut tintColor = false; // TODO
-                    let mut data2 = [0.0; 3]; // TODO
+                    let tintColor = false; // TODO
+                    let data2 = [0.0; 3]; // TODO
                     
                     let mut n = HashMap::new();
                     for t in &layerdata.adjustment_desc.unwrap().1

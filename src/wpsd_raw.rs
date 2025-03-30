@@ -5,8 +5,11 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Default)]
 pub enum DescItem
 {
+    #[allow(non_camel_case_types)]
     long(i32),
+    #[allow(non_camel_case_types)]
     doub(f64),
+    #[allow(non_camel_case_types)]
     bool(bool),
     TEXT(String),
     Err(String),
@@ -202,7 +205,7 @@ pub fn copy_img_data(cursor : &mut Cursor<&[u8]>, output : &mut [u8], stride : u
         let mut j = 2;
         for _ in 0..h
         {
-            let i2 = i;
+            let _i2 = i;
             //print!("at: {:X} - {:X}\t", cursor.position(), c2.position());
             let len = read_u16(cursor);
             j += 2;
@@ -239,7 +242,7 @@ pub fn copy_img_data(cursor : &mut Cursor<&[u8]>, output : &mut [u8], stride : u
                     j += 1;
                 }
             }
-            //println!("effective w: {}", i - i2);
+            //println!("effective w: {}", i - _i2);
             c2.set_position(start + len as u64);
         }
         assert!(j == size, "{} {}", j, size);
@@ -266,10 +269,10 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
     cursor.set_position(cursor.position() + image_resources_length);
 
     let layer_mask_info_length = read_u32(&mut cursor) as u64;
-    let layer_mask_info_end = cursor.position() + layer_mask_info_length;
+    let _layer_mask_info_end = cursor.position() + layer_mask_info_length;
 
     let layer_info_length = read_u32(&mut cursor) as u64;
-    let layer_info_end = cursor.position() + layer_info_length;
+    let _layer_info_end = cursor.position() + layer_info_length;
     
     let layer_count = read_u16(&mut cursor) as i16;
     let layer_count = layer_count.abs(); // If negative, transparency info exists
@@ -293,7 +296,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
 
     let mut layers = Vec::new();
 
-    for i in 0..layer_count
+    for _ in 0..layer_count
     {
         let top = read_i32(&mut cursor);
         let left = read_i32(&mut cursor);
@@ -315,7 +318,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         let mut image_data_k : Vec<u8> = vec!();
         let mut image_data_mask : Vec<u8> = vec!();
         
-        let mut rgba_count = 0;
+        let mut _rgba_count = 0;
         let mut has_g = false;
         let mut has_b = false;
         let mut has_a = false;
@@ -371,7 +374,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         
         cursor.set_position(maskdat_start + maskdat_len);
         
-        for n in 0..image_channel_count
+        for _ in 0..image_channel_count
         {
             let channel_id = read_u16(&mut cdat_cursor) as i16;
             has_g |= channel_id == 1;
@@ -381,7 +384,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             println!("channel... {} {} at 0x{:X}", channel_id, channel_length, idata_c.position());
             if channel_id >= -1 && channel_id <= 2
             {
-                rgba_count += 1;
+                _rgba_count += 1;
                 let pos = if channel_id >= 0 { channel_id } else { 3 } as usize;
                 println!("{} {} {} {}", w, h, pos, channel_length);
                 if channel_length > 2
@@ -457,7 +460,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             group_opener : false,
             group_closer : false,
             funny_flag : false,
-            is_clipped : false,
+            is_clipped : clipping != 0,
             is_alpha_locked : (flags & 1) != 0,
             is_visible : (flags & 2) == 0,
             adjustment_type : "".to_string(),
@@ -540,7 +543,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 //
                 
                 (id, data)
-            };
+            }
             
             match name.as_str()
             {
@@ -638,7 +641,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     let mut data = vec!();
                     
                     assert!(read_u16(&mut cursor) == 2);
-                    for i in 0..28
+                    for _ in 0..28
                     {
                         data.push(read_u16(&mut cursor) as f32 / 255.0); // in floor
                         data.push(read_u16(&mut cursor) as f32 / 255.0); // in ceil

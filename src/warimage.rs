@@ -390,7 +390,7 @@ impl Image<4>
                     let b = n[0] / 100.0 * 0.4*0.99;
                     let mut cx = n[1] / 100.0 + 1.0;
                     let m = n[2] / 255.0;
-                    let is_legacy = n[3] == 1.0;
+                    let _is_legacy = n[3] == 1.0;
                     if cx > 1.0
                     {
                         cx = 1.0/(1.0 - (cx-1.0)*0.99);
@@ -403,7 +403,7 @@ impl Image<4>
                 }
                 Adjustment::HueSatLum(n) =>
                 {
-                    let mut l = n[2] / 100.0;
+                    let l = n[2] / 100.0;
                     for i in 0..3
                     {
                         c[i] = c[i] * (1.0 - l.abs()) + if l > 0.0 { l } else { 0.0 };
@@ -411,16 +411,16 @@ impl Image<4>
                     }
                     
                     let mut hsl = rgb_to_hsl(c);
-                    let mut h = n[0];
+                    let h = n[0];
                     hsl[0] = ((hsl[0] + h) % 360.0 + 360.0) % 360.0;
-                    let mut s = n[1] / 100.0;
+                    let s = n[1] / 100.0;
                     if s <= 0.0
                     {
                         hsl[1] *= s + 1.0;
                     }
                     else
                     {
-                        hsl[1] /= (1.0 - s*0.99);
+                        hsl[1] /= 1.0 - s*0.99;
                     }
                     hsl[1] = hsl[1].clamp(0.0, 1.0);
                     c = hsl_to_rgb(hsl);
@@ -478,7 +478,7 @@ impl Image<4>
                         [r2, y, g2, c, b2, m, l]
                     }
                     
-                    let mut sept = rgb_to_rygcbml(&c);
+                    let sept = rgb_to_rygcbml(&c);
                     let mut l = sept[6];
                     for i in 0..6
                     {
@@ -490,17 +490,11 @@ impl Image<4>
                     c[1] = l;
                     c[2] = l;
                 }
-                _ =>
-                {
-                    for i in 0..3
-                    {
-                        //c[i] = if c[i] > 0.5 { 1.0 } else { 0.0 };
-                    }
-                }
+                _ => { }
             }
             c
         }
-        fn do_adjustment(mut c : [u8; 4], adjustment : &Adjustment) -> [u8; 4]
+        fn do_adjustment(c : [u8; 4], adjustment : &Adjustment) -> [u8; 4]
         {
             px_to_int(do_adjustment_float(px_to_float(c), adjustment))
         }
@@ -571,7 +565,7 @@ impl Image<4>
                                 bottom_pixel[3] = $maxval;
                                 let opacity = $get_opacity(x, y + offset);
                                 
-                                let mut top_pixel = $do_adjustment(bottom_pixel, adjustment);
+                                let top_pixel = $do_adjustment(bottom_pixel, adjustment);
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
                                 let mut c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag, [x, y + offset]);
@@ -580,7 +574,7 @@ impl Image<4>
                                 bottom[bottom_index] = c;
                             }
                         }
-                    } };
+                    } }
                     
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -595,10 +589,10 @@ impl Image<4>
                                     s.spawn(move |_|
                                     {
                                         apply_info!(info, get_opacity);
-                                    });
+                                    })
                                 }
-                            });
-                        });
+                            })
+                        })
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
@@ -614,11 +608,11 @@ impl Image<4>
         //use std::time::Instant;
         //let start = Instant::now();
 
-        match (&mut self.data)
+        match &mut self.data
         {
-            (ImageData::<4>::Float(bottom)) =>
+            ImageData::<4>::Float(bottom) =>
                 do_loop!(bottom, find_blend_func_float, find_post_func_float, do_adjustment_float, 1.0),
-            (ImageData::<4>::Int(bottom)) =>
+            ImageData::<4>::Int(bottom) =>
                 do_loop!(bottom, find_blend_func, find_post_func, do_adjustment, 255),
         }
         
@@ -729,7 +723,7 @@ impl Image<4>
                                 let top_index = (top_index_y_part as isize + x as isize - top_offset[0]) as usize;
                                 
                                 let bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                let mut top_pixel = $top_read_f($top[top_index]);
+                                let top_pixel = $top_read_f($top[top_index]);
                                 let opacity = $get_opacity(x, y + offset);
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
@@ -738,7 +732,7 @@ impl Image<4>
                                 bottom[bottom_index] = $bottom_write_f(c);
                             }
                         }
-                    } };
+                    } }
                     
                     #[cfg(not(target_arch = "wasm32"))]
                     {

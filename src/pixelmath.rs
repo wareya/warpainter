@@ -57,13 +57,14 @@ pub (crate) fn px_lerp_biased(a : [u8; 4], b : [u8; 4], amount : f32, _modifier 
 pub (crate) struct BlendModeHardMix;
 impl BlendModeSimpleExtra for BlendModeHardMix
 {
-    fn blend(mut top : f32, bottom : f32, opacity : f32, mut fill : f32) -> f32
+    fn blend(top : f32, bottom : f32, _opacity : f32, fill : f32) -> f32
     {
+        // Photoshop doesn't actually use a threshold, but rather an alpha-sensitive scaling formula that ensures that white+white remains pinned near white and black+black remains pinned near black.
         let mut n = bottom + top*fill;
         n -= (fill*0.5/255.0f32).copysign(top-0.5); // rounding hack
         n -= 0.5;
         n -= fill*0.5;
-        n /= (1.0 - fill);
+        n /= 1.0 - fill;
         n += 0.5;
         n.clamp(0.0, 1.0)
     }

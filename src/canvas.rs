@@ -204,6 +204,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     static LAST_PROGRESS : LazyLock<Arc<Mutex<u128>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(!0u128)));
     
     use std::ops::DerefMut;
+    #[allow(irrefutable_let_patterns)]
     if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
     {
         if *x != app.edit_progress

@@ -526,7 +526,7 @@ impl Layer
                     stash_is_first = first;
                     stash_opacity = opacity;
                     stash_fill_opacity = fill_opacity;
-                    stash_funny_flag = child.funny_flag;
+                    stash_funny_flag = child_funny_flag;
                     stash_blend_mode = mode.clone();
                     
                     let mut rect = new_dirty_rect;
