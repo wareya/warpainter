@@ -1915,8 +1915,6 @@ fn main()
         
         let document = web_sys::window().unwrap().document().unwrap();
         
-        let mut body = document.body();
-        
         r#"import { greet } from "./hello_world";
             greet("World!"); "#;
         
