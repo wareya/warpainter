@@ -1522,10 +1522,11 @@ impl eframe::App for Warpainter
                                 {
                                     stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
-                                Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::same(4))
+                                if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::same(4))
                                 .stroke(stroke)
                                 .show(ui, |ui|
                                 {
+                                    let mut clicked = false;;
                                     if info.4
                                     {
                                         let mut rect = ui.max_rect();
@@ -1537,16 +1538,25 @@ impl eframe::App for Warpainter
                                     }
                                     if info.5 > 0
                                     {
-                                        ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                                        clicked |= ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                                             self.icons.get("icon group").unwrap().0.id(), [14.0, 14.0]
-                                        )));
+                                        )).sense(egui::Sense::click_and_drag())).clicked();
                                     }
+                                    clicked |= ui.add(egui::Label::new(&name).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
                                     
-                                    if ui.add(egui::Label::new(&name).selectable(false).sense(egui::Sense::click())).clicked()
+                                    let response = ui.response();
+                                    clicked |= response.clicked();
+                                    
+                                    if clicked
                                     {
                                         self.current_layer = info.1;
                                     }
-                                });
+                                    
+                                    response
+                                }).response.interact(egui::Sense::click_and_drag()).clicked()
+                                {
+                                    self.current_layer = info.1;
+                                }
                             });
                         });
                     }
