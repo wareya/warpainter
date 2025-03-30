@@ -60,7 +60,7 @@ impl BlendModeSimpleExtra for BlendModeHardMix
     fn blend(mut top : f32, bottom : f32, opacity : f32, mut fill : f32) -> f32
     {
         let mut n = bottom + top*fill;
-        n -= (top-0.5)*(1.0/255.0); // rounding hack
+        n -= (fill*0.5/255.0f32).copysign(top-0.5); // rounding hack
         n -= 0.5;
         n -= fill*0.5;
         n /= (1.0 - fill);
