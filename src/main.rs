@@ -775,7 +775,14 @@ impl Warpainter
             layer.dirtify_all();
         }
     }
-    
+    fn full_rerender_with(&mut self, id : u128)
+    {
+        self.edit_progress += 1;
+        if let Some(layer) = self.layers.find_layer_mut(id)
+        {
+            layer.dirtify_all();
+        }
+    }
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
         self.edit_progress += 1;
@@ -784,6 +791,7 @@ impl Warpainter
             layer.dirtify_rect(rect);
         }
     }
+    
     fn current_layer_is_alpha_locked(&self) -> bool
     {
         if let Some(layer) = self.layers.find_layer(self.current_layer)
@@ -949,12 +957,6 @@ impl Warpainter
             self.current_layer = new_uuid;
         }
     }
-}
-
-struct LayerPanel<'a> {
-    info : (String, u128, usize, bool, bool, usize, bool),
-    current : bool,
-    layer : &'a Layer,
 }
 
 use egui::{Margin, Frame};
@@ -1308,6 +1310,7 @@ impl eframe::App for Warpainter
                     let slider_response2 = ui.add(egui::Slider::new(&mut fill_opacity, 0.0..=100.0).clamping(SliderClamping::Always));
                     layer.opacity = opacity/100.0;
                     layer.fill_opacity = fill_opacity/100.0;
+                    let id = layer.uuid;
                     
                     #[allow(clippy::if_same_then_else)]
                     
@@ -1332,7 +1335,7 @@ impl eframe::App for Warpainter
                     
                     if old_opacity != opacity || old_fill_opacity != fill_opacity || rerender
                     {
-                        self.full_rerender();
+                        self.full_rerender_with(id);
                     }
                 }
                 else
@@ -1371,7 +1374,8 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.visible = !layer.visible;
-                            self.full_rerender();
+                            let id = layer.uuid;
+                            self.full_rerender_with(id);
                             self.log_layer_info_change();
                         }
                     }
@@ -1380,7 +1384,8 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.clipped = !layer.clipped;
-                            self.full_rerender();
+                            let id = layer.uuid;
+                            self.full_rerender_with(id);
                             self.log_layer_info_change();
                         }
                     }
@@ -1406,7 +1411,8 @@ impl eframe::App for Warpainter
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.funny_flag = !layer.funny_flag;
-                            self.full_rerender();
+                            let id = layer.uuid;
+                            self.full_rerender_with(id);
                             self.log_layer_info_change();
                         }
                     }
@@ -1476,6 +1482,7 @@ impl eframe::App for Warpainter
                                 layer.clipped,
                                 layer.children.len(),
                                 layer.visible,
+                                layer.data.as_ref().map(|x| x.make_thumbnail()),
                             ));
                             Some(())
                         });
@@ -1497,19 +1504,15 @@ impl eframe::App for Warpainter
                                 let mut layer = self.layers.find_layer_mut(info.1);
                                 let layer = layer.as_mut().unwrap();
                                 layer.visible = !layer.visible;
-                                self.full_rerender();
+                                let id = layer.uuid;
+                                self.full_rerender_with(id);
                                 self.log_layer_info_change();
                             }
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
                             let mut name = info.0.clone();
                             
-                            if info.3
-                            {
-                                name += "[m]";
-                            }
-                            
                             let active = self.current_layer == info.1;
-                            ui.allocate_ui([150.0, 27.0].into(), |ui|
+                            ui.allocate_ui([150.0, 28.0].into(), |ui|
                             {
                                 let mut stroke : egui::Stroke = (1.0, ui.style().visuals.widgets.active.weak_bg_fill).into();
                                 if active
@@ -1517,7 +1520,7 @@ impl eframe::App for Warpainter
                                     //stroke = egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(64, 64, 192, 255));
                                     stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
-                                if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::same(4))
+                                if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::symmetric(4, 0))
                                 .stroke(stroke)
                                 .show(ui, |ui|
                                 {
@@ -1525,17 +1528,55 @@ impl eframe::App for Warpainter
                                     if info.4
                                     {
                                         let mut rect = ui.max_rect();
-                                        rect.min.y -= 4.0;
-                                        rect.max.y += 4.0;
+                                        rect.min.y -= 1.0;
+                                        rect.max.y += 1.0;
                                         rect.min.x -= 4.0;
                                         rect.max.x = rect.min.x + 2.0;
-                                        ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 125, 255, 255));
+                                        ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 127, 255, 255));
                                     }
                                     if info.5 > 0
                                     {
                                         clicked |= ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                                             self.icons.get("icon group").unwrap().0.id(), [14.0, 14.0]
                                         )).sense(egui::Sense::click_and_drag())).clicked();
+                                    }
+                                    
+                                    if info.3
+                                    {
+                                        name += "[m]";
+                                    }
+                                    
+                                    if let Some(image) = info.7
+                                    {
+                                        let (r, painter) = ui.allocate_painter((24.0, 24.0).into(), egui::Sense::click());
+                                        let mut rect = r.rect;
+                                        rect.max.x = rect.min.x + 6.0;
+                                        rect.max.y = rect.min.y + 6.0;
+                                        for y in 0..4
+                                        {
+                                            for x in 0..4
+                                            {
+                                                let c = ((x^y)&1) == 0;
+                                                let c = if c { egui::Color32::GRAY } else { egui::Color32::LIGHT_GRAY };
+                                                painter.rect_filled(rect.translate((x as f32 * 6.0, y as f32 * 6.0).into()), 0.0, c);
+                                            }
+                                        }
+                                        let mut rect = r.rect;
+                                        rect.max.x = rect.min.x + 2.0;
+                                        rect.max.y = rect.min.y + 2.0;
+                                        // lol. lmao. FIXME/TODO
+                                        for y in 0..24
+                                        {
+                                            for x in 0..24
+                                            {
+                                                let px = image.get_pixel_wrapped(x, y);
+                                                if px[3] > 2
+                                                {
+                                                    painter.rect_filled(rect.translate((x as f32, y as f32).into()), 0.0, egui::Color32::from_rgba_unmultiplied(px[0], px[1], px[2], px[3]));
+                                                }
+                                            }
+                                        }
+                                        clicked |= r.clicked();
                                     }
                                     clicked |= ui.add(egui::Label::new(&name).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
                                     

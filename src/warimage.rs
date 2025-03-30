@@ -261,6 +261,31 @@ fn get_pool() -> &'static rayon::ThreadPool
     THREAD_POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(get_thread_count()).build().unwrap())
 }
 
+impl<const N: usize> Image<N>
+{
+    pub (crate) fn make_thumbnail(&self) -> Self
+    {
+        let size = 24;
+        let data = ImageData::<N>::new_int(size, size);
+        let mut ret = Self { width : size, height : size, data };
+        for y in 0..size
+        {
+            for x in 0..size
+            {
+                let fy = y as f32 / size as f32;
+                let fx = x as f32 / size as f32;
+                let mut y2 = (fy * self.height.max(self.width) as f32) as isize;
+                let mut x2 = (fx * self.height.max(self.width) as f32) as isize;
+                y2 += (self.height - self.height.max(self.width)) as isize / 2;
+                x2 += (self.width  - self.height.max(self.width)) as isize / 2;
+                
+                ret.set_pixel(x as isize, y as isize, self.get_pixel(x2, y2));
+            }
+        }
+        ret
+    }
+}
+
 impl Image<1>
 {
     pub (crate) fn from_yimage(input : &image::GrayImage, inverted : bool) -> Self
