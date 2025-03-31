@@ -282,8 +282,9 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
     let mut idata_c = Cursor::new(&data[..]);
     idata_c.set_position(cursor.position());
     
-    for _ in 0..layer_count
+    for _i in 0..layer_count
     {
+        //println!("{}", _i);
         read_i32(&mut idata_c);
         read_i32(&mut idata_c);
         read_i32(&mut idata_c);

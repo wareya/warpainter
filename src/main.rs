@@ -163,8 +163,8 @@ impl Default for Warpainter
         root_layer.children = vec!(image_layer);
         
         let mut xform = Transform::ident();
-        xform.scale(8.0);
-        xform.translate([500.0, 50.0]);
+        //xform.scale(8.0);
+        //xform.translate([500.0, 50.0]);
         
         use rand::Rng;
         Self {
