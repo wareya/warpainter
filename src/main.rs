@@ -143,7 +143,7 @@ struct Warpainter
     
     edit_progress : u128,
     
-    file_open_promise : Option<poll_promise::Promise<(String, Vec<u8>)>>,
+    file_open_promise : Option<poll_promise::Promise<Option<(String, Vec<u8>)>>>,
 }
 
 impl Default for Warpainter
@@ -750,7 +750,7 @@ impl Warpainter
                 }
                 _ =>
                 {
-                    println!("not supported yet");
+                    println!("not supported yet ({:?})", event);
                 }
             }
             self.redo_buffer.push(event.compress());
@@ -1143,9 +1143,15 @@ impl eframe::App for Warpainter
                                                 &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
                                     .pick_file().await;
                                 
-                                let file = file.unwrap();
-                                let data = file.read().await;
-                                (file.file_name(), data)
+                                if let Some(file) = file
+                                {
+                                    let data = file.read().await;
+                                    Some((file.file_name(), data))
+                                }
+                                else
+                                {
+                                    None
+                                }
                             };
                             self.file_open_promise = Some(poll_promise::Promise::spawn_local(future));
                             ui.close_menu();
@@ -1163,7 +1169,7 @@ impl eframe::App for Warpainter
                     {
                         ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
                     }
-                    if let Some(Some((name, data))) = self.file_open_promise.as_ref().map(|x| x.ready())
+                    if let Some(Some(Some((name, data)))) = self.file_open_promise.as_ref().map(|x| x.ready())
                     {
                         let name = name.clone();
                         let data = data.clone();
@@ -1183,6 +1189,10 @@ impl eframe::App for Warpainter
                         }
                         self.file_open_promise = None;
                         ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                    }
+                    if let Some(Some(None)) = self.file_open_promise.as_ref().map(|x| x.ready())
+                    {
+                        self.file_open_promise = None;
                     }
                 }
                 ui.menu_button("Edit", |ui|
