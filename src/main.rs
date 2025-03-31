@@ -162,7 +162,7 @@ impl Default for Warpainter
         let image_layer_uuid = image_layer.uuid;
         root_layer.children = vec!(image_layer);
         
-        let mut xform = Transform::ident();
+        let xform = Transform::ident();
         //xform.scale(8.0);
         //xform.translate([500.0, 50.0]);
         
@@ -1149,6 +1149,7 @@ impl eframe::App for Warpainter
                             };
                             self.file_open_promise = Some(poll_promise::Promise::spawn_local(future));
                             ui.close_menu();
+                            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
                             
                             // GOTO: OPENFILEWEB
                         }
@@ -1158,6 +1159,10 @@ impl eframe::App for Warpainter
                 #[cfg(target_arch = "wasm32")]
                 {
                     // COMEFROM: OPENFILEWEB
+                    if self.file_open_promise.is_some()
+                    {
+                        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                    }
                     if let Some(Some((name, data))) = self.file_open_promise.as_ref().map(|x| x.ready())
                     {
                         let name = name.clone();
@@ -1177,6 +1182,7 @@ impl eframe::App for Warpainter
                             self.load_from_img(img);
                         }
                         self.file_open_promise = None;
+                        ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
                     }
                 }
                 ui.menu_button("Edit", |ui|
