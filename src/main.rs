@@ -666,13 +666,13 @@ impl Warpainter
                         
                         self.redo_buffer = Vec::new();
                         let mut rect : Option<[[f32; 2]; 2]> = layer.edited_dirty_rect;
-                        println!("A? {:?}", rect);
+                        //println!("A? {:?}", rect);
                         if let Some(rect) = &mut rect
                         {
                             rect[0] = vec_sub(&rect[0], &layer.offset);
                             rect[1] = vec_sub(&rect[1], &layer.offset);
                         }
-                        println!("B? {:?}", rect);
+                        //println!("B? {:?}", rect);
                         let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer, rect);
                         self.undo_buffer.push(event.compress());
                     }

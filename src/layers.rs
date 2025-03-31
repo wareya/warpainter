@@ -436,7 +436,7 @@ impl Layer
             #[allow(clippy::unnecessary_unwrap)] // broken lint
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
-                println!("asdf");
+                //println!("asdf");
                 new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
                 self.flattened_data = Some(Image::blank(canvas_width, canvas_height));
             }
@@ -444,7 +444,7 @@ impl Layer
             {
                 //new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
                 new_dirty_rect = dirty_rect.unwrap();
-                println!("clearing rect {:?} (layer {})...", new_dirty_rect, self.name);
+                //println!("clearing rect {:?} (layer {})...", new_dirty_rect, self.name);
                 self.flattened_data.as_mut().unwrap().clear_rect_with_color_float(new_dirty_rect, [0.0, 0.0, 0.0, 0.0]);
             }
             // We keep track of what's "first" (bottommost) in a given group to give it a special blend mode against the empty flattening target layer.
