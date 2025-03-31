@@ -129,6 +129,8 @@ struct Warpainter
     loaded_shaders : bool,
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
     
+    loaded_fonts : bool,
+    
     loaded_icons : bool,
     icons : VecMap<&'static str, (egui::TextureHandle, Image<4>)>,
     
@@ -204,6 +206,8 @@ impl Default for Warpainter
             loaded_shaders : false,
             shaders : VecMap::new(),
             
+            loaded_fonts : false,
+            
             loaded_icons : false,
             icons : VecMap::new(),
             
@@ -248,6 +252,39 @@ impl Warpainter
         {
             self.loaded_shaders = false;
         }
+    }
+    fn load_font(&mut self, ctx : &egui::Context)
+    {
+        if self.loaded_fonts
+        {
+            return;
+        }
+        self.loaded_fonts = true;
+        
+        const GZ_BYTES: &[u8] = include_bytes!("data/IBMPlexSansJP-Regular.ttf.gz");
+        fn decompress_gz(data: &[u8]) -> Vec<u8> {
+            use std::io::Read;
+            let mut decoder = libflate::gzip::Decoder::new(data).expect("Invalid Gzip header");
+            let mut decompressed = Vec::new();
+            decoder.read_to_end(&mut decompressed).expect("Failed to decompress");
+            decompressed
+        }
+        
+        let dec = decompress_gz(GZ_BYTES);
+        
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert("IBM Plex JP".to_owned(), egui::FontData::from_owned(dec).into());
+        fonts.families.entry(egui::FontFamily::Proportional).or_default().insert(0, "IBM Plex JP".to_owned());
+        
+        ctx.set_fonts(fonts);
+        
+        ctx.style_mut(|style|
+        {
+            for (_s, f) in &mut style.text_styles
+            {
+                f.size *= 0.95;
+            }
+        });
     }
     fn load_icons(&mut self, ctx : &egui::Context)
     {
@@ -967,6 +1004,7 @@ impl eframe::App for Warpainter
     {
         self.setup_canvas();
         self.load_icons(ctx);
+        self.load_font(ctx);
         self.load_shaders(frame);
         
         let mut focus_is_global = true;

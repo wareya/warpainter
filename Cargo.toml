@@ -29,6 +29,7 @@ getrandom = { version = "0.2.11", features = ["js"] }
 rand = "0.8.0"
 poll-promise = { version = "0.3.0", features = ["web"] }
 rayon = "1.10.0"
+libflate = "2.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
