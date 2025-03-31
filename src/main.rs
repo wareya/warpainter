@@ -1236,7 +1236,7 @@ impl eframe::App for Warpainter
         
         let window_size = ctx.input(|i: &egui::InputState| i.screen_rect());
         
-        macro_rules! layer_panel { () => { |ui : &mut Ui|
+        macro_rules! layer_panel { ($in_bottom:expr) => { |ui : &mut Ui|
         {
                 if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                 {
@@ -1511,7 +1511,7 @@ impl eframe::App for Warpainter
                 
                 ui.separator();
                 
-                egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui|
+                if $in_bottom { egui::ScrollArea::horizontal() } else { egui::ScrollArea::both() }.auto_shrink([false, false]).show(ui, |ui|
                 {
                     let mut layer_info = vec!();
                     for layer in self.layers.children.iter()
@@ -1651,7 +1651,7 @@ impl eframe::App for Warpainter
         {
             egui::SidePanel::right("RightPanel").show(ctx, |ui|
             {
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, layer_panel!());
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, layer_panel!(false));
             });
         }
         
@@ -1768,7 +1768,7 @@ impl eframe::App for Warpainter
                             ui.separator();
                             ui.label("Layers");
                             ui.separator();
-                            layer_panel!()(ui);
+                            layer_panel!(true)(ui);
                         }
                     });
                 });
