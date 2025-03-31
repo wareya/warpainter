@@ -46,6 +46,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
     let psd_layers = parse_layer_records(&bytes);
     
     app.layers = Layer::new_group("___root___");
+    app.layers.uuid = 0;
     app.canvas_width = psd_data.width as usize;
     app.canvas_height = psd_data.height as usize;
     

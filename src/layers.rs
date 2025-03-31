@@ -2,6 +2,7 @@ use uuid::Uuid;
 use crate::warimage::*;
 use crate::transform::*;
 use crate::wpsd_raw::MaskInfo;
+use std::collections::HashMap;
 
 use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Default, Decode, Encode)]
@@ -18,6 +19,7 @@ pub (crate) struct LayerInfo
     pub (crate) clipped : bool,
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
+    
 }
 
 impl LayerInfo
