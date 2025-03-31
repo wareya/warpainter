@@ -1616,7 +1616,7 @@ impl eframe::App for Warpainter
                                         }
                                         clicked |= r.clicked();
                                     }
-                                    clicked |= ui.add(egui::Label::new(&name).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
+                                    clicked |= ui.add(egui::Label::new(egui::RichText::new(&name).size(10.0)).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
                                     
                                     let response = ui.response();
                                     clicked |= response.clicked();
