@@ -180,11 +180,17 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     }
     else if inputstate.mouse_scroll != 0.0
     {
-        let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
-        app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
-        app.zoom(inputstate.mouse_scroll/128.0);
-        app.xform.translate(offset);
-        view_moved = true;
+        if inputstate.window_mouse_coord[0] >= response.rect.min.x && // fix phantom zooming on desktop web
+            inputstate.window_mouse_coord[1] >= response.rect.min.y &&
+            inputstate.window_mouse_coord[0] <= response.rect.max.x &&
+            inputstate.window_mouse_coord[1] <= response.rect.max.y
+        {
+            let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
+            app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
+            app.zoom(inputstate.mouse_scroll/128.0);
+            app.xform.translate(offset);
+            view_moved = true;
+        }
     }
     
     if view_moved
