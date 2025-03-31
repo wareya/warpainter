@@ -1482,7 +1482,7 @@ impl eframe::App for Warpainter
                                 layer.clipped,
                                 layer.children.len(),
                                 layer.visible,
-                                layer.data.as_ref().map(|x| x.make_thumbnail()),
+                                if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail()),
                             ));
                             Some(())
                         });
