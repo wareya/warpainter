@@ -813,10 +813,10 @@ impl Image<4>
     
     pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128, rect : Option<[[f32; 2]; 2]>) -> UndoEvent
     {
-        let mut min_x = new_data.width;
-        let mut max_x = 0;
-        let mut min_y = new_data.height;
-        let mut max_y = 0;
+        let mut min_x = 0;
+        let mut max_x = new_data.width;
+        let mut min_y = 0;
+        let mut max_y = new_data.height;
         if let Some(rect) = rect
         {
             min_x = min_x.max(rect[0][0].floor() as usize);
