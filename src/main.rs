@@ -1707,18 +1707,20 @@ impl eframe::App for Warpainter
         {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
-                //let hsv = 
-                ui.label(format!("{} {} {} {} / {} {} {}",
-                    (self.main_color_rgb[0] * 255.0) as u8,
-                    (self.main_color_rgb[1] * 255.0) as u8,
-                    (self.main_color_rgb[2] * 255.0) as u8,
-                    (self.main_color_rgb[3] * 255.0) as u8,
-                    (self.main_color_hsv[0]) as u8,
-                    (self.main_color_hsv[1] * 100.0) as u8,
-                    (self.main_color_hsv[2] * 100.0) as u8,
-                ));
-                ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
-                ui.separator();
+                if !sidebars_on_bottom
+                {
+                    ui.label(format!("{} {} {} {} / {} {} {}",
+                        (self.main_color_rgb[0] * 255.0) as u8,
+                        (self.main_color_rgb[1] * 255.0) as u8,
+                        (self.main_color_rgb[2] * 255.0) as u8,
+                        (self.main_color_rgb[3] * 255.0) as u8,
+                        (self.main_color_hsv[0]) as u8,
+                        (self.main_color_hsv[1] * 100.0) as u8,
+                        (self.main_color_hsv[2] * 100.0) as u8,
+                    ));
+                    ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
+                    ui.separator();
+                }
                 
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
                 {
@@ -1726,10 +1728,40 @@ impl eframe::App for Warpainter
                     {
                         if !layers_on_right
                         {
-                            ui.label("Tool Settings");
-                            ui.separator();
+                            egui::ScrollArea::horizontal().show(ui, |ui|
+                            {
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::LEFT), |ui|
+                                {
+                                    if sidebars_on_bottom
+                                    {
+                                        ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
+                                        {
+                                            ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
+                                            ui.label(format!("{} {} {} {} / {} {} {}",
+                                                (self.main_color_rgb[0] * 255.0) as u8,
+                                                (self.main_color_rgb[1] * 255.0) as u8,
+                                                (self.main_color_rgb[2] * 255.0) as u8,
+                                                (self.main_color_rgb[3] * 255.0) as u8,
+                                                (self.main_color_hsv[0]) as u8,
+                                                (self.main_color_hsv[1] * 100.0) as u8,
+                                                (self.main_color_hsv[2] * 100.0) as u8,
+                                            ));
+                                        });
+                                    }
+                                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
+                                    {
+                                        ui.label("Tool Settings");
+                                        ui.separator();
+                                    
+                                        self.tool_panel(ui);
+                                    });
+                                });
+                            });
                         }
-                        self.tool_panel(ui);
+                        else
+                        {
+                            self.tool_panel(ui);
+                        }
                         
                         if !layers_on_right
                         {
@@ -1762,7 +1794,7 @@ impl eframe::App for Warpainter
         }
         else
         {
-            egui::TopBottomPanel::bottom("ToolSettings").resizable(true).min_height(16.0).max_height(300.0).show(ctx, toolsettings!());
+            egui::TopBottomPanel::bottom("ToolSettingsTB").resizable(true).min_height(16.0).max_height(500.0).default_height(180.0).show(ctx, toolsettings!());
         }
         
         if focus_is_global
