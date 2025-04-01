@@ -4,6 +4,41 @@ use crate::transform::*;
 use crate::wpsd_raw::MaskInfo;
 use std::collections::HashMap;
 
+
+#[derive(Clone, Debug, Default, Decode, Encode)]
+pub (crate) enum FxData
+{
+    F(f64),
+    S(String),
+    #[default] Xxx,
+}
+impl From<f64> for FxData
+{
+    fn from(value : f64) -> Self
+    {
+        FxData::F(value)
+    }
+}
+impl From<bool> for FxData
+{
+    fn from(value : bool) -> Self
+    {
+        FxData::F(value.into())
+    }
+}
+impl From<String> for FxData
+{
+    fn from(value : String) -> Self
+    {
+        FxData::S(value)
+    }
+}
+impl FxData
+{
+    pub (crate) fn f(&self) -> f64 { match self { FxData::F(x) => return *x, _ => panic!(), } }
+    pub (crate) fn s(&self) -> String { match self { FxData::S(x) => return x.clone(), _ => panic!(), } }
+}
+
 use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Default, Decode, Encode)]
 pub (crate) struct LayerInfo
@@ -20,7 +55,7 @@ pub (crate) struct LayerInfo
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
     
-    pub (crate) effects : HashMap<String, Vec<f64>>,
+    pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
 }
 
 impl LayerInfo
@@ -93,7 +128,7 @@ pub (crate) struct Layer
     
     pub (crate) adjustment : Option<Adjustment>,
     
-    pub (crate) effects : HashMap<String, Vec<f64>>,
+    pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
 }
 
 impl Layer

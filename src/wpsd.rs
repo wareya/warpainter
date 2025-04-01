@@ -38,6 +38,41 @@ pub (crate) fn get_blend_mode(mode : &str) -> String
     }.to_string()
 }
 
+pub (crate) fn get_blend_mode_2(mode : &str) -> String
+{
+    match mode
+    {
+        "Nrml" => "Normal",
+        "Dslv" => "Dither",
+        "Drkn" => "Darken",
+        "Mltp" => "Multiply",
+        "CBrn" => "Color Burn",
+        "linearBurn" => "Linear Burn",
+        "darkerColor" => "Darken",
+        "Lghn" => "Lighten",
+        "Scrn" => "Screen",
+        "CDdg" => "Color Dodge",
+        "linearDodge" => "Add",
+        "lighterColor" => "Lighten",
+        "Ovrl" => "Overlay",
+        "SftL" => "Soft Light",
+        "HrdL" => "Hard Light",
+        "vividLight" => "Vivid Light",
+        "linearLight" => "Linear Light",
+        "pinLight" => "Pin Light",
+        "hardMix" => "Hard Mix",
+        "Dfrn" => "Difference",
+        "Xclu" => "Exclusion",
+        "blendSubtraction" => "Subtract",
+        "blendDivide" => "Divide",
+        "H   " => "Hue",
+        "Strt" => "Saturation",
+        "Clr " => "Color",
+        "Lmns" => "Luminosity",
+        _ => "Normal",
+    }.to_string()
+}
+
 use crate::wpsd_raw::*;
 
 pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
@@ -87,9 +122,66 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             //println!("!!!!{:?}", layer.offset);
             layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
             
-            if let Some(fx) = layerdata.effects_desc
+            if let Some((_, fx)) = layerdata.effects_desc
             {
-                println!("{:#?}", fx);
+                for (name, fx) in fx
+                {
+                    match name.as_str()
+                    {
+                        "Scl " =>
+                        {
+                            let mut hm = HashMap::new();
+                            hm.insert("float".to_string(), vec!(1.0.into())); // TODO
+                            layer.effects.insert("_scale".to_string(), hm);
+                        }
+                        "masterFXSwitch" =>
+                        {
+                            let mut hm = HashMap::new();
+                            hm.insert("bool".to_string(), vec!(fx.bool().into()));
+                            layer.effects.insert("_enabled".to_string(), hm);
+                        }
+                        "FrFX" =>
+                        {
+                            let (_, fx) = *fx.Objc();
+                            println!("{:#?}", fx);
+                            
+                            let mut hm = HashMap::new();
+                            
+                            for (name, data) in fx
+                            {
+                                match name.as_str()
+                                {
+                                    "enab" => { hm.insert("enabled".to_string(), vec!(data.bool().into())); }
+                                    "Md  " => { hm.insert("mode".to_string(), vec!(get_blend_mode_2(&data.r#enum().1).into())); }
+                                    "Opct" => { hm.insert("opacity".to_string(), vec!(data.UntF().1.into())); }
+                                    "Sz  " => { hm.insert("size".to_string(), vec!(data.UntF().1.into())); }
+                                    "Clr " =>
+                                    {
+                                        let mut color = [0.0f64, 0.0f64, 0.0f64, 1.0f64];
+                                        let data = data.Objc();
+                                        match data.0.as_str()
+                                        {
+                                            "RGBC" =>
+                                            {
+                                                color[0] = data.1[0].1.doub() / 255.0;
+                                                color[1] = data.1[1].1.doub() / 255.0;
+                                                color[2] = data.1[2].1.doub() / 255.0;
+                                            }
+                                            _ => { }
+                                        }
+                                        hm.insert("color".to_string(), color.map(|x| x.into()).to_vec());
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            
+                            println!("{:#?}", hm);
+                            
+                            layer.effects.insert("stroke".to_string(), hm);
+                        }
+                        _ => { }
+                    }
+                }
             }
             
             layer.adjustment = match layerdata.adjustment_type.as_str()

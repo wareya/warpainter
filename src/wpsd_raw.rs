@@ -26,6 +26,13 @@ impl DescItem
     pub fn long(&self) -> i32 { match self { DescItem::long(x) => return *x, _ => panic!(), } }
     pub fn doub(&self) -> f64 { match self { DescItem::doub(x) => return *x, _ => panic!(), } }
     pub fn bool(&self) -> bool { match self { DescItem::bool(x) => return *x, _ => panic!(), } }
+    pub fn r#enum(&self) -> (String, String) { match self { DescItem::r#enum(y, x) => return (y.clone(), x.clone()), _ => panic!(), } }
+    #[allow(non_snake_case)]
+    pub fn UntF(&self) -> (String, f64) { match self { DescItem::UntF(y, x) => return (y.clone(), *x), _ => panic!(), } }
+    #[allow(non_snake_case)]
+    pub fn Objc(&self) -> Box<Descriptor> { match self { DescItem::Objc(x) => return x.clone(), _ => panic!(), } }
+    #[allow(non_snake_case)]
+    pub fn TEXT(&self) -> String { match self { DescItem::TEXT(x) => return x.clone(), _ => panic!(), } }
 }
 
 type Descriptor = (String, Vec<(String, DescItem)>);
