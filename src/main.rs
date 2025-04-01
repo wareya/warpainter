@@ -1524,21 +1524,42 @@ impl eframe::App for Warpainter
                 if $in_bottom { egui::ScrollArea::horizontal() } else { egui::ScrollArea::both() }.auto_shrink([false, false]).show(ui, |ui|
                 {
                     let mut layer_info = vec!();
-                    for layer in self.layers.children.iter()
+                    for c in self.layers.children.iter_mut()
                     {
-                        layer.visit_layers(0, &mut |layer, depth|
+                        c.visit_layers_mut(0, &mut |layer, depth|
                         {
-                            layer_info.push((
-                                layer.name.clone(),
-                                layer.uuid,
-                                depth,
-                                layer.mask.is_some(),
-                                layer.clipped,
-                                layer.children.len(),
-                                layer.visible,
-                                if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail()),
-                            ));
-                            Some(())
+                                let thumb_img = if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail());
+                                let mut th_outer = None;
+                                if let Some(thumb_img) = thumb_img
+                                {
+                                    use uuid::Uuid;
+                                    if let Some(ref mut tn) = layer.thumbnail
+                                    {
+                                        let tex = tn.to_mut::<egui::TextureHandle>().unwrap();
+                                        th_outer = Some(tex.clone());
+                                        tex.set(thumb_img.to_egui(), egui::TextureOptions::NEAREST);
+                                    }
+                                    else
+                                    {
+                                        let ctx = ui.ctx();
+                                        let nd = thumb_img.to_egui();
+                                        let tex = ctx.load_texture(format!("{}", Uuid::new_v4().as_u128()), nd, egui::TextureOptions::NEAREST);
+                                        th_outer = Some(tex.clone());
+                                        layer.thumbnail = Some(Box::new(tex));
+                                    }
+                                }
+                                
+                                layer_info.push((
+                                    layer.name.clone(),
+                                    layer.uuid,
+                                    depth,
+                                    layer.mask.is_some(),
+                                    layer.clipped,
+                                    layer.children.len(),
+                                    layer.visible,
+                                    th_outer,
+                                ));
+                                Some(())
                         });
                     }
                     
@@ -1572,7 +1593,7 @@ impl eframe::App for Warpainter
                                 if active
                                 {
                                     //stroke = egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(64, 64, 192, 255));
-                                    stroke = (1.5, ui.style().visuals.widgets.active.fg_stroke.color).into();
+                                    stroke = (2.0, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
                                 if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::symmetric(4, 0))
                                 .stroke(stroke)
@@ -1600,7 +1621,7 @@ impl eframe::App for Warpainter
                                         name += "[m]";
                                     }
                                     
-                                    if let Some(image) = info.7
+                                    if let Some(tx) = info.7
                                     {
                                         let (r, painter) = ui.allocate_painter((24.0, 24.0).into(), egui::Sense::click());
                                         let mut rect = r.rect;
@@ -1616,20 +1637,9 @@ impl eframe::App for Warpainter
                                             }
                                         }
                                         let mut rect = r.rect;
-                                        rect.max.x = rect.min.x + 2.0;
-                                        rect.max.y = rect.min.y + 2.0;
-                                        // lol. lmao. FIXME/TODO
-                                        for y in 0..24
-                                        {
-                                            for x in 0..24
-                                            {
-                                                let px = image.get_pixel_wrapped(x, y);
-                                                if px[3] > 2
-                                                {
-                                                    painter.rect_filled(rect.translate((x as f32, y as f32).into()), 0.0, egui::Color32::from_rgba_unmultiplied(px[0], px[1], px[2], px[3]));
-                                                }
-                                            }
-                                        }
+                                        rect.max.x = rect.min.x + 24.0;
+                                        rect.max.y = rect.min.y + 24.0;
+                                        painter.image(tx.id(), rect, [(0.0, 0.0).into(), (1.0, 1.0).into()].into(), egui::Color32::WHITE);
                                         clicked |= r.clicked();
                                     }
                                     clicked |= ui.add(egui::Label::new(egui::RichText::new(&name).size(10.0)).selectable(false).sense(egui::Sense::click_and_drag())).clicked();

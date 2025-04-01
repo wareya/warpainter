@@ -1,3 +1,4 @@
+use std::any::Any;
 use uuid::Uuid;
 use crate::warimage::*;
 use crate::transform::*;
@@ -94,6 +95,53 @@ pub (crate) enum Adjustment
     #[default] Xxx,
 }
 
+pub (crate) trait CloneAny : Any
+{ 
+    fn any(&self) -> &dyn Any;
+    fn mut_any(&mut self) -> &mut dyn Any;
+    fn clone_box(&self) -> Box<dyn CloneAny>;
+}
+impl<T : Any + Clone> CloneAny for T
+{
+    fn any(&self) -> &dyn Any
+    {
+        self
+    }
+    fn mut_any(&mut self) -> &mut dyn Any
+    {
+        self
+    }
+    fn clone_box(&self) -> Box<dyn CloneAny>
+    {
+        Box::new(self.clone())
+    }
+}
+impl dyn CloneAny
+{
+    pub fn to_ref<T : Any>(&self) -> Option<&T>
+    {
+        self.any().downcast_ref::<T>()
+    }
+    pub fn to_mut<T : Any>(&mut self) -> Option<&mut T>
+    {
+        self.mut_any().downcast_mut::<T>()
+    }
+}
+impl Clone for Box<dyn CloneAny>
+{
+    fn clone(&self) -> Self
+    {
+        (**self).clone_box().into()
+    }
+}
+impl std::fmt::Debug for Box<dyn CloneAny>
+{
+    fn fmt(&self, f : &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
+        write!(f, "<Box CloneAny>")
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub (crate) struct Layer
 {
@@ -129,6 +177,8 @@ pub (crate) struct Layer
     pub (crate) adjustment : Option<Adjustment>,
     
     pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
+    
+    pub (crate) thumbnail : Option<Box<dyn CloneAny>>,
 }
 
 impl Layer
@@ -147,7 +197,6 @@ impl Layer
             alpha_locked : self.alpha_locked,
             
             effects : self.effects.clone(),
-            
         }
     }
     pub (crate) fn set_info(&mut self, info : &LayerInfo)
@@ -202,6 +251,8 @@ impl Layer
             
             effects : HashMap::new(),
             
+            thumbnail : None,
+            
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }
     }
@@ -240,6 +291,8 @@ impl Layer
             alpha_locked : false,
             
             effects : HashMap::new(),
+            
+            thumbnail : None,
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }
