@@ -20,6 +20,7 @@ pub (crate) struct LayerInfo
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
     
+    pub (crate) effects : HashMap<String, Vec<f64>>,
 }
 
 impl LayerInfo
@@ -38,6 +39,8 @@ impl LayerInfo
             clipped : false,
             locked : false,
             alpha_locked : false,
+            
+            effects : HashMap::new(),
         }
     }
 }
@@ -89,6 +92,8 @@ pub (crate) struct Layer
     pub (crate) old_info_for_undo : LayerInfo,
     
     pub (crate) adjustment : Option<Adjustment>,
+    
+    pub (crate) effects : HashMap<String, Vec<f64>>,
 }
 
 impl Layer
@@ -105,6 +110,9 @@ impl Layer
             clipped : self.clipped,
             locked : self.locked,
             alpha_locked : self.alpha_locked,
+            
+            effects : self.effects.clone(),
+            
         }
     }
     pub (crate) fn set_info(&mut self, info : &LayerInfo)
@@ -118,6 +126,8 @@ impl Layer
         self.clipped = info.clipped;
         self.locked = info.locked;
         self.alpha_locked = info.alpha_locked;
+        
+        self.effects = info.effects.clone();
         
         self.commit_info();
     }
@@ -155,6 +165,8 @@ impl Layer
             locked : false,
             alpha_locked : false,
             
+            effects : HashMap::new(),
+            
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }
     }
@@ -191,6 +203,8 @@ impl Layer
             clipped : false,
             locked : false,
             alpha_locked : false,
+            
+            effects : HashMap::new(),
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }

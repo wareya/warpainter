@@ -9,11 +9,15 @@ pub enum DescItem
     long(i32),
     #[allow(non_camel_case_types)]
     doub(f64),
+    UntF(String, f64),
     #[allow(non_camel_case_types)]
     bool(bool),
     TEXT(String),
     Err(String),
     Objc(Box<Descriptor>),
+    #[allow(non_camel_case_types)]
+    r#enum(String, String),
+    VlLs(Vec<DescItem>),
     #[default] Xxx
 }
 
@@ -68,6 +72,7 @@ pub struct LayerInfo {
     pub adjustment_type : String,
     pub adjustment_info : Vec<f32>,
     pub adjustment_desc : Option<Descriptor>,
+    pub effects_desc : Option<Descriptor>,
 }
 
 fn read_u8(cursor: &mut Cursor<&[u8]>) -> u8
@@ -467,6 +472,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             adjustment_type : "".to_string(),
             adjustment_info : vec!(),
             adjustment_desc : None,
+            effects_desc : None,
         };
         
         //println!("--- {:X}", cursor.position());
@@ -511,34 +517,72 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                     c.read_exact(&mut name).unwrap();
                     let name = String::from_utf8_lossy(&name).to_string();
                     
-                    let mut id = vec![0; 4];
-                    c.read_exact(&mut id).unwrap();
-                    let id = String::from_utf8_lossy(&id).to_string();
-                    
-                    match id.as_str()
+                    fn read_key(c : &mut Cursor<&[u8]>) -> DescItem
                     {
-                        "long" => data.push((name, DescItem::long(read_i32(c)))),
-                        "doub" => data.push((name, DescItem::doub(read_f64(c)))),
-                        "Objc" => data.push((name, DescItem::Objc(Box::new(read_descriptor(c))))),
-                        "bool" => data.push((name, DescItem::bool(read_u8(c) != 0))),
-                        "TEXT" =>
+                        let mut id = vec![0; 4];
+                        c.read_exact(&mut id).unwrap();
+                        let id = String::from_utf8_lossy(&id).to_string();
+                        
+                        match id.as_str()
                         {
-                            let len = read_u32(c) as u64;
-                            let mut text = vec![0; len as usize * 2];
-                            for i in 0..len
+                            "long" => return DescItem::long(read_i32(c)),
+                            "doub" => return DescItem::doub(read_f64(c)),
+                            "Objc" => return DescItem::Objc(Box::new(read_descriptor(c))),
+                            "bool" => return DescItem::bool(read_u8(c) != 0),
+                            "TEXT" =>
                             {
-                                text[i as usize] = read_u16(c);
+                                let len = read_u32(c) as u64;
+                                let mut text = vec![0; len as usize];
+                                for i in 0..len
+                                {
+                                    text[i as usize] = read_u16(c);
+                                }
+                                let text = String::from_utf16_lossy(&text).trim_end_matches('\0').to_string();
+                                return DescItem::TEXT(text);
                             }
-                            let text = String::from_utf16_lossy(&text).to_string();
-                            data.push((name, DescItem::TEXT(text)));
-                        }
-                        _ =>
-                        {
-                            println!("!!! errant descriptor subobject type... {}", id);
-                            data.push((name, DescItem::Err(id)));
-                            break;
+                            "UntF" =>
+                            {
+                                let mut typ = vec![0; 4];
+                                c.read_exact(&mut typ).unwrap();
+                                let typ = String::from_utf8_lossy(&typ).to_string();
+                                
+                                return DescItem::UntF(typ, read_f64(c));
+                            }
+                            "enum" =>
+                            {
+                                let mut len = read_u32(c);
+                                if len == 0 { len = 4; }
+                                let mut name1 = vec![0; len as usize];
+                                c.read_exact(&mut name1).unwrap();
+                                let name1 = String::from_utf8_lossy(&name1).to_string();
+                                
+                                let mut len = read_u32(c);
+                                if len == 0 { len = 4; }
+                                let mut name2 = vec![0; len as usize];
+                                c.read_exact(&mut name2).unwrap();
+                                let name2 = String::from_utf8_lossy(&name2).to_string();
+                                
+                                return DescItem::r#enum(name1, name2);
+                            }
+                            "VlLs" =>
+                            {
+                                let len = read_u32(c);
+                                let mut ret = vec!();
+                                for _ in 0..len
+                                {
+                                    ret.push(read_key(c));
+                                }
+                                return DescItem::VlLs(ret);
+                            }
+                            _ =>
+                            {
+                                println!("!!! errant descriptor subobject type... {}", id);
+                                return DescItem::Err(id);
+                            }
                         }
                     }
+                    
+                    data.push((name, read_key(c)));
                 }
                 
                 //
@@ -581,6 +625,12 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 "iOpa" =>
                 {
                     layer.fill_opacity = read_u8(&mut cursor) as f32 / 255.0;
+                }
+                "lfx2" =>
+                {
+                    assert!(read_u32(&mut cursor) == 0);
+                    assert!(read_u32(&mut cursor) == 16);
+                    layer.effects_desc = Some(read_descriptor(&mut cursor));
                 }
                 // adjustment layers
                 "post" =>

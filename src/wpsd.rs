@@ -87,6 +87,11 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             //println!("!!!!{:?}", layer.offset);
             layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
             
+            if let Some(fx) = layerdata.effects_desc
+            {
+                println!("{:#?}", fx);
+            }
+            
             layer.adjustment = match layerdata.adjustment_type.as_str()
             {
                 "" => None,

@@ -69,7 +69,7 @@ def dump_psd_metadata(psd_path):
         dump_layer(layer)
         
     # Check and display the global layer mask information if available
-    if hasattr(psd, 'layer_and_mask_info') and psd.layer_and_mask_info.global_layer_mask_info:
+    if hasattr(psd, 'layer_and_mask') and psd.layer_and_mask.global_layer_mask_info:
         mask_info = psd.layer_and_mask_info.global_layer_mask_info
         print("\nGlobal Layer Mask Info:")
         print(f"  Overlay Color: {mask_info.overlay_color}")
