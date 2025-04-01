@@ -261,25 +261,39 @@ fn get_pool() -> &'static rayon::ThreadPool
     THREAD_POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(get_thread_count()).build().unwrap())
 }
 
-impl<const N: usize> Image<N>
+impl<const N : usize> Image<N>
 {
     pub (crate) fn make_thumbnail(&self) -> Self
     {
         let size = 24;
         let data = ImageData::<N>::new_int(size, size);
         let mut ret = Self { width : size, height : size, data };
+        let d = 1.0 / (size + 1) as f32;
+        let q = self.height.max(self.width) as f32;
+        let d2 = (d*q*0.5) as isize;
         for y in 0..size
         {
             for x in 0..size
             {
-                let fy = y as f32 / size as f32;
-                let fx = x as f32 / size as f32;
-                let mut y2 = (fy * self.height.max(self.width) as f32) as isize;
-                let mut x2 = (fx * self.height.max(self.width) as f32) as isize;
+                let fy = (y as f32 + 0.25) / (size) as f32;
+                let fx = (x as f32 + 0.25) / (size) as f32;
+                
+                let mut y2 = (fy * q) as isize;
+                let mut x2 = (fx * q) as isize;
                 y2 += (self.height - self.height.max(self.width)) as isize / 2;
                 x2 += (self.width  - self.height.max(self.width)) as isize / 2;
                 
-                ret.set_pixel(x as isize, y as isize, self.get_pixel(x2, y2));
+                let mut c = self.get_pixel(x2, y2);
+                let c2 = self.get_pixel(x2 + d2, y2);
+                let c3 = self.get_pixel(x2, y2 + d2);
+                let c4 = self.get_pixel(x2 + d2, y2 + d2);
+                
+                for i in 0..N
+                {
+                    c[i] = ((c[i] as u32 + c2[i] as u32 + c3[i] as u32 + c4[i] as u32) / 4) as u8;
+                }
+                
+                ret.set_pixel(x as isize, y as isize, c);
             }
         }
         ret
