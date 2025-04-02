@@ -565,6 +565,7 @@ impl Layer
             let mut stash_fill_opacity = 0.0;
             let mut stash_funny_flag = false;
             let mut stash_blend_mode = "".to_string();
+            
             for i in (0..self.children.len()).rev()
             {
                 let (a, b) = self.children.split_at_mut(i);
@@ -591,6 +592,7 @@ impl Layer
                 let fill_opacity = child.fill_opacity;
                 let child_clipped = child.clipped;
                 let child_funny_flag = child.funny_flag;
+                let child_has_fx = child.effects.len() > 0;
                 
                 //println!("???{:?}", self.offset);
                 let mut above_offset = [0, 0];
@@ -683,6 +685,8 @@ impl Layer
                     
                     // restore original alpha
                     stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), None, None, stash_opacity, stash_fill_opacity, stash_funny_flag, [0, 0], "Clip Alpha");
+                    //let s2 = stash.as_mut().unwrap().clone();
+                    //stash.as_mut().unwrap().apply_fx_dummy_1pxoutline(rect, Some(s2).as_ref(), None, None, stash_opacity, stash_fill_opacity, stash_funny_flag, [0, 0], "Normal");
                     
                     above_offset = stash_offs;
                     if stash_is_first
@@ -745,14 +749,22 @@ impl Layer
                     }
                     else
                     {
+                        let mut data = source_data.clone();
+                        if child_has_fx
+                        {
+                            data.apply_fx_dummy_1pxoutline([[0.0, 0.0], [1000000.0, 10000000.0]], Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, above_offset, "Normal");
+                        }
+                        
+                        //self.flattened_data.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 0.0);
+                        
                         // normal layer blending
                         if first
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, "Copy");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, "Normal");
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
                         }
                     }
                 }

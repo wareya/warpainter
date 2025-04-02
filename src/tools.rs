@@ -1062,6 +1062,7 @@ impl Tool for Eyedropper
         if new_input.held[0]
         {
             let coord = new_input.canvas_mouse_coord;
+            let coord = vec_sub(&coord, &app.get_editing_offset());
             // FIXME: use size, sample source
             let image = app.get_current_layer_image();
             if let Some(image) = image

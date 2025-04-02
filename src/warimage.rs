@@ -361,14 +361,42 @@ impl Image<4>
         }
         Self { width : w, height : h, data }
     }
+    pub (crate) fn apply_fx_dummy_1pxoutline(&mut self, rect : [[f32; 2]; 2], source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
+    {
+        println!("----evil");
+        let adj = Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+        {
+            let img = img.unwrap();
+            let x = x as isize;
+            let y = y as isize;
+            let c = img.get_pixel(x, y);
+            if c[3] < 128
+            {
+                let c1 = img.get_pixel(x-1, y);
+                let c2 = img.get_pixel(x+1, y);
+                let c3 = img.get_pixel(x, y-1);
+                let c4 = img.get_pixel(x, y+1);
+                if c1[3] >= 128 || c2[3] >= 128 || c3[3] >= 128 || c4[3] >= 128
+                {
+                    return [0.0, 0.0, 0.0, 1.0];
+                }
+                [0.0, 0.0, 0.0, 0.0]
+            }
+            else
+            {
+                [0.0, 0.0, 0.0, 0.0]
+            }
+        });
+        self.apply_modifier(rect, adj, source, false, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
+    }
     pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
         let adj = Self::find_adjustment(adjustment);
-        self.apply_modifier(rect, adj, false, true, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
+        self.apply_modifier(rect, adj, None, true, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
     }
     #[inline(never)]
     pub (crate) fn apply_modifier(&mut self, rect : [[f32; 2]; 2], modifier : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync>,
-        want_copy : bool, flush_opacity : bool,
+        source : Option<&Self>, flush_opacity : bool,
         mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>,
         top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
@@ -401,16 +429,6 @@ impl Image<4>
         {
             Box::new(|_x : usize, _y : usize| top_opacity)
         };
-        
-        let s = if want_copy
-        {
-            Some(self.clone())
-        }
-        else
-        {
-            None
-        };
-        let s2 = s.as_ref();
         
         macro_rules! do_loop
         {
@@ -480,11 +498,14 @@ impl Image<4>
                                 }
                                 let opacity = $get_opacity(x, y + offset);
                                 
-                                let top_pixel = modifier(bottom_pixel, x, y + offset, s2);
+                                let top_pixel = modifier(bottom_pixel, x, y + offset, source);
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
                                 let mut c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag, [x, y + offset]);
-                                c[3] = a;
+                                if flush_opacity
+                                {
+                                    c[3] = a;
+                                }
                                 
                                 bottom[bottom_index] = c;
                             }
