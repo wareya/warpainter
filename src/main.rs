@@ -1528,38 +1528,38 @@ impl eframe::App for Warpainter
                     {
                         c.visit_layers_mut(0, &mut |layer, depth|
                         {
-                                let thumb_img = if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail());
-                                let mut th_outer = None;
-                                if let Some(thumb_img) = thumb_img
+                            let thumb_img = if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail());
+                            let mut th_outer = None;
+                            if let Some(thumb_img) = thumb_img
+                            {
+                                use uuid::Uuid;
+                                if let Some(ref mut tn) = layer.thumbnail
                                 {
-                                    use uuid::Uuid;
-                                    if let Some(ref mut tn) = layer.thumbnail
-                                    {
-                                        let tex = tn.to_mut::<egui::TextureHandle>().unwrap();
-                                        th_outer = Some(tex.clone());
-                                        tex.set(thumb_img.to_egui(), egui::TextureOptions::NEAREST);
-                                    }
-                                    else
-                                    {
-                                        let ctx = ui.ctx();
-                                        let nd = thumb_img.to_egui();
-                                        let tex = ctx.load_texture(format!("{}", Uuid::new_v4().as_u128()), nd, egui::TextureOptions::NEAREST);
-                                        th_outer = Some(tex.clone());
-                                        layer.thumbnail = Some(Box::new(tex));
-                                    }
+                                    let tex = tn.to_mut::<egui::TextureHandle>().unwrap();
+                                    th_outer = Some(tex.clone());
+                                    tex.set(thumb_img.to_egui(), egui::TextureOptions::NEAREST);
                                 }
-                                
-                                layer_info.push((
-                                    layer.name.clone(),
-                                    layer.uuid,
-                                    depth,
-                                    layer.mask.is_some(),
-                                    layer.clipped,
-                                    layer.children.len(),
-                                    layer.visible,
-                                    th_outer,
-                                ));
-                                Some(())
+                                else
+                                {
+                                    let ctx = ui.ctx();
+                                    let nd = thumb_img.to_egui();
+                                    let tex = ctx.load_texture(format!("{}", Uuid::new_v4().as_u128()), nd, egui::TextureOptions::NEAREST);
+                                    th_outer = Some(tex.clone());
+                                    layer.thumbnail = Some(Box::new(tex));
+                                }
+                            }
+                            
+                            layer_info.push((
+                                layer.name.clone(),
+                                layer.uuid,
+                                depth,
+                                layer.mask.is_some(),
+                                layer.clipped,
+                                layer.children.len(),
+                                layer.visible,
+                                th_outer,
+                            ));
+                            Some(())
                         });
                     }
                     

@@ -361,8 +361,16 @@ impl Image<4>
         }
         Self { width : w, height : h, data }
     }
-    #[inline(never)]
     pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
+    {
+        let adj = Self::find_adjustment(adjustment);
+        self.apply_modifier(rect, adj, false, true, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
+    }
+    #[inline(never)]
+    pub (crate) fn apply_modifier(&mut self, rect : [[f32; 2]; 2], modifier : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync>,
+        want_copy : bool, flush_opacity : bool,
+        mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>,
+        top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width  as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
@@ -394,152 +402,15 @@ impl Image<4>
             Box::new(|_x : usize, _y : usize| top_opacity)
         };
         
-        fn do_adjustment_float(mut c : [f32; 4], adjustment : &Adjustment) -> [f32; 4]
+        let s = if want_copy
         {
-            match adjustment
-            {
-                Adjustment::Invert =>
-                {
-                    for i in 0..3
-                    {
-                        c[i] = 1.0 - c[i];
-                    }
-                }
-                Adjustment::Posterize(n) =>
-                {
-                    for i in 0..3
-                    {
-                        c[i] = (c[i] * n * 0.99999).floor() / (n-1.0);
-                        //c[i] = (c[i] * (n)).round() / (n);
-                        //c[i] = (c[i] * (n-1.0)).round() / (n-1.0);
-                    }
-                }
-                Adjustment::Threshold(mut n) =>
-                {
-                    n = n * (1.0/255.0);
-                    let v = calc_y([c[0], c[1], c[2]]);
-                    let v = if v >= n { 1.0 } else { 0.0 };
-                    c[0] = v;
-                    c[1] = v;
-                    c[2] = v;
-                }
-                Adjustment::BrightContrast(n) =>
-                {
-                    //println!("-------{:?}", n);
-                    let b = n[0] / 100.0 * 0.4*0.99;
-                    let mut cx = n[1] / 100.0 + 1.0;
-                    let m = n[2] / 255.0;
-                    let _is_legacy = n[3] == 1.0;
-                    if cx > 1.0
-                    {
-                        cx = 1.0/(1.0 - (cx-1.0)*0.99);
-                    }
-                    for i in 0..3
-                    {
-                        c[i] += b;
-                        c[i] = (c[i] - m) * cx + m;// + b;
-                    }
-                }
-                Adjustment::HueSatLum(n) =>
-                {
-                    let l = n[2] / 100.0;
-                    for i in 0..3
-                    {
-                        c[i] = c[i] * (1.0 - l.abs()) + if l > 0.0 { l } else { 0.0 };
-                        c[i] = c[i].clamp(0.0, 1.0);
-                    }
-                    
-                    let mut hsl = rgb_to_hsl(c);
-                    let h = n[0];
-                    hsl[0] = ((hsl[0] + h) % 360.0 + 360.0) % 360.0;
-                    let s = n[1] / 100.0;
-                    if s <= 0.0
-                    {
-                        hsl[1] *= s + 1.0;
-                    }
-                    else
-                    {
-                        hsl[1] /= 1.0 - s*0.99;
-                    }
-                    hsl[1] = hsl[1].clamp(0.0, 1.0);
-                    c = hsl_to_rgb(hsl);
-                }
-                Adjustment::Curves(v) =>
-                {
-                    let points = &v[0];
-                    let tans = compute_spline_tangents(points);
-                    //println!("----- {:?}", points);
-                    for i in 0..3
-                    {
-                        let n = binary_search_last_lt(points, c[i]);
-                        c[i] = interpolate_spline(c[i], points, &tans, n);
-                    }
-                }
-                Adjustment::Levels(v) =>
-                {
-                    let apply_levels = |c : f32, data : &[f32; 5]|
-                    {
-                        let mut c = c;
-                        c -= data[0];
-                        c /= data[1] - data[0];
-                        c = c.powf(1.0/data[4]);
-                        c *= data[3] - data[2];
-                        c += data[2];
-                        c
-                    };
-                    c[0] = apply_levels(c[0], &v[0]);
-                    c[1] = apply_levels(c[1], &v[0]);
-                    c[2] = apply_levels(c[2], &v[0]);
-                    for i in 0..3
-                    {
-                        c[i] = apply_levels(c[i], &v[i+1]);
-                    }
-                }
-                Adjustment::BlackWhite((v, _colorized, _color)) =>
-                {
-                    fn rgb_to_rygcbml(rgb: &[f32]) -> [f32; 7]
-                    {
-                        let [r, g, b] = [rgb[0], rgb[1], rgb[2]];
-
-                        let l = r.min(g).min(b);
-
-                        let r = r - l;
-                        let g = g - l;
-                        let b = b - l;
-
-                        let y = r.min(g);
-                        let c = g.min(b);
-                        let m = r.min(b);
-                        let r2 = r - y - m;
-                        let g2 = g - y - c;
-                        let b2 = b - c - m;
-
-                        [r2, y, g2, c, b2, m, l]
-                    }
-                    
-                    let sept = rgb_to_rygcbml(&c);
-                    let mut l = sept[6];
-                    for i in 0..6
-                    {
-                        let a = sept[i] * (v[i] * 0.01);
-                        l += a;
-                    }
-                    
-                    c[0] = l;
-                    c[1] = l;
-                    c[2] = l;
-                }
-                _ => { }
-            }
-            c
+            Some(self.clone())
         }
-        fn do_adjustment(c : [u8; 4], adjustment : &Adjustment) -> [u8; 4]
+        else
         {
-            px_to_int(do_adjustment_float(px_to_float(c), adjustment))
-        }
-        
-        // separate from loop_rect_threaded because this is used by layer stack flattening, and needs to be as fast as possible
-        // so we do everything purely with a macro to ensure that as much inlining can be done as the compiler is capable of
+            None
+        };
+        let s2 = s.as_ref();
         
         macro_rules! do_loop
         {
@@ -579,6 +450,8 @@ impl Image<4>
                         }
                     };
                     
+                    let modifier = &$do_adjustment;
+                    
                     macro_rules! apply_info { ($info:expr, $get_opacity:expr) =>
                     {
                         let blend_mode = $info.2;
@@ -601,10 +474,13 @@ impl Image<4>
                                 
                                 let mut bottom_pixel = bottom[bottom_index];
                                 let a = bottom_pixel[3];
-                                bottom_pixel[3] = $maxval;
+                                if flush_opacity
+                                {
+                                    bottom_pixel[3] = $maxval;
+                                }
                                 let opacity = $get_opacity(x, y + offset);
                                 
-                                let top_pixel = $do_adjustment(bottom_pixel, adjustment);
+                                let top_pixel = modifier(bottom_pixel, x, y + offset, s2);
                                 
                                 let c = blend_f(top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag);
                                 let mut c = post_f(c, top_pixel, bottom_pixel, opacity, top_alpha_modifier, top_funny_flag, [x, y + offset]);
@@ -643,20 +519,164 @@ impl Image<4>
                 }
             }
         }
-        
-        //use std::time::Instant;
-        //let start = Instant::now();
-
         match &mut self.data
         {
             ImageData::<4>::Float(bottom) =>
-                do_loop!(bottom, find_blend_func_float, find_post_func_float, do_adjustment_float, 1.0),
+                do_loop!(bottom, find_blend_func_float, find_post_func_float, modifier, 1.0),
             ImageData::<4>::Int(bottom) =>
-                do_loop!(bottom, find_blend_func, find_post_func, do_adjustment, 255),
+                do_loop!(bottom, find_blend_func, find_post_func, |c, x, y, img| px_to_int(modifier(px_to_float(c), x, y, img)), 255),
         }
         
     }
     
+    fn find_adjustment(adjustment : &Adjustment) -> Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync>
+    {
+        let adjustment = adjustment.clone();
+        match adjustment
+        {
+            Adjustment::Invert => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                for i in 0..3
+                {
+                    c[i] = 1.0 - c[i];
+                }
+                c
+            }),
+            Adjustment::Posterize(n) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                for i in 0..3
+                {
+                    c[i] = (c[i] * n * 0.99999).floor() / (n-1.0);
+                    //c[i] = (c[i] * (n)).round() / (n);
+                    //c[i] = (c[i] * (n-1.0)).round() / (n-1.0);
+                }
+                c
+            }),
+            Adjustment::Threshold(n) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                let mut n = n;
+                n = n * (1.0/255.0);
+                let v = calc_y([c[0], c[1], c[2]]);
+                let v = if v >= n { 1.0 } else { 0.0 };
+                c[0] = v;
+                c[1] = v;
+                c[2] = v;
+                c
+            }),
+            Adjustment::BrightContrast(n) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                //println!("-------{:?}", n);
+                let b = n[0] / 100.0 * 0.4*0.99;
+                let mut cx = n[1] / 100.0 + 1.0;
+                let m = n[2] / 255.0;
+                let _is_legacy = n[3] == 1.0;
+                if cx > 1.0
+                {
+                    cx = 1.0/(1.0 - (cx-1.0)*0.99);
+                }
+                for i in 0..3
+                {
+                    c[i] += b;
+                    c[i] = (c[i] - m) * cx + m;// + b;
+                }
+                c
+            }),
+            Adjustment::HueSatLum(n) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                let l = n[2] / 100.0;
+                for i in 0..3
+                {
+                    c[i] = c[i] * (1.0 - l.abs()) + if l > 0.0 { l } else { 0.0 };
+                    c[i] = c[i].clamp(0.0, 1.0);
+                }
+                
+                let mut hsl = rgb_to_hsl(c);
+                let h = n[0];
+                hsl[0] = ((hsl[0] + h) % 360.0 + 360.0) % 360.0;
+                let s = n[1] / 100.0;
+                if s <= 0.0
+                {
+                    hsl[1] *= s + 1.0;
+                }
+                else
+                {
+                    hsl[1] /= 1.0 - s*0.99;
+                }
+                hsl[1] = hsl[1].clamp(0.0, 1.0);
+                c = hsl_to_rgb(hsl);
+                c
+            }),
+            Adjustment::Curves(v) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                let points = &v[0];
+                let tans = compute_spline_tangents(points);
+                //println!("----- {:?}", points);
+                for i in 0..3
+                {
+                    let n = binary_search_last_lt(points, c[i]);
+                    c[i] = interpolate_spline(c[i], points, &tans, n);
+                }
+                c
+            }),
+            Adjustment::Levels(v) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                let apply_levels = |c : f32, data : &[f32; 5]|
+                {
+                    let mut c = c;
+                    c -= data[0];
+                    c /= data[1] - data[0];
+                    c = c.powf(1.0/data[4]);
+                    c *= data[3] - data[2];
+                    c += data[2];
+                    c
+                };
+                c[0] = apply_levels(c[0], &v[0]);
+                c[1] = apply_levels(c[1], &v[0]);
+                c[2] = apply_levels(c[2], &v[0]);
+                for i in 0..3
+                {
+                    c[i] = apply_levels(c[i], &v[i+1]);
+                }
+                c
+            }),
+            Adjustment::BlackWhite((v, _colorized, _color)) => Box::new(move |mut c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4]
+            {
+                fn rgb_to_rygcbml(rgb: &[f32]) -> [f32; 7]
+                {
+                    let [r, g, b] = [rgb[0], rgb[1], rgb[2]];
+
+                    let l = r.min(g).min(b);
+
+                    let r = r - l;
+                    let g = g - l;
+                    let b = b - l;
+
+                    let y = r.min(g);
+                    let c = g.min(b);
+                    let m = r.min(b);
+                    let r2 = r - y - m;
+                    let g2 = g - y - c;
+                    let b2 = b - c - m;
+
+                    [r2, y, g2, c, b2, m, l]
+                }
+                
+                let sept = rgb_to_rygcbml(&c);
+                let mut l = sept[6];
+                for i in 0..6
+                {
+                    let a = sept[i] * (v[i] * 0.01);
+                    l += a;
+                }
+                
+                c[0] = l;
+                c[1] = l;
+                c[2] = l;
+                c
+            }),
+            _ => Box::new(|c : [f32; 4], _x : usize, _y : usize, _img : Option<&Self>| -> [f32; 4] { c }),
+        }
+    }
     #[inline(never)]
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
