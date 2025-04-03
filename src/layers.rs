@@ -436,6 +436,15 @@ impl Layer
         {
             self.flattened_dirty_rect = Some(rect_normalize(inner));
         }
+        let mut biggen = 0.0;
+        for fx in &self.effects
+        {
+            biggen += 3.0;
+        }
+        if biggen != 0.0
+        {
+            *self.flattened_dirty_rect.as_mut().unwrap() = rect_grow(self.flattened_dirty_rect.unwrap(), 3.0);
+        }
         self.edited_dirty_rect = Some(rect_enclose_rect(self.edited_dirty_rect.unwrap_or(self.flattened_dirty_rect.unwrap()), self.flattened_dirty_rect.unwrap()));
     }
     pub(crate) fn dirtify_edited(&mut self)
@@ -456,6 +465,15 @@ impl Layer
             }
             _ => Some([[0.0, 0.0], [1000000.0, 1000000.0]]) // FIXME store child sizes
         };
+        let mut biggen = 0.0;
+        for fx in &self.effects
+        {
+            biggen += 3.0;
+        }
+        if biggen != 0.0
+        {
+            *self.flattened_dirty_rect.as_mut().unwrap() = rect_grow(self.flattened_dirty_rect.unwrap(), 3.0);
+        }
     }
     pub(crate) fn dirtify_point(&mut self, point : [f32; 2])
     {
@@ -535,7 +553,7 @@ impl Layer
         else
         {
             //println!("group is dirty, reflattening ({:?})", dirty_rect);
-            let new_dirty_rect;
+            let mut new_dirty_rect;
             
             #[allow(clippy::unnecessary_unwrap)] // broken lint
             if self.flattened_data.is_none() || dirty_rect.is_none()
@@ -592,7 +610,7 @@ impl Layer
                 let fill_opacity = child.fill_opacity;
                 let child_clipped = child.clipped;
                 let child_funny_flag = child.funny_flag;
-                let child_has_fx = child.effects.len() > 0;
+                let child_fx = child.effects.clone();
                 
                 //println!("???{:?}", self.offset);
                 let mut above_offset = [0, 0];
@@ -686,17 +704,11 @@ impl Layer
                     // restore original alpha
                     stash.as_mut().unwrap().blend_rect_from(rect, stash_clean.as_ref().unwrap(), None, None, stash_opacity, stash_fill_opacity, stash_funny_flag, [0, 0], "Clip Alpha");
                     //let s2 = stash.as_mut().unwrap().clone();
-                    //stash.as_mut().unwrap().apply_fx_dummy_1pxoutline(rect, Some(s2).as_ref(), None, None, stash_opacity, stash_fill_opacity, stash_funny_flag, [0, 0], "Normal");
+                    //stash.as_mut().unwrap().apply_fx_dummy_outline(rect, Some(s2).as_ref(), None, None, stash_opacity, stash_fill_opacity, stash_funny_flag, [0, 0], "Normal");
                     
                     above_offset = stash_offs;
-                    if stash_is_first
-                    {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, stash_fill_opacity, stash_funny_flag, above_offset, "Copy");
-                    }
-                    else
-                    {
-                        self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, stash_fill_opacity, stash_funny_flag, above_offset, &stash_blend_mode);
-                    }
+                    
+                    self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, stash.as_ref().unwrap(), stash_mask.as_ref(), stash_mask_info.as_ref(), stash_opacity, stash_fill_opacity, stash_funny_flag, above_offset, &stash_blend_mode);
                     
                     stash = None;
                     stash_clean = None;
@@ -749,22 +761,28 @@ impl Layer
                     }
                     else
                     {
-                        let mut data = source_data.clone();
-                        if child_has_fx
+                        if child_fx.len() > 0
                         {
-                            data.apply_fx_dummy_1pxoutline([[0.0, 0.0], [1000000.0, 10000000.0]], Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, above_offset, "Normal");
-                        }
-                        
-                        //self.flattened_data.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 0.0);
-                        
-                        // normal layer blending
-                        if first
-                        {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, "Normal");
+                            let mut fill = self.flattened_data.clone().unwrap();
+                            fill.blend_rect_from(new_dirty_rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
+                            
+                            for fx in child_fx
+                            {
+                                new_dirty_rect = rect_grow(new_dirty_rect, 3.0);
+                                let mut data = source_data.alike_grown(3);
+                                data.apply_fx_dummy_outline(rect_translate(new_dirty_rect, [-above_offset[0] as f32, -above_offset[1] as f32]), Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [3, 3], "Normal");
+                                let mut back_a = self.flattened_data.clone().unwrap();
+                                back_a.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
+                                    opacity, 1.0, child.funny_flag, [above_offset[0] - 3, above_offset[1] - 3], &mode);
+                                self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &back_a, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [0, 0], "Interpolate");
+                            }
+                            
+                            std::mem::swap(self.flattened_data.as_mut().unwrap(), &mut fill);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [0, 0], "Hard Interpolate");
                         }
                         else
                         {
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
                         }
                     }
                 }

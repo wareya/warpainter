@@ -276,7 +276,24 @@ pub (crate) fn vec_floor<const N: usize>(a : &[f32; N]) -> [f32; N]
     }
     out
 }
+pub (crate) fn vec_neg<const N: usize>(a : &[f32; N]) -> [f32; N]
+{
+    let mut out = [0.0; N];
+    for i in 0..N
+    {
+        out[i] = -a[i];
+    }
+    out
+}
 
+pub (crate) fn rect_grow(mut rect : [[f32; 2]; 2], f : f32) -> [[f32; 2]; 2]
+{
+    rect[0][0] -= f;
+    rect[0][1] -= f;
+    rect[1][0] += f;
+    rect[1][1] += f;
+    rect
+}
 pub (crate) fn rect_enclose_point(mut rect : [[f32; 2]; 2], point : [f32; 2]) -> [[f32; 2]; 2]
 {
     rect[0][0] = rect[0][0].min(point[0]);

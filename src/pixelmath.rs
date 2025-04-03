@@ -819,6 +819,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         "Alpha Reject" => px_func_full_float::<BlendModeAlphaReject>,
         
         "Interpolate" => px_lerp_biased_float,
+        "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp_float(a, b, amount * a[3]),
         
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
@@ -895,6 +896,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         "Alpha Reject" => px_func_full::<BlendModeAlphaReject>,
         
         "Interpolate" => px_lerp_biased,
+        "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(a, b, amount * to_float(a[3])),
         
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
