@@ -765,6 +765,7 @@ impl Layer
                         {
                             let mut fill = self.flattened_data.clone().unwrap();
                             fill.blend_rect_from(new_dirty_rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
+                            std::mem::swap(self.flattened_data.as_mut().unwrap(), &mut fill);
                             
                             for fx in child_fx
                             {
@@ -774,7 +775,7 @@ impl Layer
                                 let mut back_a = self.flattened_data.clone().unwrap();
                                 back_a.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     opacity, 1.0, child.funny_flag, [above_offset[0] - 3, above_offset[1] - 3], &mode);
-                                self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &back_a, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [0, 0], "Interpolate");
+                                self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &back_a, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, [0, 0], "Interpolate");
                             }
                             
                             std::mem::swap(self.flattened_data.as_mut().unwrap(), &mut fill);
