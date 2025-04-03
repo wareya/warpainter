@@ -764,22 +764,30 @@ impl Layer
                         if child_fx.len() > 0
                         {
                             let mut fill = self.flattened_data.clone().unwrap();
-                            fill.blend_rect_from(new_dirty_rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
-                            std::mem::swap(self.flattened_data.as_mut().unwrap(), &mut fill);
+                            let mut overlay = self.flattened_data.clone().unwrap();
+                            
+                            fill.blend_rect_from(new_dirty_rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
                             
                             for fx in child_fx
                             {
+                                if fx.0 == "_enabled".to_string() || fx.0 == "_scale".to_string()
+                                {
+                                    continue;
+                                }
                                 new_dirty_rect = rect_grow(new_dirty_rect, 3.0);
                                 let mut data = source_data.alike_grown(3);
-                                data.apply_fx_dummy_outline(rect_translate(new_dirty_rect, [-above_offset[0] as f32, -above_offset[1] as f32]), Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [3, 3], "Normal");
-                                let mut back_a = self.flattened_data.clone().unwrap();
-                                back_a.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
-                                    opacity, 1.0, child.funny_flag, [above_offset[0] - 3, above_offset[1] - 3], &mode);
-                                self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &back_a, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, [0, 0], "Interpolate");
+                                
+                                data.apply_fx(rect_translate(new_dirty_rect, [-above_offset[0] as f32, -above_offset[1] as f32]), &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [3, 3], "Normal");
+                                
+                                let fx_mode = fx.1["mode"][0].s();
+                                overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
+                                    1.0, 1.0, false, [above_offset[0] - 3, above_offset[1] - 3], &fx_mode);
                             }
                             
-                            std::mem::swap(self.flattened_data.as_mut().unwrap(), &mut fill);
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [0, 0], "Hard Interpolate");
+                            //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            //*self.flattened_data.as_mut().unwrap() = fill;
+                            fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Hard Interpolate");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
                         }
                         else
                         {

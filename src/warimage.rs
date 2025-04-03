@@ -1,5 +1,7 @@
 use eframe::egui;
 
+use std::collections::HashMap;
+
 use crate::LayerPaint;
 use crate::UndoEvent;
 use crate::pixelmath::*;
@@ -490,15 +492,89 @@ impl Image<4>
                 }
                 if maxa >= 128
                 {
-                    return [0.0, 0.0, 0.0, (maxa - 128) as f32 / 127.0];
+                    return [0.4, 0.2, 0.0, (maxa - 128) as f32 / 127.0];
                 }
                 [0.0, 0.0, 0.0, 0.0]
             }
             else
             {
+                let mut maxa = 0;
+                for oy in -3..=3
+                {
+                    for ox in -3..=3
+                    {
+                        let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                        let ma = (4.0 - ma).clamp(0.0, 1.0);
+                        maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                    }
+                }
+                if maxa < 128
+                {
+                    return [0.4, 0.2, 0.0, (maxa - 128) as f32 / 127.0];
+                }
                 [0.0, 0.0, 0.0, 0.0]
             }
         });
+        self.apply_modifier(rect, adj, source, false, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
+    }
+    pub (crate) fn apply_fx(&mut self, rect : [[f32; 2]; 2], fx : &(String, HashMap<String, Vec<crate::FxData>>), source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
+    {
+        println!("----evil");
+        let adj = match (fx.0.as_str(), fx.1.clone())
+        {
+            ("stroke", data) =>
+            {
+                let r = fx.1["color"][0].f() as f32;
+                let g = fx.1["color"][1].f() as f32;
+                let b = fx.1["color"][2].f() as f32;
+                let size = fx.1["size"][0].f() as f32 * 0.5;
+                
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                {
+                    let img = img.unwrap();
+                    let x = x as isize;
+                    let y = y as isize;
+                    let c = img.get_pixel(x, y);
+                    if c[3] < 1
+                    {
+                        let mut maxa = 0;
+                        for oy in -size as isize..=size as isize
+                        {
+                            for ox in -size as isize..=size as isize
+                            {
+                                let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                                let ma = (size + 1.0 - ma).clamp(0.0, 1.0);
+                                maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                            }
+                        }
+                        if maxa >= 1
+                        {
+                            return [r, g, b, (maxa - 1) as f32 / 254.0];
+                        }
+                        [0.0, 0.0, 0.0, 0.0]
+                    }
+                    else
+                    {
+                        let mut maxa = 0;
+                        for oy in -size as isize..=size as isize
+                        {
+                            for ox in -size as isize..=size as isize
+                            {
+                                let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                                let ma = (size + 1.0 - ma).clamp(0.0, 1.0);
+                                maxa = maxa.max(((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
+                            }
+                        }
+                        if maxa >= 1
+                        {
+                            return [r, g, b, (maxa) as f32 / 254.0];
+                        }
+                        [0.0, 0.0, 0.0, 0.0]
+                    }
+                })
+            }
+            _ => panic!()
+        };
         self.apply_modifier(rect, adj, source, false, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
     }
     pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
