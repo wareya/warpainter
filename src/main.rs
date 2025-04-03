@@ -562,6 +562,17 @@ impl Warpainter
     {
         self.editing_image.as_mut()
     }
+    fn get_current_offset(&self) -> [f32; 2]
+    {
+        if let Some(layer) = self.layers.find_layer(self.current_layer)
+        {
+            layer.offset
+        }
+        else
+        {
+            [0.0, 0.0]
+        }
+    }
     fn get_current_layer_image(&mut self) -> Option<& Image<4>>
     {
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)

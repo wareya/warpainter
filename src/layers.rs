@@ -765,8 +765,8 @@ impl Layer
                         {
                             let mut fill = self.flattened_data.clone().unwrap();
                             let mut overlay = self.flattened_data.clone().unwrap();
-                            
-                            fill.blend_rect_from(new_dirty_rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            let mut masked_source = source_data.clone();
+                            let mut fx_opacity = 1.0;
                             
                             for fx in child_fx
                             {
@@ -774,19 +774,53 @@ impl Layer
                                 {
                                     continue;
                                 }
-                                new_dirty_rect = rect_grow(new_dirty_rect, 3.0);
-                                let mut data = source_data.alike_grown(3);
                                 
-                                data.apply_fx(rect_translate(new_dirty_rect, [-above_offset[0] as f32, -above_offset[1] as f32]), &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [3, 3], "Normal");
+                                pub (crate) fn fx_get_radius(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> f32
+                                {
+                                    match (fx.0.as_str(), fx.1.clone())
+                                    {
+                                        ("stroke", data) =>
+                                        {
+                                            fx.1["size"][0].f() as f32 + 2.0
+                                        }
+                                        _ => panic!()
+                                    }
+                                }
+                                
+                                let r = fx_get_radius(&fx);
+                                let r_int = r as isize;
+                                
+                                println!("{:?}", fx);
+                                fx_opacity = fx.1["opacity"][0].f() as f32 / 100.0;
+                                new_dirty_rect = rect_grow(new_dirty_rect, r);
+                                let rect_shifted = rect_translate(new_dirty_rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
+                                let mut data = source_data.alike_grown(r_int as usize);
+                                
+                                data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
+                                masked_source.blend_rect_from(rect_shifted, &data, None, None, 1.0, 1.0, false, [-r_int, -r_int], "Erase");
                                 
                                 let fx_mode = fx.1["mode"][0].s();
+                                
+                                let temp = Some(data.clone());
+                                data.clear_rect_alpha_float(rect_shifted, 1.0);
+                                
                                 overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
-                                    1.0, 1.0, false, [above_offset[0] - 3, above_offset[1] - 3], &fx_mode);
+                                    1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
+                                
+                                overlay.blend_rect_from(new_dirty_rect, temp.as_ref().unwrap(), None, None, 1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Clip Alpha");
+                                
+                                overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
+                                    1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Clip Alpha");
+                                let mut r2 = [[above_offset[0] as f32 - r, above_offset[1] as f32 - r], [data.width as f32, data.height as f32]];
+                                r2[1][0] += r2[0][0];
+                                r2[1][1] += r2[0][1];
+                                overlay.clear_outside_with_color_float(r2, [0.0, 0.0, 0.0, 0.0]);
                             }
                             
-                            //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
-                            //*self.flattened_data.as_mut().unwrap() = fill;
-                            fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Hard Interpolate");
+                            fill.blend_rect_from(new_dirty_rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            
+                            //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Normal");
+                            fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Soft Weld");
                             self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
                         }
                         else

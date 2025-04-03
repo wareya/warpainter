@@ -519,7 +519,6 @@ impl Image<4>
     }
     pub (crate) fn apply_fx(&mut self, rect : [[f32; 2]; 2], fx : &(String, HashMap<String, Vec<crate::FxData>>), source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
-        println!("----evil");
         let adj = match (fx.0.as_str(), fx.1.clone())
         {
             ("stroke", data) =>
@@ -528,6 +527,7 @@ impl Image<4>
                 let g = fx.1["color"][1].f() as f32;
                 let b = fx.1["color"][2].f() as f32;
                 let size = fx.1["size"][0].f() as f32 * 0.5;
+                let sint = size.ceil() as isize;
                 
                 Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
                 {
@@ -535,39 +535,48 @@ impl Image<4>
                     let x = x as isize;
                     let y = y as isize;
                     let c = img.get_pixel(x, y);
-                    if c[3] < 1
+                    let th = 255;
+                    if c[3] < 128
                     {
                         let mut maxa = 0;
-                        for oy in -size as isize..=size as isize
+                        for oy in -sint..=sint
                         {
-                            for ox in -size as isize..=size as isize
+                            for ox in -sint..=sint
                             {
                                 let ma = ((oy*oy + ox*ox) as f32).sqrt();
-                                let ma = (size + 1.0 - ma).clamp(0.0, 1.0);
-                                maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                                let ma = (size - ma).clamp(0.0, 1.0);
+                                if img.get_pixel(x+ox, y+oy)[3] >= 1
+                                {
+                                    maxa = maxa.max((255.0 * ma) as u8);
+                                }
+                                //maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
                             }
                         }
                         if maxa >= 1
                         {
-                            return [r, g, b, (maxa - 1) as f32 / 254.0];
+                            return [r, g, b, (maxa) as f32 / 255.0];
                         }
                         [0.0, 0.0, 0.0, 0.0]
                     }
                     else
                     {
                         let mut maxa = 0;
-                        for oy in -size as isize..=size as isize
+                        for oy in -sint..=sint
                         {
-                            for ox in -size as isize..=size as isize
+                            for ox in -sint..=sint
                             {
                                 let ma = ((oy*oy + ox*ox) as f32).sqrt();
-                                let ma = (size + 1.0 - ma).clamp(0.0, 1.0);
-                                maxa = maxa.max(((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
+                                let ma = (size - ma).clamp(0.0, 1.0);
+                                if img.get_pixel(x+ox, y+oy)[3] < 255
+                                {
+                                    maxa = maxa.max((255.0 * ma) as u8);
+                                }
+                                //maxa = maxa.min(255 - ((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
                             }
                         }
                         if maxa >= 1
                         {
-                            return [r, g, b, (maxa) as f32 / 254.0];
+                            return [r, g, b, (maxa) as f32 / 255.0];
                         }
                         [0.0, 0.0, 0.0, 0.0]
                     }
@@ -1368,6 +1377,27 @@ impl<const N : usize> Image<N>
                 self.set_pixel_float_wrapped(x, y, color);
             }
         }
+    }
+    pub (crate) fn clear_outside_with_color_float(&mut self, mut rect : [[f32; 2]; 2], color : [f32; N])
+    {
+        let w = self.width as f32;
+        let h = self.width as f32;
+        rect[0][0] = rect[0][0].max(0.0);
+        rect[0][1] = rect[0][1].max(0.0);
+        rect[1][0] = rect[1][0].min(w);
+        rect[1][1] = rect[1][1].min(h);
+        
+        self.clear_rect_with_color_float([[0.0, 0.0], rect[0]], color); // top left
+        self.clear_rect_with_color_float([rect[1], [w, h]], color); // bottom right
+        
+        self.clear_rect_with_color_float([[0.0, rect[1][1]], [rect[0][0], h]], color); // bottom left
+        self.clear_rect_with_color_float([[rect[1][0], 0.0], [w, rect[0][1]]], color); // top right
+        
+        self.clear_rect_with_color_float([[rect[0][0], 0.0], [rect[1][0], rect[0][1]]], color); // top
+        self.clear_rect_with_color_float([[rect[0][0], rect[1][1]], [rect[1][0], h]], color); // bottom
+        
+        self.clear_rect_with_color_float([[0.0, rect[0][1]], [rect[0][0], rect[1][1]]], color); // left
+        self.clear_rect_with_color_float([[rect[1][0], rect[0][1]], [w, rect[1][1]]], color); // right
     }
     pub (crate) fn alpha_rect_copy_from_mask(&mut self, rect : [[f32; 2]; 2], mask : &Image<1>)
     {
