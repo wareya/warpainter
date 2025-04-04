@@ -822,8 +822,8 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         "Interpolate" => px_lerp_biased_float,
         "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp_float(a, b, amount * a[3]),
         
+        "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], b[3].min(1.0 - a[3])], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
-        "Clip Alpha Strict" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], a[3] * amount], // used internally
         
@@ -838,6 +838,21 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         {
             let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier, flag);
             out[3] = (a[3] + b[3]*amount).clamp(0.0, 1.0);
+            out
+        },
+        
+        "Soft Weld" => |mut a, b, amount, _modifier, _flag|
+        {
+            let mut fa = a[3];
+            a[3] = fa * amount;
+            let mut out = px_func_float::<BlendModeNormal>(a, b, 1.0, 1.0, false);
+            
+            let fo = out[3];
+            let fb = b[3];
+            
+            // FIXME this is just a guess and is probably wrong
+            let i = (fb + fa * amount).clamp(0.0, 1.0);
+            out[3] = i;
             out
         },
         
@@ -899,9 +914,10 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         
         "Interpolate" => px_lerp_biased,
         //"Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(b, a, amount * (1.0 - to_float(a[3]))),
-        "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(a, b, amount * (1.0 - to_float(a[3]))),
+        "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(a, b, amount * (to_float(a[3]))),
         //"Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(b, a, amount * (1.0 - to_float(a[3])) * to_float(b[3])),
         
+        "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(b[3]).min(1.0 - to_float(a[3])))], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
@@ -926,12 +942,12 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             a[3] = to_int(fa * amount);
             let mut out = px_func::<BlendModeNormal>(a, b, 1.0, 1.0, false);
             
-            let mut fo = to_float(out[3]);
-            let mut fb = to_float(b[3]);
+            let fo = to_float(out[3]);
+            let fb = to_float(b[3]);
             
             // FIXME this is just a guess and is probably wrong
-            let i = fb.max(fa) * (amount);
-            out[3] = to_int(lerp(fo, 1.0/fb.max(fa).max(0.000000001), i));
+            let i = (fb + fa * amount).clamp(0.0, 1.0);
+            out[3] = to_int(i);
             out
         },
         

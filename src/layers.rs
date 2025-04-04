@@ -797,7 +797,7 @@ impl Layer
                                 let mut data = source_data.alike_grown(r_int as usize);
                                 
                                 data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
-                                masked_source.blend_rect_from(rect_shifted, &data, None, None, 1.0, 1.0, false, [-r_int, -r_int], "Erase");
+                                masked_source.blend_rect_from(rect_shifted, &data, None, None, 1.0, 1.0, false, [-r_int, -r_int], "Clamp Erase");
                                 
                                 let fx_mode = fx.1["mode"][0].s();
                                 
@@ -807,21 +807,30 @@ impl Layer
                                 overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
                                 
-                                overlay.blend_rect_from(new_dirty_rect, temp.as_ref().unwrap(), None, None, 1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Clip Alpha");
-                                
-                                overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
+                                overlay.blend_rect_from(new_dirty_rect, temp.as_ref().unwrap(), None, None,
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Clip Alpha");
+                                
+                                //overlay.blend_rect_from(new_dirty_rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
+                                //    1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Clip Alpha");
+                                
                                 let mut r2 = [[above_offset[0] as f32 - r, above_offset[1] as f32 - r], [data.width as f32, data.height as f32]];
                                 r2[1][0] += r2[0][0];
                                 r2[1][1] += r2[0][1];
                                 overlay.clear_outside_with_color_float(r2, [0.0, 0.0, 0.0, 0.0]);
                             }
                             
-                            fill.blend_rect_from(new_dirty_rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            let mut m = masked_source.clone();
+                            m.clear_rect_alpha_float(new_dirty_rect, 1.0);
+                            fill.blend_rect_from(new_dirty_rect, &m, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            fill.blend_rect_from(new_dirty_rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Clip Alpha");
                             
                             //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Normal");
                             fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Soft Weld");
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
+                            //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Weld");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
+                            //*self.flattened_data.as_mut().unwrap() = overlay;
+                            //*self.flattened_data.as_mut().unwrap() = fill;
                         }
                         else
                         {

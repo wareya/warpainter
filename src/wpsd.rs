@@ -146,6 +146,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                             println!("{:#?}", fx);
                             
                             let mut hm = HashMap::new();
+                                hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
                             
                             for (name, data) in fx
                             {
@@ -155,6 +156,17 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                     "Md  " => { hm.insert("mode".to_string(), vec!(get_blend_mode_2(&data.r#enum().1).into())); }
                                     "Opct" => { hm.insert("opacity".to_string(), vec!(data.UntF().1.into())); }
                                     "Sz  " => { hm.insert("size".to_string(), vec!(data.UntF().1.into())); }
+                                    "Styl" =>
+                                    {
+                                        let n = &data.r#enum().1;
+                                        hm.insert("style".to_string(), vec!(match n.as_str()
+                                        {
+                                            "OutF" => "outside",
+                                            "InsF" => "inside",
+                                            "CtrF" => "center",
+                                            _ => "outside",
+                                        }.to_string().into()));
+                                    }
                                     "Clr " =>
                                     {
                                         let mut color = [0.0f64, 0.0f64, 0.0f64, 1.0f64];

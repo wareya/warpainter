@@ -193,7 +193,7 @@ impl<const N : usize> Image<N>
         }
     }
     #[inline]
-    pub (crate) fn get_pixel(&self, x : isize, y : isize) -> [u8; N]
+    pub (crate) fn get_pixel(&self, mut x : isize, mut y : isize) -> [u8; N]
     {
         if x < 0 || x as usize >= self.width || y < 0 || y as usize >= self.height
         {
@@ -519,68 +519,120 @@ impl Image<4>
     }
     pub (crate) fn apply_fx(&mut self, rect : [[f32; 2]; 2], fx : &(String, HashMap<String, Vec<crate::FxData>>), source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
-        let adj = match (fx.0.as_str(), fx.1.clone())
+        let adj : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync> = match (fx.0.as_str(), fx.1.clone())
         {
             ("stroke", data) =>
             {
                 let r = fx.1["color"][0].f() as f32;
                 let g = fx.1["color"][1].f() as f32;
                 let b = fx.1["color"][2].f() as f32;
-                let size = fx.1["size"][0].f() as f32 * 0.5;
+                let osize = fx.1["size"][0].f() as f32;
+                let osint = osize.ceil() as isize;
+                let size = (osize * 0.5).max(1.0);
                 let sint = size.ceil() as isize;
+                let add1 = if osize == 1.0 { 0.01 } else { 0.51 };
+                let add2 = if osize == 1.0 { 0.01 } else { 0.51 };
                 
-                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                match fx.1["style"][0].s().as_str()
                 {
-                    let img = img.unwrap();
-                    let x = x as isize;
-                    let y = y as isize;
-                    let c = img.get_pixel(x, y);
-                    let th = 255;
-                    if c[3] < 128
+                    "center" => Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
                     {
+                        let img = img.unwrap();
+                        let x = x as isize;
+                        let y = y as isize;
+                        let c = img.get_pixel(x, y);
                         let mut maxa = 0;
-                        for oy in -sint..=sint
+                        for oy in -sint-1..=sint+1
                         {
-                            for ox in -sint..=sint
+                            for ox in -sint-1..=sint+1
                             {
                                 let ma = ((oy*oy + ox*ox) as f32).sqrt();
-                                let ma = (size - ma).clamp(0.0, 1.0);
-                                if img.get_pixel(x+ox, y+oy)[3] >= 1
+                                let ma = (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0);
+                                if (c[3] < 255 && img.get_pixel(x+ox, y+oy)[3] > 0)
+                                || (c[3] >= 255 && img.get_pixel(x+ox, y+oy)[3] < 255)
                                 {
                                     maxa = maxa.max((255.0 * ma) as u8);
                                 }
                                 //maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                                //maxa = maxa.max(((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
                             }
                         }
                         if maxa >= 1
                         {
-                            return [r, g, b, (maxa) as f32 / 255.0];
-                        }
-                        [0.0, 0.0, 0.0, 0.0]
-                    }
-                    else
-                    {
-                        let mut maxa = 0;
-                        for oy in -sint..=sint
-                        {
-                            for ox in -sint..=sint
+                            let mut a = (maxa) as f32 / 255.0;
+                            if osize == 1.0
                             {
-                                let ma = ((oy*oy + ox*ox) as f32).sqrt();
-                                let ma = (size - ma).clamp(0.0, 1.0);
-                                if img.get_pixel(x+ox, y+oy)[3] < 255
-                                {
-                                    maxa = maxa.max((255.0 * ma) as u8);
-                                }
-                                //maxa = maxa.min(255 - ((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
+                                a = 1.0 - (0.5 - img.get_pixel_float(x, y)[3]).abs();
                             }
-                        }
-                        if maxa >= 1
-                        {
-                            return [r, g, b, (maxa) as f32 / 255.0];
+                            return [r, g, b, a];
                         }
                         [0.0, 0.0, 0.0, 0.0]
-                    }
-                })
+                    }),
+                    "inside" => Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                    {
+                        let img = img.unwrap();
+                        let x = x as isize;
+                        let y = y as isize;
+                        let c = img.get_pixel(x, y);
+                        let mut maxa = 0;
+                        if c[3] > 0
+                        {
+                            for oy in -osint-1..=osint+1
+                            {
+                                for ox in -osint-1..=osint+1
+                                {
+                                    let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                                    let ma = (osize - ma + 1.0 - img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
+                                    if img.get_pixel(x+ox, y+oy)[3] < 255
+                                    {
+                                        maxa = maxa.max((255.0 * ma) as u8);
+                                        //maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                                        //maxa = maxa.max(((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
+                                    }
+                                }
+                            }
+                            if maxa >= 1
+                            {
+                                let mut a = (maxa) as f32 / 255.0;
+                                //a *= to_float(c[3]);
+                                return [r, g, b, a];
+                            }
+                        }
+                        [0.0, 0.0, 0.0, 0.0]
+                    }),
+                    _ => Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                    {
+                        let img = img.unwrap();
+                        let x = x as isize;
+                        let y = y as isize;
+                        let c = img.get_pixel(x, y);
+                        let mut maxa = 0;
+                        if c[3] < 255
+                        {
+                            for oy in -osint-1..=osint+1
+                            {
+                                for ox in -osint-1..=osint+1
+                                {
+                                    let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                                    let ma = (osize - ma + img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
+                                    if img.get_pixel(x+ox, y+oy)[3] > 0
+                                    {
+                                        maxa = maxa.max((255.0 * ma) as u8);
+                                        //maxa = maxa.max((img.get_pixel(x+ox, y+oy)[3] as f32 * ma) as u8);
+                                        //maxa = maxa.max(((255 - img.get_pixel(x+ox, y+oy)[3]) as f32 * ma) as u8);
+                                    }
+                                }
+                            }
+                            if maxa >= 1
+                            {
+                                let mut a = (maxa) as f32 / 255.0;
+                                a *= 1.0 - to_float(c[3]);
+                                return [r, g, b, a];
+                            }
+                        }
+                        [0.0, 0.0, 0.0, 0.0]
+                    }),
+                }
             }
             _ => panic!()
         };
