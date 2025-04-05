@@ -530,8 +530,8 @@ impl Image<4>
                 let osint = osize.ceil() as isize;
                 let size = (osize * 0.5).max(1.0);
                 let sint = size.ceil() as isize;
-                let add1 = if osize == 1.0 { 0.01 } else { 0.51 };
-                let add2 = if osize == 1.0 { 0.01 } else { 0.51 };
+                let add1 = if osize == 1.0 { 0.01 } else { 1.01 };
+                let add2 = if osize == 1.0 { 0.01 } else { 1.01 };
                 
                 match fx.1["style"][0].s().as_str()
                 {
@@ -547,6 +547,8 @@ impl Image<4>
                             for ox in -sint-1..=sint+1
                             {
                                 let ma = ((oy*oy + ox*ox) as f32).sqrt();
+                                //let ma = (osize - ma + 1.0 - img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
+                                //let ma = (osize - ma + img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
                                 let ma = (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0);
                                 if (c[3] < 255 && img.get_pixel(x+ox, y+oy)[3] > 0)
                                 || (c[3] >= 255 && img.get_pixel(x+ox, y+oy)[3] < 255)

@@ -826,11 +826,13 @@ impl Layer
                             
                             //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Normal");
                             fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Soft Weld");
+                            //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Hard Weld");
                             //fill.blend_rect_from(new_dirty_rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Weld");
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
                             //*self.flattened_data.as_mut().unwrap() = overlay;
-                            //*self.flattened_data.as_mut().unwrap() = fill;
+                            *self.flattened_data.as_mut().unwrap() = fill;
                         }
                         else
                         {

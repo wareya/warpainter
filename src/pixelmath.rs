@@ -841,18 +841,10 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
             out
         },
         
-        "Soft Weld" => |mut a, b, amount, _modifier, _flag|
+        "Hard Weld" => |a, b, amount, modifier, flag|
         {
-            let mut fa = a[3];
-            a[3] = fa * amount;
-            let mut out = px_func_float::<BlendModeNormal>(a, b, 1.0, 1.0, false);
-            
-            let fo = out[3];
-            let fb = b[3];
-            
-            // FIXME this is just a guess and is probably wrong
-            let i = (fb + fa * amount).clamp(0.0, 1.0);
-            out[3] = i;
+            let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier, flag);
+            out[3] = out[3].clamp(a[3].min(b[3]), b[3].max(a[3]));
             out
         },
         
@@ -948,6 +940,12 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             // FIXME this is just a guess and is probably wrong
             let i = (fb + fa * amount).clamp(0.0, 1.0);
             out[3] = to_int(i);
+            out
+        },
+        "Hard Weld" => |a, b, amount, modifier, flag|
+        {
+            let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
+            out[3] = out[3].clamp(a[3].min(b[3]), b[3].max(a[3]));
             out
         },
         

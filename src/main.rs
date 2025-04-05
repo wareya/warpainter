@@ -1995,6 +1995,8 @@ fn main()
 {
     let mut options = eframe::NativeOptions::default();
     
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("data/warpaint logo.png")).unwrap();
+    
     // eframe 0.19.0 is borked on windows 10, the window flickers violently when you resize it, flashing white
     // this is a seizure hazard when using the dark theme, so force the light theme instead
     
@@ -2002,6 +2004,7 @@ fn main()
     //options.default_theme = Theme::Light;
     //options.initial_window_size = Some([1280.0, 720.0].into());
     options.viewport = egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]).with_drag_and_drop(true);
+    options.viewport.icon = Some(Arc::new(icon));
     
     let mut wp = Box::<Warpainter>::default();
     
