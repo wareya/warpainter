@@ -347,29 +347,48 @@ impl<const N : usize> Image<N>
         {
             ImageData::Int(_) =>
             {
-                let mut outdata = Vec::new();
-                for _ in 0..self.height + px * 2
-                {
-                    for _ in 0..self.width + px * 2
-                    {
-                        outdata.push([0; N]);
-                    }
-                }
+                let outdata = vec!([0; N]; (self.height + px * 2) * (self.width + px * 2));
                 Image::<N> { width : self.width + px*2, height : self.height + px*2, data : ImageData::Int(outdata) }
             }
             ImageData::Float(_) =>
             {
-                let mut outdata = Vec::new();
-                for _ in 0..self.height + px * 2
-                {
-                    for _ in 0..self.width + px * 2
-                    {
-                        outdata.push([0.0; N]);
-                    }
-                }
+                let outdata = vec!([0.0; N]; (self.height + px * 2) * (self.width + px * 2));
                 Image::<N> { width : self.width + px*2, height : self.height + px*2, data : ImageData::Float(outdata) }
             }
         }
+    }
+    pub (crate) fn alike(&self) -> Self
+    {
+        self.alike_grown(0)
+    }
+    pub (crate) fn clone_cleared_outside(&self, rect : [[f32; 2]; 2]) -> Self
+    {
+        let mut ret = self.alike();
+        match (&self.data, &mut ret.data)
+        {
+            (ImageData::Int(selfdat), ImageData::Int(ref mut retdat)) =>
+            {
+                for y in rect[0][1] as usize..rect[1][1] as usize
+                {
+                    for x in rect[0][0] as usize..rect[1][0] as usize
+                    {
+                        retdat[y*self.width + x] = selfdat[y*self.width + x];
+                    }
+                }
+            }
+            (ImageData::Float(selfdat), ImageData::Float(ref mut retdat)) =>
+            {
+                for y in rect[0][1] as usize..rect[1][1] as usize
+                {
+                    for x in rect[0][0] as usize..rect[1][0] as usize
+                    {
+                        retdat[y*self.width + x] = selfdat[y*self.width + x];
+                    }
+                }
+            }
+            _ => panic!()
+        }
+        ret
     }
     pub (crate) fn make_thumbnail(&self) -> Self
     {
@@ -471,7 +490,8 @@ impl Image<4>
     }
     pub (crate) fn apply_fx_dummy_outline(&mut self, rect : [[f32; 2]; 2], source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
-        println!("----evil");
+        if blend_mode == "None" { return; }
+        //println!("----evil");
         let adj = Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
         {
             let img = img.unwrap();
@@ -519,6 +539,7 @@ impl Image<4>
     }
     pub (crate) fn apply_fx(&mut self, rect : [[f32; 2]; 2], fx : &(String, HashMap<String, Vec<crate::FxData>>), source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
+        if blend_mode == "None" { return; }
         let adj : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync> = match (fx.0.as_str(), fx.1.clone())
         {
             ("stroke", data) =>
@@ -638,10 +659,12 @@ impl Image<4>
             }
             _ => panic!()
         };
+        //println!("{:?}", rect_translate(rect, vec_neg(&rect[0])));
         self.apply_modifier(rect, adj, source, false, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
     }
     pub (crate) fn apply_adjustment(&mut self, rect : [[f32; 2]; 2], adjustment : &Adjustment, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
+        if blend_mode == "None" { return; }
         let adj = Self::find_adjustment(adjustment);
         self.apply_modifier(rect, adj, None, true, mask, mask_info, top_opacity, top_alpha_modifier, top_funny_flag, top_offset, blend_mode);
     }
@@ -651,6 +674,7 @@ impl Image<4>
         mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>,
         top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
+        if blend_mode == "None" { return; }
         let min_x = 0.max(rect[0][0].floor() as isize) as usize;
         let max_x = (self.width  as isize).min(rect[1][0].ceil() as isize + 1).max(0) as usize;
         let min_y = 0.max(rect[0][1].floor() as isize) as usize;
@@ -670,7 +694,7 @@ impl Image<4>
         let default = mask_info.map(|n| n.default_color as f32 / 255.0).unwrap_or(0.0);
         
         //println!("{:?}", mask);
-        println!("???????? {:?}", mask_info);
+        //println!("???????? {:?}", mask_info);
         let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let (Some(mask), false) = (mask, mask_info.map(|x| x.disabled).unwrap_or(false))
         //let get_opacity : Box<dyn Fn(usize, usize) -> f32 + Send + Sync> = if let Some(mask) = mask
         {
@@ -953,6 +977,7 @@ impl Image<4>
     #[inline(never)]
     pub (crate) fn blend_rect_from(&mut self, rect : [[f32; 2]; 2], top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
+        if blend_mode == "None" { return; }
         //rect[0][0] += top_offset[0] as f32;
         //rect[1][0] += top_offset[0] as f32;
         //rect[0][1] += top_offset[1] as f32;
@@ -1115,6 +1140,7 @@ impl Image<4>
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
+        if blend_mode == "None" { return; }
         self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, mask_info, top_opacity, 1.0, false, top_offset, blend_mode)
     }
     
@@ -1153,7 +1179,7 @@ impl Image<4>
         //do_loop!(false, 0..new_data.width             , min_y..=max_y    , &mut min_x, usize::min);
         //do_loop!(false, (min_x..new_data.width).rev() , min_y..=max_y    , &mut max_x, usize::max);
         
-        println!("{} {} {} {} {:?}", min_x, max_x, min_y, max_y, rect);
+        //println!("{} {} {} {} {:?}", min_x, max_x, min_y, max_y, rect);
         
         if max_y >= min_y && max_x >= min_x
         {

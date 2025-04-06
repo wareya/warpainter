@@ -3,6 +3,12 @@ fn lerp(a : f32, b : f32, t : f32) -> f32
 {
     a * (1.0 - t) + b * t
 }
+#[inline]
+fn unlerp(a : f32, b : f32, t : f32) -> f32
+{
+    if a == b { return 0.0; }
+    (t - a) / (b - a)
+}
 
 #[inline]
 // return what the output alpha should be given the two input alpha values
@@ -924,7 +930,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         "Weld" => |a, b, amount, modifier, flag|
         {
             let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
-            out[3] = to_int(to_float(a[3]) + to_float(b[3])*amount);
+            out[3] = to_int((to_float(a[3]) + to_float(b[3])*amount).clamp(0.0, 1.0));
             out
         },
         
@@ -948,6 +954,15 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             out[3] = out[3].clamp(a[3].min(b[3]), b[3].max(a[3]));
             out
         },
+        /*
+        "Merge Weld" => |a, b, amount, modifier, flag|
+        {
+            let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
+            let a = unlerp(out[3], a[3], b[3]).clamp(0.0, 1.0);
+            let mut out = px_func::<BlendModeNormal>(a, b, amount, 1.0, false);
+            out
+        },
+        */
         
         _ => px_func::<BlendModeNormal>, // Normal, or unknown
     }
