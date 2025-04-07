@@ -810,6 +810,7 @@ impl Layer
                                     {
                                         if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
                                         {
+                                            //"Erase".to_string()
                                             "None".to_string()
                                         }
                                         else if fx.1["style"][0].s() == "outside"
@@ -837,7 +838,10 @@ impl Layer
                                     {
                                         if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
                                         {
-                                            "Soft Weld".to_string()
+                                            "Normal".to_string()
+                                            //"Soft Weld".to_string()
+                                            //"Weld".to_string()
+                                            //"Hard Interpolate".to_string()
                                         }
                                         else if fx.1["style"][0].s() == "outside"
                                         {
@@ -891,7 +895,7 @@ impl Layer
                                 overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Normal");
                                 
-                                data.clear_rect_alpha_float(rect, 1.0);
+                                data.clear_rect_alpha_float(rect_shifted, 1.0);
                                 overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
                                 
@@ -902,7 +906,8 @@ impl Layer
                             let mut fill_mask = fill.alike();
                             fill_mask.blend_rect_from(rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
                             
-                            masked_source.clear_rect_alpha_float(rect, 1.0);
+                            let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
+                            masked_source.clear_rect_alpha_float(rect_shifted, 1.0);
                             fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
                             fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
                             

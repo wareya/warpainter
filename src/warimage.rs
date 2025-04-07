@@ -578,9 +578,12 @@ impl Image<4>
                                 //let ma = (osize - ma + img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
                                 let ma = if osize == 1.0
                                 {
-                                    let add1 = (daf - 0.5).clamp(0.0, 0.5) * 2.0;
-                                    let add2 = ((1.0 - daf) - 0.5).clamp(0.0, 0.5) * 2.0;
-                                    (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0)
+                                    let add1 = (daf * 2.0 - 1.0).clamp(0.0, 1.0);
+                                    let add2 = (1.0 - daf * 2.0).clamp(0.0, 1.0);
+                                    //let add2 = ((0.5 - daf) * 1.5).clamp(0.0, 1.0);
+                                    let mut r = ((size - ma) * 2.0 + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0);
+                                    //r *= (1.0 - daf);
+                                    r
                                 }
                                 else
                                 {
@@ -602,7 +605,9 @@ impl Image<4>
                             let mut a = (maxa) as f32 / 255.0;
                             if osize == 1.0
                             {
-                                a *= 1.0 - (0.5 - img.get_pixel_float(x, y)[3]).abs();
+                                a *= 1.0 - ((0.5 - img.get_pixel_float(x, y)[3])).abs();
+                                //a *= (1.5 - img.get_pixel_float(x, y)[3]).min(1.0);
+                                //a *= (0.5 + img.get_pixel_float(x, y)[3]).min(1.0);
                             }
                             return [r, g, b, a];
                         }
