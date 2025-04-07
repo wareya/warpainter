@@ -344,7 +344,7 @@ impl BlendModeSimple for BlendModeOverlay
 pub (crate) struct BlendModeSoftLight;
 impl BlendModeSimple for BlendModeSoftLight
 {
-    fn blend(mut top : f32, mut bottom : f32) -> f32
+    fn blend(top : f32, bottom : f32) -> f32
     {
         if top < 0.5
         {
@@ -982,7 +982,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         
         "Soft Weld" => |mut a, b, amount, _modifier, _flag|
         {
-            let mut fa = to_float(a[3]);
+            let fa = to_float(a[3]);
             a[3] = to_int(fa * amount);
             let mut out = px_func::<BlendModeNormal>(a, b, 1.0, 1.0, false);
             
