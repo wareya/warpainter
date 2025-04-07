@@ -761,7 +761,7 @@ impl Layer
                     }
                     else
                     {
-                        println!("{}", child_fx.len());
+                        //println!("{}", child_fx.len());
                         let mut real_count = 0;
                         for fx in &child_fx
                         {
@@ -816,6 +816,10 @@ impl Layer
                                         {
                                             "None".to_string()
                                         }
+                                        else if fx.1["style"][0].s() == "inside"
+                                        {
+                                            "None".to_string()
+                                        }
                                         else
                                         {
                                             "Clamp Erase".to_string()
@@ -838,6 +842,10 @@ impl Layer
                                         else if fx.1["style"][0].s() == "outside"
                                         {
                                             "Under".to_string()
+                                        }
+                                        else if fx.1["style"][0].s() == "inside"
+                                        {
+                                            "Clip Weld".to_string()
                                         }
                                         else
                                         {
@@ -883,6 +891,7 @@ impl Layer
                                 overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Normal");
                                 
+                                data.clear_rect_alpha_float(rect, 1.0);
                                 overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
                                 
@@ -897,6 +906,8 @@ impl Layer
                             fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
                             fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
                             
+                            //fill_mask.clear_rect_alpha_float(rect, 1.0);
+                            //fill_mask.blend_rect_from(rect, &overlay_mask, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
                             overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
                             
                             fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
@@ -913,6 +924,7 @@ impl Layer
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &overlay, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
                             //*self.flattened_data.as_mut().unwrap() = overlay;
                             //*self.flattened_data.as_mut().unwrap() = fill;
+                            //*self.flattened_data.as_mut().unwrap() = masked_source;
                             //*self.flattened_data.as_mut().unwrap() = fill_mask;
                         }
                         else

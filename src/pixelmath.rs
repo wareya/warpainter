@@ -889,6 +889,15 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
             out
         },
         
+        "Clip Weld" => |a, mut b, amount, modifier, flag|
+        {
+            let al = b[3];
+            b[3] = 1.0;
+            let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier, flag);
+            out[3] = al;
+            out
+        },
+        
         _ => px_func_float::<BlendModeNormal>, // Normal, or unknown
     })
 }
@@ -989,6 +998,14 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         {
             let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
             out[3] = out[3].clamp(a[3].min(b[3]), b[3].max(a[3]));
+            out
+        },
+        "Clip Weld" => |a, mut b, amount, modifier, flag|
+        {
+            let al = b[3];
+            b[3] = 255;
+            let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
+            out[3] = al;
             out
         },
         /*
