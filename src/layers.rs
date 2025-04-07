@@ -798,6 +798,10 @@ impl Layer
                                         {
                                             "None".to_string()
                                         }
+                                        else if fx.1["style"][0].s() == "outside"
+                                        {
+                                            "None".to_string()
+                                        }
                                         else
                                         {
                                             "Clamp Erase".to_string()
@@ -816,6 +820,10 @@ impl Layer
                                         if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
                                         {
                                             "Soft Weld".to_string()
+                                        }
+                                        else if fx.1["style"][0].s() == "outside"
+                                        {
+                                            "Under".to_string()
                                         }
                                         else
                                         {
@@ -872,9 +880,9 @@ impl Layer
                             
                             fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
                             
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
-                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Weld");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Merge Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Soft Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");

@@ -345,15 +345,15 @@ impl BlendModeSimple for BlendModeOverlay
 pub (crate) struct BlendModeSoftLight;
 impl BlendModeSimple for BlendModeSoftLight
 {
-    fn blend(top : f32, bottom : f32) -> f32
+    fn blend(mut top : f32, mut bottom : f32) -> f32
     {
         if top < 0.5
         {
-            top - (1.0 - 2.0 * bottom) * top * (1.0 - top)
+            2.0*bottom*top + bottom*bottom*(1.0-2.0*top)
         }
         else
         {
-            top + (2.0 * bottom - 1.0) * (top.sqrt() - top)
+            2.0*bottom*(1.0-top) + bottom.sqrt()*(2.0*top-1.0)
         }
     }
 }
@@ -362,14 +362,13 @@ impl BlendModeSimple for BlendModeHardLight
 {
     fn blend(top : f32, bottom : f32) -> f32
     {
-        if top > 0.5
+        if top < 0.5
         {
-            let t = top * 2.0 - 1.0;
-            1.0 - (1.0 - t) * (1.0 - bottom)
+            top * 2.0 * bottom
         }
         else
         {
-            top * 2.0 * bottom
+            1.0 - 2.0 * (1.0 - top) * (1.0 - bottom)
         }
     }
 }
@@ -679,9 +678,9 @@ impl BlendModeTriad for BlendModeLightness
 
 
 #[inline]
-pub (crate) fn px_func_full_float<T : BlendModeFull>(a : [f32; 4], b : [f32; 4], amount : f32, _modifier : f32, _flag : bool) -> [f32; 4]
+pub (crate) fn px_func_full_float<T : BlendModeFull>(a : [f32; 4], b : [f32; 4], amount : f32, modifier : f32, _flag : bool) -> [f32; 4]
 {
-    T::blend(a, b, amount)
+    T::blend(a, b, amount * modifier)
 }
 #[inline]
 pub (crate) fn px_func_full<T : BlendModeFull>(a : [u8; 4], b : [u8; 4], amount : f32, modifier : f32, flag : bool) -> [u8; 4]
@@ -703,6 +702,41 @@ pub (crate) trait BlendModeSimpleExtra
     fn blend(top : f32, bottom : f32, amount : f32, modifier : f32) -> f32;
 }
 
+pub (crate) struct BlendModeUnder;
+impl BlendModeFull for BlendModeUnder
+{
+    fn blend(mut a : [f32; 4], mut b : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        a[3] *= amount;
+        
+        if a[3] == 0.0
+        {
+            return b;
+        }
+        else if b[3] == 0.0
+        {
+            return a;
+        }
+        
+        let mut r = [0.0; 4];
+        
+        std::mem::swap(&mut a, &mut b);
+        
+        let b_under_a = b[3] * (1.0 - a[3]);
+        r[3] = b_under_a + a[3];
+        let m = 1.0 / (r[3]);
+        
+        let a_a = a[3] * m;
+        let b_a = b_under_a * m;
+        
+        for i in 0..3
+        {
+            r[i] = lerp(a[i], BlendModeNormal::blend(a[i], b[i]), b[3]) * a_a + b[i] * b_a;
+        }
+        
+        r
+    }
+}
 pub (crate) struct BlendModeErase;
 impl BlendModeFull for BlendModeErase
 {
@@ -824,6 +858,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         "Reveal" => px_func_full_float::<BlendModeReveal>,
         "Alpha Mask" => px_func_full_float::<BlendModeAlphaMask>,
         "Alpha Reject" => px_func_full_float::<BlendModeAlphaReject>,
+        "Under" => px_func_full_float::<BlendModeUnder>,
         
         "Interpolate" => px_lerp_biased_float,
         "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp_float(a, b, amount * a[3]),
@@ -909,6 +944,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         "Reveal" => px_func_full::<BlendModeReveal>,
         "Alpha Mask" => px_func_full::<BlendModeAlphaMask>,
         "Alpha Reject" => px_func_full::<BlendModeAlphaReject>,
+        "Under" => px_func_full::<BlendModeUnder>,
         
         "Interpolate" => px_lerp_biased,
         //"Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(b, a, amount * (1.0 - to_float(a[3]))),

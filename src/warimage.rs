@@ -563,6 +563,10 @@ impl Image<4>
                         let y = y as isize;
                         let c = img.get_pixel(x, y);
                         let mut maxa = 0;
+                        if osint != 1 &&  c[3] > 0 && c[3] < 255
+                        {
+                            return [r, g, b, 1.0];
+                        }
                         for oy in -sint-1..=sint+1
                         {
                             for ox in -sint-1..=sint+1
@@ -630,6 +634,10 @@ impl Image<4>
                         let y = y as isize;
                         let c = img.get_pixel(x, y);
                         let mut maxa = 0;
+                        if c[3] > 0 && c[3] < 255
+                        {
+                            return [r, g, b, 1.0];
+                        }
                         if c[3] < 255
                         {
                             for oy in -osint-1..=osint+1

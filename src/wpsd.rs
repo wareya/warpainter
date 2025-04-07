@@ -20,7 +20,7 @@ pub (crate) fn get_blend_mode(mode : &str) -> String
         "lddg_glow" => "Glow Add",
         "lgCl" => "Lighten",
         "over" => "Overlay",
-        "sLit" => "SoftLight",
+        "sLit" => "Soft Light",
         "hLit" => "Hard Light",
         "vLit" => "Vivid Light",
         "lLit" => "Linear Light",
