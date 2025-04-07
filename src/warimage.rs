@@ -493,11 +493,27 @@ pub (crate) fn fx_get_mask_func(fx : &(String, HashMap<String, Vec<crate::FxData
     }
 }
 
+pub (crate) fn fx_opacity_is_erasure(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> bool
+{
+    match (fx.0.as_str(), fx.1.clone())
+    {
+        ("stroke", _) => fx.1["style"][0].s() == "center" || fx.1["style"][0].s() == "inside",
+        _ => false,
+    }
+}
+pub (crate) fn fx_get_early_blend_mode(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> String
+{
+    match (fx.0.as_str(), fx.1.clone())
+    {
+        ("stroke", _) => fx.1["mode"][0].s(),
+        _ => "Copy".to_string(),
+    }
+}
 pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> String
 {
     match (fx.0.as_str(), fx.1.clone())
     {
-        ("stroke", data) =>
+        ("stroke", _) =>
         {
             if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
             {
@@ -1042,6 +1058,7 @@ impl Image<4>
                     let mut c = c;
                     c -= data[0];
                     c /= data[1] - data[0];
+                    c = c.clamp(0.0, 1.0);
                     c = c.powf(1.0/data[4]);
                     c *= data[3] - data[2];
                     c += data[2];

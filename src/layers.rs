@@ -780,8 +780,11 @@ impl Layer
                             // CLONE
                             let mut fill = self.flattened_data.clone().unwrap();
                             // CLONE
+                            let mut fill_mask = fill.alike();
+                            // CLONE
                             //let mut overlay = self.flattened_data.as_ref().unwrap().clone_cleared_outside();
                             let mut overlay = self.flattened_data.clone().unwrap();
+                            // CLONE
                             let mut overlay_mask = overlay.alike();
                             // CLONE
                             let mut masked_source = source_data.clone();
@@ -819,7 +822,7 @@ impl Layer
                                 data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
                                 masked_source.blend_rect_from(rect_shifted, &data, None, None, 1.0, 1.0, false, [-r_int, -r_int], &fx_get_mask_func(&fx));
                                 
-                                let fx_mode = fx.1["mode"][0].s();
+                                let mut fx_mode = fx_get_early_blend_mode(&fx);
                                 
                                 overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Normal");
@@ -829,22 +832,41 @@ impl Layer
                                     1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
                                 
                                 weld_func = fx_get_weld_func(&fx);
+                                
+                                fill_mask.blend_rect_from(rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Copy");
+                                
+                                let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
+                                masked_source.clear_rect_alpha_float(rect_shifted, 1.0);
+                                fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                                fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                                
+                                //fill_mask.clear_rect_alpha_float(rect, 1.0);
+                                //fill_mask.blend_rect_from(rect, &overlay_mask, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
+                                overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                                
+                                if fx_opacity_is_erasure(&fx)
+                                {
+                                    if fx_opacity == 0.0
+                                    {
+                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                    }
+                                    else if fx_opacity == 1.0
+                                    {
+                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
+                                    }
+                                    else
+                                    {
+                                        let mut fill2 = fill.clone();
+                                        fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
+                                        fill.blend_rect_from(rect, &fill2, None, None, 1.0 - fx_opacity, 1.0, false, [0, 0], "Interpolate");
+                                    }
+                                }
+                                else
+                                {
+                                    fill.blend_rect_from(rect, &overlay, None, None, fx_opacity, 1.0, false, [0, 0], &weld_func);
+                                }
                             }
-                            
-                            // CLONE
-                            let mut fill_mask = fill.alike();
-                            fill_mask.blend_rect_from(rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
-                            
-                            let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
-                            masked_source.clear_rect_alpha_float(rect_shifted, 1.0);
-                            fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
-                            fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
-                            
-                            //fill_mask.clear_rect_alpha_float(rect, 1.0);
-                            //fill_mask.blend_rect_from(rect, &overlay_mask, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
-                            overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
-                            
-                            fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
                             
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
