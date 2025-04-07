@@ -761,7 +761,21 @@ impl Layer
                     }
                     else
                     {
-                        if child_fx.len() > 0
+                        println!("{}", child_fx.len());
+                        let mut real_count = 0;
+                        for fx in &child_fx
+                        {
+                            if *fx.0 == "_enabled".to_string() || *fx.0 == "_scale".to_string()
+                            {
+                                continue;
+                            }
+                            if fx.1["enabled"][0].f() == 0.0
+                            {
+                                continue;
+                            }
+                            real_count += 1;
+                        }
+                        if real_count > 0
                         {
                             // CLONE
                             let mut fill = self.flattened_data.clone().unwrap();
@@ -841,6 +855,10 @@ impl Layer
                                 {
                                     continue;
                                 }
+                                if fx.1["enabled"][0].f() == 0.0
+                                {
+                                    continue;
+                                }
                                 let r = fx_get_radius(&fx).round();
                                 let r_int = r as isize;
                                 
@@ -872,10 +890,13 @@ impl Layer
                             }
                             
                             // CLONE
-                            let mut fill_mask = overlay.alike();
+                            let mut fill_mask = fill.alike();
                             fill_mask.blend_rect_from(rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
+                            
+                            masked_source.clear_rect_alpha_float(rect, 1.0);
                             fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
                             fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                            
                             overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
                             
                             fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
@@ -886,8 +907,13 @@ impl Layer
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Merge Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Soft Weld");
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
+                            
+                            
+                            // for debugging
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &overlay, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
                             //*self.flattened_data.as_mut().unwrap() = overlay;
                             //*self.flattened_data.as_mut().unwrap() = fill;
+                            //*self.flattened_data.as_mut().unwrap() = fill_mask;
                         }
                         else
                         {

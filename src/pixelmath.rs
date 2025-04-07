@@ -153,11 +153,10 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
     // a is top layer, b is bottom
     let b_under_a = b[3] * (1.0 - a[3]);
     r[3] = b_under_a + a[3];
-    //r[3] = lerp(b[3], a[3], a[3]);
-    let m = 1.0 / (r[3]);
+    let m = 1.0 / r[3];
     
-    let a_a = a[3] * m;
     let b_a = b_under_a * m;
+    let a_a = a[3] * m;
     
     for i in 0..3
     {
@@ -731,7 +730,7 @@ impl BlendModeFull for BlendModeUnder
         
         for i in 0..3
         {
-            r[i] = lerp(a[i], BlendModeNormal::blend(a[i], b[i]), b[3]) * a_a + b[i] * b_a;
+            r[i] = a[i] * a_a + b[i] * b_a;
         }
         
         r
@@ -865,6 +864,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         
         "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], b[3].min(1.0 - a[3])], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
+        "Max Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].max(b[3])], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], a[3] * amount], // used internally
         
@@ -953,6 +953,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         
         "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(b[3]).min(1.0 - to_float(a[3])))], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
+        "Max Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).max(to_float(b[3])))], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
         "Copy" => |a, _b, amount, _modifier, _unused| [a[0], a[1], a[2], to_int(to_float(a[3]) * amount)], // used internally
         
