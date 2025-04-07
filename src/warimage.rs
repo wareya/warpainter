@@ -571,12 +571,25 @@ impl Image<4>
                         {
                             for ox in -sint-1..=sint+1
                             {
+                                let da = img.get_pixel(x+ox, y+oy)[3];
+                                let daf = img.get_pixel_float(x+ox, y+oy)[3];
                                 let ma = ((oy*oy + ox*ox) as f32).sqrt();
                                 //let ma = (osize - ma + 1.0 - img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
                                 //let ma = (osize - ma + img.get_pixel_float(x+ox, y+oy)[3]).clamp(0.0, 1.0);
-                                let ma = (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0);
-                                if (c[3] < 255 && img.get_pixel(x+ox, y+oy)[3] > 0)
-                                || (c[3] >= 255 && img.get_pixel(x+ox, y+oy)[3] < 255)
+                                let ma = if osize == 1.0
+                                {
+                                    let add1 = (daf - 0.5).clamp(0.0, 0.5) * 2.0;
+                                    let add2 = ((1.0 - daf) - 0.5).clamp(0.0, 0.5) * 2.0;
+                                    (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0)
+                                }
+                                else
+                                {
+                                    let add1 = daf;
+                                    let add2 = 1.0 - daf;
+                                    (size - ma + if c[3] < 255 { add1 } else { add2 }).clamp(0.0, 1.0)
+                                };
+                                if (c[3] < 255 && da > 0)
+                                || (c[3] >= 255 && da < 255)
                                 {
                                     maxa = maxa.max((255.0 * ma) as u8);
                                 }
@@ -589,7 +602,7 @@ impl Image<4>
                             let mut a = (maxa) as f32 / 255.0;
                             if osize == 1.0
                             {
-                                a = 1.0 - (0.5 - img.get_pixel_float(x, y)[3]).abs();
+                                a *= 1.0 - (0.5 - img.get_pixel_float(x, y)[3]).abs();
                             }
                             return [r, g, b, a];
                         }
