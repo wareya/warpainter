@@ -498,6 +498,7 @@ pub (crate) fn fx_opacity_is_erasure(fx : &(String, HashMap<String, Vec<crate::F
     match (fx.0.as_str(), fx.1.clone())
     {
         ("stroke", _) => fx.1["style"][0].s() == "center" || fx.1["style"][0].s() == "inside",
+        //("stroke", _) => true,
         _ => false,
     }
 }
@@ -524,7 +525,10 @@ pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData
             }
             else if fx.1["style"][0].s() == "outside"
             {
-                "Under".to_string()
+                //"Soft Weld".to_string()
+                "Sum Weld".to_string()
+                //"Weld Under".to_string()
+                //"Weld".to_string()
             }
             else if fx.1["style"][0].s() == "inside"
             {
@@ -764,10 +768,10 @@ impl Image<4>
                         let y = y as isize;
                         let c = img.get_pixel(x, y);
                         let mut maxa = 0;
-                        if c[3] > 0 && c[3] < 255
-                        {
-                            return [r, g, b, 1.0];
-                        }
+                        //if c[3] > 0 && c[3] < 255
+                        //{
+                        //    return [r, g, b, 1.0];
+                        //}
                         if c[3] < 255
                         {
                             for oy in -osint-1..=osint+1
@@ -1579,6 +1583,16 @@ impl<const N : usize> Image<N>
         self.loop_rect_threaded(rect,
             &|_x, _y, _color : [f32; N]|
             {
+                color
+            }
+        );
+    }
+    pub (crate) fn blend_rect_alpha(&mut self, rect : [[f32; 2]; 2], a : f32)
+    {
+        self.loop_rect_threaded(rect,
+            &|_x, _y, mut color : [f32; N]|
+            {
+                color[3] *= a;
                 color
             }
         );

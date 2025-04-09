@@ -161,6 +161,7 @@ pub (crate) fn px_func_float<T : BlendModeSimple>
     for i in 0..3
     {
         r[i] = lerp(a[i], T::blend(a[i], b[i]), b[3]) * a_a + b[i] * b_a;
+        //r[i] = T::blend(a[i], b[i]);
     }
     
     r
@@ -736,6 +737,40 @@ impl BlendModeFull for BlendModeUnder
         r
     }
 }
+pub (crate) struct BlendModeComposite;
+impl BlendModeFull for BlendModeComposite
+{
+    fn blend(mut a : [f32; 4], mut b : [f32; 4], amount : f32) -> [f32; 4]
+    {
+        a[3] *= amount;
+        
+        if a[3] == 0.0
+        {
+            return b;
+        }
+        else if b[3] == 0.0
+        {
+            return a;
+        }
+        
+        let mut r = [0.0; 4];
+        
+        let b_under_a = b[3] * (1.0 - a[3]);
+        r[3] = b_under_a + a[3];
+        let m = 1.0 / (r[3]);
+        
+        let a_a = a[3] * m;
+        let b_a = b_under_a * m;
+        
+        for i in 0..3
+        {
+            r[i] = a[i] * a_a + b[i] * b_a;
+            //r[i] = lerp(a[i], b[i], a[3]) * a_a + b[i] * b_a;
+        }
+        
+        r
+    }
+}
 pub (crate) struct BlendModeErase;
 impl BlendModeFull for BlendModeErase
 {
@@ -810,6 +845,8 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
 {
     Box::new(match blend_mode
     {
+        "Composite" => px_func_full_float::<BlendModeComposite>,
+        
         "Multiply" => px_func_float::<BlendModeMultiply>,
         "Divide" => px_func_float::<BlendModeDivide>,
         "Screen" => px_func_float::<BlendModeScreen>,
@@ -863,6 +900,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         "Hard Interpolate" => |a, b, amount, _m, _u| px_lerp_float(a, b, amount * a[3]),
         
         "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], b[3].min(1.0 - a[3])], // used internally
+        "Merge Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3] * b[3]], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].min(b[3])], // used internally
         "Max Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3].max(b[3])], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
@@ -875,10 +913,34 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
             px_func_float::<BlendModeNormal>(a, b, 1.0, 1.0, flag)
         },
         
+        "Weld Under" => |a, b, amount, modifier, flag|
+        {
+            let mut out = px_func_full_float::<BlendModeUnder>(a, b, amount, modifier, flag);
+            out[3] = (a[3]*amount + b[3]).clamp(0.0, 1.0);
+            out
+        },
+        
+        //FIXME
+        // Alpha Antiblend
+        // Blend Weld
+        
+        "Sum Weld" => |a, b, amount, modifier, flag|
+        {
+            if a[3] == 0.0 && b[3] == 0.0
+            {
+                return px_lerp_float(a, b, 0.5);
+            }
+            let fa = a[3]*amount;
+            let fb = b[3];
+            let mut out = px_lerp_float(a, b, fa/(fa+fb));
+            out[3] = (fa + fb).clamp(0.0, 1.0);
+            out
+        },
+        
         "Weld" => |a, b, amount, modifier, flag|
         {
             let mut out = px_func_float::<BlendModeNormal>(a, b, amount, modifier, flag);
-            out[3] = (a[3] + b[3]*amount).clamp(0.0, 1.0);
+            out[3] = (a[3]*amount + b[3]).clamp(0.0, 1.0);
             out
         },
         
@@ -906,6 +968,8 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
 {
     match blend_mode
     {
+        "Composite" => px_func_full::<BlendModeComposite>,
+        
         "Multiply" => px_func::<BlendModeMultiply>,
         "Divide" => px_func::<BlendModeDivide>,
         "Screen" => px_func::<BlendModeScreen>,
@@ -961,6 +1025,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
         //"Hard Interpolate" => |a, b, amount, _m, _u| px_lerp(b, a, amount * (1.0 - to_float(a[3])) * to_float(b[3])),
         
         "Clamp Erase" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(b[3]).min(1.0 - to_float(a[3])))], // used internally
+        "Merge Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]) * to_float(b[3]))], // used internally
         "Clip Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).min(to_float(b[3])))], // used internally
         "Max Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], to_int(to_float(a[3]).max(to_float(b[3])))], // used internally
         "Copy Alpha" => |a, b, _amount, _modifier, _unused| [b[0], b[1], b[2], a[3]], // used internally
@@ -973,10 +1038,61 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             px_func::<BlendModeNormal>(a, b, 1.0, 1.0, flag)
         },
         
+        "Weld Under" => |a, b, amount, modifier, flag|
+        {
+            let mut out = px_func_full::<BlendModeUnder>(a, b, amount, modifier, flag);
+            out[3] = to_int((to_float(a[3])*amount + to_float(b[3])).clamp(0.0, 1.0));
+            out
+        },
+        
+        "Alpha Antiblend" => |a, b, amount, modifier, flag|
+        {
+            let mut out = px_func::<BlendModeNormal>([0, 0, 0, a[3]], b, amount, modifier, flag);
+            out[3] = to_int((to_float(out[3]) - to_float(a[3]) * amount * modifier).clamp(0.0, 1.0));
+            out
+        },
+        
+        "Blend Weld" => |a, b, amount, modifier, flag|
+        {
+            if a[3] == 0 && b[3] == 0
+            {
+                return px_lerp(a, b, 0.5);
+            }
+            let fa = to_float(a[3]);
+            let fa2 = fa*amount*modifier;
+            let fb = to_float(b[3]);
+            let fb2 = (fb)/(1.0-fa2);
+            let out_a = (fa2 + fb).clamp(0.0, 1.0);
+            let fa3 = fa2 / out_a;
+            
+            let mut out = b;
+            //out[0] = to_int(lerp((to_float(b[0]) + to_float(a[0]) * fa2).clamp(0.0, 1.0), to_float(a[0]), 0.0));
+            out[0] = to_int((to_float(b[0]) + to_float(a[0]) * fa3).clamp(0.0, 1.0));
+            //out[1] = to_int(lerp((to_float(b[1]) + to_float(a[1]) * fa2).clamp(0.0, 1.0), to_float(a[1]), 0.0));
+            out[1] = to_int((to_float(b[1]) + to_float(a[1]) * fa3).clamp(0.0, 1.0));
+            //out[2] = to_int(lerp((to_float(b[2]) + to_float(a[2]) * fa2).clamp(0.0, 1.0), to_float(a[2]), 0.0));
+            out[2] = to_int((to_float(b[2]) + to_float(a[2]) * fa3).clamp(0.0, 1.0));
+            out[3] = to_int(out_a);
+            out
+        },
+        
+        "Sum Weld" => |a, b, amount, modifier, flag|
+        {
+            if a[3] == 0 && b[3] == 0
+            {
+                return px_lerp(a, b, 0.5);
+            }
+            let fa = to_float(a[3])*amount;
+            let fb = to_float(b[3]);
+            let mut out = px_lerp(a, b, fa/(fa+fb));
+            out[3] = to_int((fa + fb).clamp(0.0, 1.0));
+            out
+        },
+        
         "Weld" => |a, b, amount, modifier, flag|
         {
             let mut out = px_func::<BlendModeNormal>(a, b, amount, modifier, flag);
-            out[3] = to_int((to_float(a[3]) + to_float(b[3])*amount).clamp(0.0, 1.0));
+            out[3] = to_int((to_float(a[3])*amount + to_float(b[3])).clamp(0.0, 1.0));
             out
         },
         

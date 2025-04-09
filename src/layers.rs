@@ -762,14 +762,16 @@ impl Layer
                     else
                     {
                         //println!("{}", child_fx.len());
+                        println!("{:?}", child_fx);
                         let mut real_count = 0;
                         for fx in &child_fx
                         {
-                            if *fx.0 == "_enabled".to_string() || *fx.0 == "_scale".to_string()
+                            if *fx.0 == "_enabled".to_string()
                             {
+                                //fx.1["enabled"][0].f()
                                 continue;
                             }
-                            if fx.1["enabled"][0].f() == 0.0
+                            if (fx.1.contains_key("enabled") && fx.1["enabled"][0].f() == 0.0) || *fx.0 == "_scale".to_string()
                             {
                                 continue;
                             }
@@ -785,12 +787,24 @@ impl Layer
                             //let mut overlay = self.flattened_data.as_ref().unwrap().clone_cleared_outside();
                             let mut overlay = self.flattened_data.clone().unwrap();
                             // CLONE
-                            let mut overlay_mask = overlay.alike();
+                            let mut overlay_mask = fill_mask.clone();
                             // CLONE
-                            let mut masked_source = source_data.clone();
-                            let mut fx_opacity = 1.0;
+                            let mut full_mask = fill_mask.clone();
                             
                             let mut rect = new_dirty_rect;
+                            
+                            let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
+                            
+                            let mut source = source_data.clone();
+                            source.clear_rect_alpha_float(rect_shifted, 1.0);
+                            fill.blend_rect_from(rect, &source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            
+                            //fill_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), fill_opacity, 1.0, false, above_offset, "Copy");
+                            fill_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Copy");
+                            //fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                            fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
+                            
+                            full_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
                             
                             let mut weld_func = "Weld".to_string();
                             for fx in child_fx
@@ -807,59 +821,43 @@ impl Layer
                                 let r_int = r as isize;
                                 
                                 //println!("{:?}", fx);
-                                fx_opacity = fx.1["opacity"][0].f() as f32 / 100.0;
+                                let fx_opacity = fx.1["opacity"][0].f() as f32 / 100.0;
                                 //if child.flattened_dirty_rect.is_some() || child.edited_dirty_rect.is_some() || self.flattened_data.is_none() || dirty_rect.is_none()
                                 if child.flattened_dirty_rect.is_some() || child.edited_dirty_rect.is_some()
                                 {
                                     new_dirty_rect = rect_grow(new_dirty_rect, r);
                                 }
                                 rect = rect_grow(rect, r);
+                                
                                 let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
                                 
                                 // CLONE
                                 let mut data = source_data.alike_grown(r_int as usize);
-                                
                                 data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
-                                masked_source.blend_rect_from(rect_shifted, &data, None, None, 1.0, 1.0, false, [-r_int, -r_int], &fx_get_mask_func(&fx));
                                 
                                 let mut fx_mode = fx_get_early_blend_mode(&fx);
                                 
-                                overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
-                                    1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], "Normal");
+                                let offset2 = [above_offset[0] - r_int, above_offset[1] - r_int];
+                                overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, "Copy");
+                                full_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), fx_opacity, 1.0, false, offset2, "Weld");
                                 
                                 data.clear_rect_alpha_float(rect_shifted, 1.0);
-                                overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(),
-                                    1.0, 1.0, false, [above_offset[0] - r_int, above_offset[1] - r_int], &fx_mode);
+                                overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, &fx_mode);
                                 
                                 weld_func = fx_get_weld_func(&fx);
                                 
-                                fill_mask.blend_rect_from(rect, &masked_source, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Copy");
-                                
-                                let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
-                                masked_source.clear_rect_alpha_float(rect_shifted, 1.0);
-                                fill.blend_rect_from(rect, &masked_source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
-                                fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
-                                
-                                //fill_mask.clear_rect_alpha_float(rect, 1.0);
-                                //fill_mask.blend_rect_from(rect, &overlay_mask, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
-                                overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                                overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
                                 
                                 if fx_opacity_is_erasure(&fx)
                                 {
-                                    if fx_opacity == 0.0
-                                    {
-                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                    }
-                                    else if fx_opacity == 1.0
-                                    {
-                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
-                                    }
-                                    else
+                                    // FIXME
                                     {
                                         let mut fill2 = fill.clone();
-                                        fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
-                                        fill.blend_rect_from(rect, &fill2, None, None, 1.0 - fx_opacity, 1.0, false, [0, 0], "Interpolate");
+                                        //fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Alpha Antiblend");
+                                        //fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [-above_offset[0] as isize, -above_offset[1] as isize], "Alpha Antiblend");
+                                        fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
+                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                        fill.blend_rect_from(rect, &fill2, None, None, fx_opacity, 1.0, false, [0, 0], "Interpolate");
                                     }
                                 }
                                 else
@@ -868,23 +866,54 @@ impl Layer
                                 }
                             }
                             
-                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
-                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
-                            self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Weld");
-                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Merge Weld");
-                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Soft Weld");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &full_mask, None, None, opacity, 1.0, false, [0, 0], "Alpha Antiblend");
+                            self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Blend Weld");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Alpha Antiblend");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Blend Weld");
+                            
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
                             
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Erase");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Sum Weld");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Weld");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Soft Weld");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Composite");
+                            
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
+                            
+                            //fill.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Copy");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Weld");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Weld");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Interpolate");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Normal");
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &fill, None, None, opacity, 1.0, false, [0, 0], "Composite");
                             
                             // for debugging
                             //self.flattened_data.as_mut().unwrap().blend_rect_from(rect, &overlay, None, None, opacity, 1.0, false, [0, 0], "Hard Interpolate");
                             //*self.flattened_data.as_mut().unwrap() = overlay;
+                            //*self.flattened_data.as_mut().unwrap() = overlay_mask;
                             //*self.flattened_data.as_mut().unwrap() = fill;
                             //*self.flattened_data.as_mut().unwrap() = masked_source;
                             //*self.flattened_data.as_mut().unwrap() = fill_mask;
+                            //*self.flattened_data.as_mut().unwrap() = full_mask;
                         }
                         else
                         {
+                            //let mut fill = self.flattened_data.clone().unwrap();
+                            //fill.blend_rect_from(new_dirty_rect, source_data, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            //self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, &fill,
+                            //    child.mask.as_ref(), child.mask_info.as_ref(), opacity, 1.0, false, [0, 0], "Composite");
+                            
                             self.flattened_data.as_mut().unwrap().blend_rect_from(new_dirty_rect, source_data, child.mask.as_ref(), child.mask_info.as_ref(), opacity, fill_opacity, child.funny_flag, above_offset, &mode);
                         }
                     }
