@@ -740,7 +740,7 @@ impl BlendModeFull for BlendModeUnder
 pub (crate) struct BlendModeComposite;
 impl BlendModeFull for BlendModeComposite
 {
-    fn blend(mut a : [f32; 4], mut b : [f32; 4], amount : f32) -> [f32; 4]
+    fn blend(mut a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
     {
         a[3] *= amount;
         
@@ -924,7 +924,7 @@ pub (crate) fn find_blend_func_float(blend_mode : &str) -> Box<FloatBlendFn>
         // Alpha Antiblend
         // Blend Weld
         
-        "Sum Weld" => |a, b, amount, modifier, flag|
+        "Sum Weld" => |a, b, amount, _modifier, _flag|
         {
             if a[3] == 0.0 && b[3] == 0.0
             {
@@ -1052,7 +1052,7 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             out
         },
         
-        "Blend Weld" => |a, b, amount, modifier, flag|
+        "Blend Weld" => |a, b, amount, modifier, _flag|
         {
             if a[3] == 0 && b[3] == 0
             {
@@ -1061,22 +1061,18 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             let fa = to_float(a[3]);
             let fa2 = fa*amount*modifier;
             let fb = to_float(b[3]);
-            let fb2 = (fb)/(1.0-fa2);
             let out_a = (fa2 + fb).clamp(0.0, 1.0);
             let fa3 = fa2 / out_a;
             
             let mut out = b;
-            //out[0] = to_int(lerp((to_float(b[0]) + to_float(a[0]) * fa2).clamp(0.0, 1.0), to_float(a[0]), 0.0));
             out[0] = to_int((to_float(b[0]) + to_float(a[0]) * fa3).clamp(0.0, 1.0));
-            //out[1] = to_int(lerp((to_float(b[1]) + to_float(a[1]) * fa2).clamp(0.0, 1.0), to_float(a[1]), 0.0));
             out[1] = to_int((to_float(b[1]) + to_float(a[1]) * fa3).clamp(0.0, 1.0));
-            //out[2] = to_int(lerp((to_float(b[2]) + to_float(a[2]) * fa2).clamp(0.0, 1.0), to_float(a[2]), 0.0));
             out[2] = to_int((to_float(b[2]) + to_float(a[2]) * fa3).clamp(0.0, 1.0));
             out[3] = to_int(out_a);
             out
         },
         
-        "Sum Weld" => |a, b, amount, modifier, flag|
+        "Sum Weld" => |a, b, amount, _modifier, _flag|
         {
             if a[3] == 0 && b[3] == 0
             {
@@ -1102,7 +1098,6 @@ pub (crate) fn find_blend_func(blend_mode : &str) -> IntBlendFn
             a[3] = to_int(fa * amount);
             let mut out = px_func::<BlendModeNormal>(a, b, 1.0, 1.0, false);
             
-            let fo = to_float(out[3]);
             let fb = to_float(b[3]);
             
             // FIXME this is just a guess and is probably wrong

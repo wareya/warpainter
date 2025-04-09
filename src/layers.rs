@@ -437,9 +437,9 @@ impl Layer
             self.flattened_dirty_rect = Some(rect_normalize(inner));
         }
         let mut biggen = 0.0;
-        for fx in &self.effects
+        for _fx in &self.effects
         {
-            biggen += 3.0;
+            biggen += 3.0; // FIXME
         }
         if biggen != 0.0
         {
@@ -466,9 +466,9 @@ impl Layer
             _ => Some([[0.0, 0.0], [1000000.0, 1000000.0]]) // FIXME store child sizes
         };
         let mut biggen = 0.0;
-        for fx in &self.effects
+        for _fx in &self.effects
         {
-            biggen += 3.0;
+            biggen += 3.0; // FIXME
         }
         if biggen != 0.0
         {
@@ -573,7 +573,7 @@ impl Layer
             // This makes it so that "reveal" etc blend modes work more intuitively instead of having to choose
             // between erased transparent data being lost or fully transparent higher layers overwriting fully transparent lower layers.
             let mut first = true;
-            let mut stash_is_first = false;
+            let mut _stash_is_first = false;
             let mut stash = None;
             let mut stash_offs = [0, 0];
             let mut stash_clean = None;
@@ -647,7 +647,7 @@ impl Layer
                     stash.as_mut().unwrap().clear_rect_alpha_float(new_dirty_rect, 1.0);
                     // for alpha, we restore the color bit's alpha with this later
                     stash_clean = Some(source_data.clone());
-                    stash_is_first = first;
+                    _stash_is_first = first;
                     stash_opacity = opacity;
                     stash_fill_opacity = fill_opacity;
                     stash_funny_flag = child_funny_flag;
@@ -803,7 +803,6 @@ impl Layer
                             
                             full_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
                             
-                            let mut weld_func = "Weld".to_string();
                             for fx in child_fx
                             {
                                 if fx.0 == "_enabled".to_string() || fx.0 == "_scale".to_string()
@@ -832,7 +831,7 @@ impl Layer
                                 let mut data = source_data.alike_grown(r_int as usize);
                                 data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
                                 
-                                let mut fx_mode = fx_get_early_blend_mode(&fx);
+                                let fx_mode = fx_get_early_blend_mode(&fx);
                                 
                                 let offset2 = [above_offset[0] - r_int, above_offset[1] - r_int];
                                 overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, "Copy");
@@ -840,20 +839,18 @@ impl Layer
                                 data.clear_rect_alpha_float(rect_shifted, 1.0);
                                 overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, &fx_mode);
                                 
-                                weld_func = fx_get_weld_func(&fx);
+                                let weld_func = fx_get_weld_func(&fx);
                                 
                                 overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
                                 
                                 if fx_opacity_is_erasure(&fx)
                                 {
-                                    {
-                                        let mut fill2 = fill.clone();
-                                        full_mask.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                        full_mask.blend_rect_from(rect, &overlay, None, None, fx_opacity, 1.0, false, [0, 0], "Weld");
-                                        fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                        fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
-                                        fill.blend_rect_from(rect, &fill2, None, None, fx_opacity, 1.0, false, [0, 0], "Interpolate");
-                                    }
+                                    let mut fill2 = fill.clone();
+                                    full_mask.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                    full_mask.blend_rect_from(rect, &overlay, None, None, fx_opacity, 1.0, false, [0, 0], "Weld");
+                                    fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                    fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
+                                    fill.blend_rect_from(rect, &fill2, None, None, fx_opacity, 1.0, false, [0, 0], "Interpolate");
                                 }
                                 else
                                 {

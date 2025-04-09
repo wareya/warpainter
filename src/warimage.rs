@@ -454,7 +454,7 @@ pub (crate) fn fx_get_radius(fx : &(String, HashMap<String, Vec<crate::FxData>>)
 {
     match (fx.0.as_str(), fx.1.clone())
     {
-        ("stroke", data) =>
+        ("stroke", _data) =>
         {
             fx.1["size"][0].f() as f32 + 2.0
         }
@@ -466,7 +466,7 @@ pub (crate) fn fx_get_mask_func(fx : &(String, HashMap<String, Vec<crate::FxData
 {
     match (fx.0.as_str(), fx.1.clone())
     {
-        ("stroke", data) =>
+        ("stroke", _data) =>
         {
             if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
             {
@@ -637,7 +637,7 @@ impl Image<4>
         if blend_mode == "None" { return; }
         let adj : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync> = match (fx.0.as_str(), fx.1.clone())
         {
-            ("stroke", data) =>
+            ("stroke", _data) =>
             {
                 let r = fx.1["color"][0].f() as f32;
                 let g = fx.1["color"][1].f() as f32;
@@ -646,8 +646,6 @@ impl Image<4>
                 let osint = osize.ceil() as isize;
                 let size = (osize * 0.5).max(1.0);
                 let sint = size.ceil() as isize;
-                let add1 = if osize == 1.0 { 0.01 } else { 1.01 };
-                let add2 = if osize == 1.0 { 0.01 } else { 1.01 };
                 
                 match fx.1["style"][0].s().as_str()
                 {
