@@ -187,7 +187,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         {
             let offset = vec_sub(&inputstate.window_mouse_coord, &to_array(response.rect.center()));
             app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
-            app.zoom(inputstate.mouse_scroll/128.0);
+            app.zoom(inputstate.mouse_scroll/128.0/2.0);
             app.xform.translate(offset);
             view_moved = true;
         }

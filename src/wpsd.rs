@@ -126,6 +126,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             {
                 for (name, fx) in fx
                 {
+                    println!("{:?}", (&name, &fx));
                     match name.as_str()
                     {
                         "Scl " =>
@@ -140,13 +141,154 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                             hm.insert("bool".to_string(), vec!(fx.bool().into()));
                             layer.effects.insert("_enabled".to_string(), hm);
                         }
-                        "FrFX" =>
+                        "SoFi" =>
                         {
                             let (_, fx) = *fx.Objc();
+                            
+                            let mut hm = HashMap::new();
+                            hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
+                            
+                            for (name, data) in fx
+                            {
+                                match name.as_str()
+                                {
+                                    "enab" => { hm.insert("enabled".to_string(), vec!(data.bool().into())); }
+                                    "Md  " => { hm.insert("mode".to_string(), vec!(get_blend_mode_2(&data.r#enum().1).into())); }
+                                    "Opct" => { hm.insert("opacity".to_string(), vec!(data.UntF().1.into())); }
+                                    "Clr " =>
+                                    {
+                                        let mut color = [0.0f64, 0.0f64, 0.0f64, 1.0f64];
+                                        let data = data.Objc();
+                                        match data.0.as_str()
+                                        {
+                                            "RGBC" =>
+                                            {
+                                                color[0] = data.1[0].1.doub() / 255.0;
+                                                color[1] = data.1[1].1.doub() / 255.0;
+                                                color[2] = data.1[2].1.doub() / 255.0;
+                                            }
+                                            _ => { }
+                                        }
+                                        hm.insert("color".to_string(), color.map(|x| x.into()).to_vec());
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            
+                            layer.effects.insert("colorfill".to_string(), hm);
+                        }
+                        
+                        "GrFl" =>
+                        {
+                            let (_, fx) = *fx.Objc();
+                            
                             println!("{:#?}", fx);
                             
                             let mut hm = HashMap::new();
-                                hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
+                            
+                            let mut colors = vec!();
+                            let mut trans = vec!();
+                            
+                            for (name, data) in fx
+                            {
+                                match name.as_str()
+                                {
+                                    "enab" => { hm.insert("enabled".to_string(), vec!(data.bool().into())); }
+                                    "Md  " => { hm.insert("mode".to_string(), vec!(get_blend_mode_2(&data.r#enum().1).into())); }
+                                    "Opct" => { hm.insert("opacity".to_string(), vec!(data.UntF().1.into())); }
+                                    "Angl" => { hm.insert("angle".to_string(), vec!(data.UntF().1.into())); }
+                                    "Type" => { hm.insert("type".to_string(), vec!( match data.r#enum().1.as_str()
+                                    {
+                                        "Lnr " => "linear".to_string(),
+                                        s => s.to_string(),
+                                    }.into())); }
+                                    "Rvrs" => { hm.insert("reverse".to_string(), vec!(data.bool().into())); }
+                                    "Dthr" => { hm.insert("dither".to_string(), vec!(data.bool().into())); }
+                                    "Algn" => { hm.insert("align".to_string(), vec!(data.bool().into())); }
+                                    "Scl " => { hm.insert("scale".to_string(), vec!(data.UntF().1.into())); }
+                                    "Grad" =>
+                                    {
+                                        let mut n = 4096.0f64;
+                                        let data = data.Objc();
+                                        for data in data.1
+                                        {
+                                            println!("? {}", data.0.as_str());
+                                            match data.0.as_str()
+                                            {
+                                                "Intr" => n = data.1.doub(),
+                                                "Clrs" =>
+                                                {
+                                                    for data in data.1.VlLs()
+                                                    {
+                                                        let mut color = vec![0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.5f64];
+                                                        let data = data.Objc();
+                                                        for data in data.1
+                                                        {
+                                                            match data.0.as_str()
+                                                            {
+                                                                "Clr " =>
+                                                                {
+                                                                    let data = data.1.Objc();
+                                                                    match data.0.as_str()
+                                                                    {
+                                                                        "RGBC" =>
+                                                                        {
+                                                                            color[0] = data.1[0].1.doub() / 255.0;
+                                                                            color[1] = data.1[1].1.doub() / 255.0;
+                                                                            color[2] = data.1[2].1.doub() / 255.0;
+                                                                        }
+                                                                        _ => { }
+                                                                    }
+                                                                }
+                                                                "Lctn" => color[3] = data.1.long() as f64 / n,
+                                                                "Mdpn" => color[4] = data.1.long() as f64 / 100.0,
+                                                                _ => { }
+                                                            }
+                                                        }
+                                                        colors.push(color);
+                                                    }
+                                                }
+                                                "Trns" =>
+                                                {
+                                                    for data in data.1.VlLs()
+                                                    {
+                                                        let data = data.Objc();
+                                                        println!("??????????{:?}", data);
+                                                        let mut tx = vec![0.0f64, 0.0f64, 0.5f64];
+                                                        for data in data.1
+                                                        {
+                                                            match data.0.as_str()
+                                                            {
+                                                                "Opct" => tx[0] = data.1.UntF().1 / 100.0,
+                                                                "Lctn" => tx[1] = data.1.long() as f64 / n,
+                                                                "Mdpn" => tx[2] = data.1.long() as f64 / 100.0,
+                                                                _ => { }
+                                                            }
+                                                        }
+                                                        trans.push(tx);
+                                                    }
+                                                }
+                                                _ => { }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            hm.insert("gradient".to_string(), vec!(colors.into(), trans.into()));
+                            
+                            println!("-- OUT: {:#?}", hm);
+                            
+                            layer.effects.insert("gradfill".to_string(), hm);
+                        }
+                        
+                        "FrFX" =>
+                        {
+                            let (_, fx) = *fx.Objc();
+                            //println!("{:#?}", fx);
+                            
+                            let mut hm = HashMap::new();
+                            hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
                             
                             for (name, data) in fx
                             {
@@ -187,7 +329,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                 }
                             }
                             
-                            println!("{:#?}", hm);
+                            //println!("{:#?}", hm);
                             
                             layer.effects.insert("stroke".to_string(), hm);
                         }

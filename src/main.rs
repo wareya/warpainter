@@ -874,11 +874,12 @@ impl Warpainter
     fn zoom(&mut self, amount : f32)
     {
         let mut log_zoom = self.xform.get_scale().max(0.01).log(2.0);
-        let old_zoom = (log_zoom*2.0).round()/2.0;
+        let f = 4.0;
+        let old_zoom = (log_zoom*f).round()/f;
         
         log_zoom += amount;
         
-        let mut new_zoom = (log_zoom*2.0).round()/2.0;
+        let mut new_zoom = (log_zoom*f).round()/f;
         if new_zoom == old_zoom
         {
             new_zoom = log_zoom;
@@ -1221,11 +1222,11 @@ impl eframe::App for Warpainter
                 {
                     if ui.button("Zoom In").clicked()
                     {
-                        self.zoom(0.5);
+                        self.zoom(0.25);
                     }
                     if ui.button("Zoom Out").clicked()
                     {
-                        self.zoom(-0.5);
+                        self.zoom(-0.25);
                     }
                     if ui.button("Reset").clicked()
                     {

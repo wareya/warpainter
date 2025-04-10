@@ -33,6 +33,8 @@ impl DescItem
     pub fn Objc(&self) -> Box<Descriptor> { match self { DescItem::Objc(x) => return x.clone(), _ => panic!(), } }
     #[allow(non_snake_case)]
     pub fn TEXT(&self) -> String { match self { DescItem::TEXT(x) => return x.clone(), _ => panic!(), } }
+    #[allow(non_snake_case)]
+    pub fn VlLs(&self) -> Vec<DescItem> { match self { DescItem::VlLs(x) => return x.clone(), _ => panic!(), } }
 }
 
 type Descriptor = (String, Vec<(String, DescItem)>);

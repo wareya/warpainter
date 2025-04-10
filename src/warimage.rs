@@ -452,69 +452,74 @@ impl Image<1>
 
 pub (crate) fn fx_get_radius(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> f32
 {
-    match (fx.0.as_str(), fx.1.clone())
+    match fx.0.as_str()
     {
-        ("stroke", _data) =>
-        {
-            fx.1["size"][0].f() as f32 + 2.0
-        }
+        "stroke" => fx.1["size"][0].f() as f32 + 2.0,
+        "colorfill" => 0.0,
+        "gradfill" => 0.0,
         _ => panic!()
     }
 }
 
 pub (crate) fn fx_get_mask_func(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> String
 {
-    match (fx.0.as_str(), fx.1.clone())
+    match fx.0.as_str()
     {
-        ("stroke", _data) =>
-        {
-            if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
-            {
-                //"Erase".to_string()
-                "None".to_string()
-            }
-            else if fx.1["style"][0].s() == "outside"
-            {
-                "None".to_string()
-            }
-            else if fx.1["style"][0].s() == "inside"
-            {
-                "None".to_string()
-            }
-            else
-            {
-                //"Clamp Erase".to_string()
-                //"Erase".to_string()
-                "None".to_string()
-            }
-        }
-        //_ => "Clamp Erase".to_string()
-        _ => "None".to_string()
+        "stroke" => "Weld".to_string(),
+        "colorfill" => "None".to_string(),
+        "gradfill" => "None".to_string(),
+        _ => "Weld".to_string()
     }
 }
 
 pub (crate) fn fx_opacity_is_erasure(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> bool
 {
-    match (fx.0.as_str(), fx.1.clone())
+    match fx.0.as_str()
     {
-        ("stroke", _) => fx.1["style"][0].s() == "center" || fx.1["style"][0].s() == "inside",
+        "stroke" => fx.1["style"][0].s() == "center" || fx.1["style"][0].s() == "inside",
         //("stroke", _) => true,
         _ => false,
     }
 }
 pub (crate) fn fx_get_early_blend_mode(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> String
 {
-    match (fx.0.as_str(), fx.1.clone())
+    match fx.0.as_str()
     {
-        ("stroke", _) => fx.1["mode"][0].s(),
+        "stroke" => fx.1["mode"][0].s(),
+        "colorfill" => fx.1["mode"][0].s(),
+        "gradfill" => fx.1["mode"][0].s(),
         _ => "Copy".to_string(),
+    }
+}
+pub (crate) fn fx_is_fill(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> bool
+{
+    match fx.0.as_str()
+    {
+        "stroke" => false,
+        "colorfill" => true,
+        "gradfill" => true,
+        _ => false
+    }
+}
+pub (crate) fn fx_update_metadata(fx : &mut (String, HashMap<String, Vec<crate::FxData>>), layer : &crate::Layer, img : &Image<4>)
+{
+    match fx.0.as_str()
+    {
+        "gradfill" =>
+        {
+            fx.1.insert("_x0".to_string(), vec!((layer.offset[0] as f64).into()));
+            fx.1.insert("_y0".to_string(), vec!((layer.offset[1] as f64).into()));
+            fx.1.insert("_x1".to_string(), vec!((layer.offset[0] as f64 + img.width as f64).into()));
+            fx.1.insert("_y1".to_string(), vec!((layer.offset[1] as f64 + img.height as f64).into()));
+        }
+        _ => {}
     }
 }
 pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -> String
 {
-    match (fx.0.as_str(), fx.1.clone())
+    match fx.0.as_str()
     {
-        ("stroke", _) =>
+        "stroke" =>
         {
             if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
             {
@@ -538,6 +543,14 @@ pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData
             {
                 "Soft Weld".to_string()
             }
+        }
+        "colorfill" =>
+        {
+            fx.1["mode"][0].s()
+        }
+        "gradfill" =>
+        {
+            fx.1["mode"][0].s()
         }
         _ => "Weld".to_string()
     }
@@ -635,9 +648,66 @@ impl Image<4>
     pub (crate) fn apply_fx(&mut self, rect : [[f32; 2]; 2], fx : &(String, HashMap<String, Vec<crate::FxData>>), source : Option<&Self>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_alpha_modifier : f32, top_funny_flag : bool, top_offset : [isize; 2], blend_mode : &str)
     {
         if blend_mode == "None" { return; }
-        let adj : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync> = match (fx.0.as_str(), fx.1.clone())
+        let adj : Box<dyn Fn([f32; 4], usize, usize, Option<&Self>) -> [f32; 4] + Send + Sync> = match fx.0.as_str()
         {
-            ("stroke", _data) =>
+            "colorfill" =>
+            {
+                let r = fx.1["color"][0].f() as f32;
+                let g = fx.1["color"][1].f() as f32;
+                let b = fx.1["color"][2].f() as f32;
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                {
+                    let img = img.unwrap();
+                    let x = x as isize;
+                    let y = y as isize;
+                    let c = img.get_pixel_float(x, y);
+                    [r, g, b, c[3]]
+                })
+            }
+            "gradfill" =>
+            {
+                //println!("{:?}", fx.1);
+                let colors = fx.1["gradient"][0].vvf()[0].iter().map(|x| *x).collect::<Vec<_>>();
+                let alphas = fx.1["gradient"][1].vvf()[0].iter().map(|x| *x).collect::<Vec<_>>();
+                
+                let x0 = fx.1["_x0"][0].f();
+                let x1 = fx.1["_x1"][0].f();
+                let y0 = fx.1["_y0"][0].f();
+                let y1 = fx.1["_y1"][0].f();
+                
+                let angle = fx.1["angle"][0].f() * (std::f64::consts::PI / 180.0);
+                let (a, b) = angle.sin_cos();
+                println!("---- {} {}", a, b);
+                
+                let w = x1 - x0;
+                let h = y1 - y0;
+                let wr = 1.0 / w;
+                let hr = 1.0 / h;
+                let wh = w * 0.5;
+                let hh = h * 0.5;
+                
+                // FIXME: not pixel perfect, but pretty close. doesn't handle transparency sizing properly. alpha cutoff is 50%.
+                
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                {
+                    let img = img.unwrap();
+                    let x = x as isize;
+                    let y = y as isize;
+                    let c = img.get_pixel_float(x, y);
+                    
+                    let asdf = wr.max(hr);
+                    
+                    let xd = (x as f64 - wh) * asdf;
+                    let yd = (y as f64 - hh) * asdf;
+                    
+                    let mut xd2 = xd * b - yd * a;
+                    xd2 *= b.abs().max(a.abs());
+                    //xd2 /= b.min(a);
+                    
+                    [xd2 as f32 + 0.5, xd2 as f32 + 0.5, xd2 as f32 + 0.5, c[3]]
+                })
+            }
+            "stroke" =>
             {
                 let r = fx.1["color"][0].f() as f32;
                 let g = fx.1["color"][1].f() as f32;
