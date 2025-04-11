@@ -135,7 +135,7 @@ void main()
     // render grid
     
     float grid_size = 16.0;
-    if (grid_size*zoom_level > 11.5)
+    //if (grid_size*zoom_level > 31.0)
     {
         vec2 raw_texcoord = uv * vec2(canvas_width, canvas_height);
         vec2 texcoord = raw_texcoord;
@@ -168,6 +168,9 @@ void main()
         
         if (n != s)
         {
+            if (grid_size*zoom_level < 31.0)
+                grid_strength *= 0.0;
+            
             if (abs(zoom_level-1.0) < 0.01)
                 grid_strength = round(grid_strength);
             grid_strength *= 0.5;

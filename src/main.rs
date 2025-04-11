@@ -1739,17 +1739,18 @@ impl eframe::App for Warpainter
         {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui|
             {
+                let rgbainfotext = format!("{} {} {} {} / {} {} {}",
+                    (self.main_color_rgb[0] * 255.0) as u8,
+                    (self.main_color_rgb[1] * 255.0) as u8,
+                    (self.main_color_rgb[2] * 255.0) as u8,
+                    (self.main_color_rgb[3] * 255.0) as u8,
+                    (self.main_color_hsv[0]) as u8,
+                    (self.main_color_hsv[1] * 100.0) as u8,
+                    (self.main_color_hsv[2] * 100.0) as u8,
+                );
                 if !sidebars_on_bottom
                 {
-                    ui.label(format!("{} {} {} {} / {} {} {}",
-                        (self.main_color_rgb[0] * 255.0) as u8,
-                        (self.main_color_rgb[1] * 255.0) as u8,
-                        (self.main_color_rgb[2] * 255.0) as u8,
-                        (self.main_color_rgb[3] * 255.0) as u8,
-                        (self.main_color_hsv[0]) as u8,
-                        (self.main_color_hsv[1] * 100.0) as u8,
-                        (self.main_color_hsv[2] * 100.0) as u8,
-                    ));
+                    ui.add(egui::Label::new(egui::RichText::new(&rgbainfotext).size(9.0)).selectable(false)).clicked();
                     ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
                     ui.separator();
                 }
@@ -1769,15 +1770,7 @@ impl eframe::App for Warpainter
                                         ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
                                         {
                                             ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
-                                            ui.label(format!("{} {} {} {} / {} {} {}",
-                                                (self.main_color_rgb[0] * 255.0) as u8,
-                                                (self.main_color_rgb[1] * 255.0) as u8,
-                                                (self.main_color_rgb[2] * 255.0) as u8,
-                                                (self.main_color_rgb[3] * 255.0) as u8,
-                                                (self.main_color_hsv[0]) as u8,
-                                                (self.main_color_hsv[1] * 100.0) as u8,
-                                                (self.main_color_hsv[2] * 100.0) as u8,
-                                            ));
+                                            ui.add(egui::Label::new(egui::RichText::new(&rgbainfotext).size(9.0)).selectable(false)).clicked();
                                         });
                                     }
                                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui|
