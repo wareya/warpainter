@@ -629,7 +629,15 @@ impl Layer
                 let child_clipped = child.clipped;
                 let child_funny_flag = child.funny_flag;
                 let mut child_fx = child.effects.clone().into_iter().collect::<Vec<_>>();
-                child_fx.sort_by(|a, b| a.0.cmp(&b.0));
+                child_fx.sort_by_key(|a| 
+                    match a.0.as_str()
+                    {
+                        "gradfill" => 1,
+                        "colorfill" => 2,
+                        "stroke" => 3,
+                        _ => 0,
+                    }
+                );
                 
                 //println!("???{:?}", self.offset);
                 let mut above_offset = [0, 0];
@@ -811,7 +819,11 @@ impl Layer
                             
                             let mut source = source_data.clone();
                             source.clear_rect_alpha_float(rect_shifted, 1.0);
+                            
                             fill.blend_rect_from(rect, &source, None, None, 1.0, fill_opacity, child.funny_flag, above_offset, &mode);
+                            //fill.blend_rect_from(rect, &source, None, None, 1.0, 1.0, child.funny_flag, above_offset, &mode);
+                            //fill.blend_rect_from(rect, &fill.alike(), None, None, 1.0 - fill_opacity, 1.0, false, [0, 0], "Interpolate");
+                            
                             fill_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Copy");
                             full_mask.blend_rect_from(rect, &source_data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, above_offset, "Normal");
                             
@@ -864,8 +876,12 @@ impl Layer
                                 let mut overlay_mask = overlay.alike();
                                 overlay_mask.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, "Copy");
                                 
-                                data.clear_rect_alpha_float(rect_shifted, 1.0);
-                                overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, false, offset2, &fx_mode);
+                                if !fx_is_fill(&fx)
+                                {
+                                    data.clear_rect_alpha_float(rect_shifted, 1.0);
+                                }
+                                //data.clear_rect_alpha_float(rect_shifted, 1.0);
+                                overlay.blend_rect_from(rect, &data, child.mask.as_ref(), child.mask_info.as_ref(), 1.0, fx_opacity, true, offset2, &fx_mode);
                                 
                                 if !fx_is_fill(&fx)
                                 {
@@ -878,6 +894,7 @@ impl Layer
                                 }
                                 else
                                 {
+                                    //overlay.blend_rect_from(rect, &overlay_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
                                     fill.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Interpolate");
                                     continue;
                                 }

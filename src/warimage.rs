@@ -655,20 +655,76 @@ impl Image<4>
                 let r = fx.1["color"][0].f() as f32;
                 let g = fx.1["color"][1].f() as f32;
                 let b = fx.1["color"][2].f() as f32;
-                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, _img : Option<&Self>| -> [f32; 4]
                 {
-                    let img = img.unwrap();
+                    //let img = img.unwrap();
                     let x = x as isize;
                     let y = y as isize;
-                    let c = img.get_pixel_float(x, y);
-                    [r, g, b, c[3]]
+                    //let c = img.get_pixel_float(x, y);
+                    //[r, g, b, c[3]]
+                    [r, g, b, 1.0]
                 })
             }
             "gradfill" =>
             {
+                // FIXME: not pixel perfect. doesn't handle transparency sizing properly. alpha cutoff is 50%. doesn't support "smooth" gradients (cubic hermite spline...?)
+                
                 //println!("{:?}", fx.1);
-                let colors = fx.1["gradient"][0].vvf()[0].iter().map(|x| *x).collect::<Vec<_>>();
-                let alphas = fx.1["gradient"][1].vvf()[0].iter().map(|x| *x).collect::<Vec<_>>();
+                let colors = fx.1["gradient"][0].vvf().iter().map(|x| x.clone()).collect::<Vec<_>>();
+                let alphas = fx.1["gradient"][1].vvf().iter().map(|x| x.clone()).collect::<Vec<_>>();
+                
+                let read_gradient = |colors : &Vec<Vec<f64>>, alphas : &Vec<Vec<f64>>, t|
+                {
+                    let mut nc = 0;
+                    while nc + 1 < colors.len() && (colors[nc+1][3] as f32) < t
+                    {
+                        nc += 1;
+                    }
+                    let nc2 = (nc+1).min(colors.len()-1);
+                    let mut tc = unlerp(colors[nc][3] as f32, colors[nc2][3] as f32, t);
+                    let biascraw = (colors[nc2][3+1] as f32).clamp(0.0001, 0.9999);
+                    let biasc = (biascraw * 2.0 - 1.0);
+                    if tc > biascraw
+                    {
+                        tc = (tc - 1.0) / (1.0 - biasc) + 1.0;
+                    }
+                    else
+                    {
+                        tc /= 1.0 + biasc;
+                    }
+                    
+                    let mut c = [colors[nc][0] as f32, colors[nc][1] as f32, colors[nc][2] as f32];
+                    for i in 0..3
+                    {
+                        c[i] = lerp(c[i], colors[nc2][i] as f32, tc);
+                    }
+                    
+                    let mut na = 0;
+                    while na + 1 < alphas.len() && (alphas[na+1][1] as f32) < t
+                    {
+                        na += 1;
+                    }
+                    let na2 = (na+1).min(alphas.len()-1);
+                    let mut ta = unlerp(alphas[na][1] as f32, alphas[na2][1] as f32, t);
+                    let biasaraw = (alphas[na2][1+1] as f32).clamp(0.0001, 0.9999);
+                    let biasa = (biasaraw * 2.0 - 1.0);
+                    if ta > biasaraw
+                    {
+                        ta = (ta - 1.0) / (1.0 - biasa) + 1.0;
+                    }
+                    else
+                    {
+                        ta /= 1.0 + biasa;
+                    }
+                    
+                    let mut a = [alphas[na][0] as f32];
+                    for i in 0..1
+                    {
+                        a[i] = lerp(a[i], alphas[na2][i] as f32, ta);
+                    }
+                    
+                    [c[0], c[1], c[2], a[0]]
+                };
                 
                 let x0 = fx.1["_x0"][0].f();
                 let x1 = fx.1["_x1"][0].f();
@@ -676,7 +732,9 @@ impl Image<4>
                 let y1 = fx.1["_y1"][0].f();
                 
                 let angle = fx.1["angle"][0].f() * (std::f64::consts::PI / 180.0);
-                let (a, b) = angle.sin_cos();
+                let (mut a, mut b) = angle.sin_cos();
+                //a /= n;
+                //b /= n;
                 println!("---- {} {}", a, b);
                 
                 let w = x1 - x0;
@@ -686,25 +744,42 @@ impl Image<4>
                 let wh = w * 0.5;
                 let hh = h * 0.5;
                 
-                // FIXME: not pixel perfect, but pretty close. doesn't handle transparency sizing properly. alpha cutoff is 50%.
+                let n = (a/h).abs().max((b/w).abs());
+                let asdf = 1.0 / w.min(h);
                 
-                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                let wd = (w * a + h * b).abs();
+                let hd = (h * a - h * b).abs();
+                let asdf2 = 1.0 / wd.min(hd);
+                
+                let s = fx.1["scale"][0].f() / 100.0;
+                
+                let s = (n/b.abs()).min(n/a.abs())/s;
+                
+                //let wdp = wd/(wd+hd);
+                //let wdp = wd/wd.max(hd);
+                let wdp = 1.0;
+                
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, _img : Option<&Self>| -> [f32; 4]
                 {
-                    let img = img.unwrap();
+                    //let img = img.unwrap();
                     let x = x as isize;
                     let y = y as isize;
-                    let c = img.get_pixel_float(x, y);
+                    //let c = img.get_pixel_float(x, y);
                     
-                    let asdf = wr.max(hr);
-                    
-                    let xd = (x as f64 - wh) * asdf;
-                    let yd = (y as f64 - hh) * asdf;
+                    let xd = (x as f64 - wh);
+                    let yd = (y as f64 - hh);
                     
                     let mut xd2 = xd * b - yd * a;
-                    xd2 *= b.abs().max(a.abs());
-                    //xd2 /= b.min(a);
+                    //xd2 *= asdf;
+                    xd2 *= s;
                     
-                    [xd2 as f32 + 0.5, xd2 as f32 + 0.5, xd2 as f32 + 0.5, c[3]]
+                    let xd2 = xd2 as f32 + 0.5;
+                    let xd2 = xd2.clamp(0.0, 1.0);
+                    let mut c2 = read_gradient(&colors, &alphas, xd2);
+                    //c2[3] *= c[3];
+                    c2
+                    
+                    //[xd2 as f32 + 0.5, xd2 as f32 + 0.5, xd2 as f32 + 0.5, c[3]]
                 })
             }
             "stroke" =>

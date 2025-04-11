@@ -4,7 +4,7 @@ fn lerp(a : f32, b : f32, t : f32) -> f32
     a * (1.0 - t) + b * t
 }
 #[inline]
-fn unlerp(a : f32, b : f32, t : f32) -> f32
+pub (crate) fn unlerp(a : f32, b : f32, t : f32) -> f32
 {
     if a == b { return 0.0; }
     (t - a) / (b - a)
@@ -12,7 +12,7 @@ fn unlerp(a : f32, b : f32, t : f32) -> f32
 
 #[inline]
 // return what the output alpha should be given the two input alpha values
-fn alpha_combine(a : f32, b : f32) -> f32
+pub (crate) fn alpha_combine(a : f32, b : f32) -> f32
 {
     b * (1.0 - a) + a
 }

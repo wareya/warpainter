@@ -208,14 +208,14 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                     "Scl " => { hm.insert("scale".to_string(), vec!(data.UntF().1.into())); }
                                     "Grad" =>
                                     {
-                                        let mut n = 4096.0f64;
+                                        let n = 4096.0f64;
                                         let data = data.Objc();
                                         for data in data.1
                                         {
                                             println!("? {}", data.0.as_str());
                                             match data.0.as_str()
                                             {
-                                                "Intr" => n = data.1.doub(),
+                                                //"Intr" => n = data.1.doub(),
                                                 "Clrs" =>
                                                 {
                                                     for data in data.1.VlLs()
