@@ -350,6 +350,8 @@ impl Warpainter
         }
         self.did_event_setup = true;
         
+        self.zoom(2.0);
+        
         #[cfg(target_arch = "wasm32")]
         {
             self.debug(format!("setting up event suppression"));

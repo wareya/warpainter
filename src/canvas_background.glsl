@@ -168,7 +168,7 @@ void main()
         
         if (n != s)
         {
-            if (grid_size*zoom_level < 31.0)
+            if (grid_size*zoom_level < 47.0)
                 grid_strength *= 0.0;
             
             if (abs(zoom_level-1.0) < 0.01)

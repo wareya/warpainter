@@ -178,11 +178,75 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                             layer.effects.insert("colorfill".to_string(), hm);
                         }
                         
-                        "GrFl" =>
+                        // emboss/bevel
+                        // ("ebbl", Objc(("ebbl", [("enab", bool(false)), ("hglM", enum("BlnM", "Scrn")), ("hglC", Objc(("RGBC", [("Rd  ", doub(255.0)), ("Grn ", doub(255.0)),("Bl  ", doub(255.0))]))), ("hglO", UntF("#Prc", 75.0)), ("sdwM", enum("BlnM", "Mltp")), ("sdwC", Objc(("RGBC", [("Rd  ", doub(0.0)), ("Grn ", doub(0.0)), ("Bl  ", doub(0.0))]))), ("sdwO", UntF("#Prc", 75.0)), ("bvlT", enum("bvlT", "SfBL")), ("bvlS", enum("BESl", "InrB")), ("uglg", bool(true)), ("lagl", UntF("#Ang", 120.0)), ("Lald", UntF("#Ang", 30.0)), ("srgR", UntF("#Prc", 100.0)), ("blur", UntF("#Pxl", 5.0)), ("bvlD", enum("BESs", "In  ")), ("TrnS", Objc(("ShpC", [("Nm  ", TEXT("Linear")), ("Crv ", VlLs([Objc(("CrPt", [("Hrzn", doub(0.0)), ("Vrtc", doub(0.0))])), Objc(("CrPt", [("Hrzn", doub(255.0)), ("Vrtc", doub(255.0))]))]))]))), ("antialiasGloss", bool(false)), ("Sftn", UntF("#Pxl", 0.0)), ("useShape", bool(false)), ("useTexture", bool(false))])))
+                        
+                        // satin?
+                        // ("ChFX", Objc(("ChFX", [("enab", bool(false)), ("Md  ", enum("BlnM", "vividLight")), ("Clr ", Objc(("RGBC", [("Rd  ", doub(255.0)), ("Grn ", doub(255.0)), ("Bl  ", doub(255.0))]))), ("AntA", bool(false)), ("Invr", bool(true)), ("Opct", UntF("#Prc", 88.0)), ("lagl", UntF("#Ang", 48.0)), ("Dstn", UntF("#Pxl", 12.0)), ("blur", UntF("#Pxl", 7.0)), ("MpgS", Objc(("ShpC", [("Nm  ", TEXT("$$$/Contours/Defaults/Linear=Linear")), ("Crv ", VlLs([Objc(("CrPt", [("Hrzn", doub(0.0)), ("Vrtc", doub(0.0))])), Objc(("CrPt", [("Hrzn", doub(255.0)), ("Vrtc", doub(255.0))]))]))])))])))
+                        
+                        // outer glow
+                        // ("OrGl", Objc(("OrGl", [("enab", bool(false)), ("Md  ", enum("BlnM", "Nrml")), ("Clr ", Objc(("RGBC", [("Rd  ", doub(200.00000327825546)), ("Grn ", doub(58.82490187883377)), ("Bl  ", doub(58.87548476457596))]))), ("Opct", UntF("#Prc", 100.0)), ("GlwT", enum("BETE", "SfBL")), ("Ckmt", UntF("#Pxl",81.0)), ("blur", UntF("#Pxl", 13.0)), ("Nose", UntF("#Prc", 0.0)), ("ShdN", UntF("#Prc", 0.0)), ("AntA", bool(false)), ("TrnS", Objc(("ShpC", [("Nm ", TEXT("Linear")), ("Crv ", VlLs([Objc(("CrPt", [("Hrzn", doub(0.0)), ("Vrtc", doub(0.0))])), Objc(("CrPt", [("Hrzn", doub(255.0)), ("Vrtc", doub(255.0))]))]))]))), ("Inpr", UntF("#Prc", 100.0))])))
+                        
+                        // inner glow
+                        // ("IrGl", Objc(("IrGl", [("enab", bool(false)), ("Md  ", enum("BlnM", "Scrn")), ("Clr ", Objc(("RGBC", [("Rd  ", doub(255.0)), ("Grn ", doub(255.0)), ("Bl  ", doub(189.99710083007813))]))), ("Opct", UntF("#Prc", 75.0)), ("GlwT", enum("BETE", "SfBL")), ("Ckmt", UntF("#Pxl", 0.0)), ("blur", UntF("#Pxl", 5.0)), ("ShdN", UntF("#Prc", 0.0)), ("Nose", UntF("#Prc", 0.0)), ("AntA", bool(false)), ("glwS", enum("IGSr", "SrcE")), ("TrnS", Objc(("ShpC", [("Nm  ", TEXT("Linear")), ("Crv ", VlLs([Objc(("CrPt", [("Hrzn", doub(0.0)), ("Vrtc", doub(0.0))])), Objc(("CrPt", [("Hrzn", doub(255.0)), ("Vrtc", doub(255.0))]))]))]))), ("Inpr", UntF("#Prc", 50.0))])))
+                        
+                        // drop shadow
+                        // ("DrSh", Objc(("DrSh", [("enab", bool(true)), ("Md  ", enum("BlnM", "Mltp")), ("Clr ", Objc(("RGBC", [("Rd  ", doub(0.0)), ("Grn ", doub(0.0)), ("Bl ", doub(0.0))]))), ("Opct", UntF("#Prc", 75.0)), ("uglg", bool(false)), ("lagl", UntF("#Ang", 138.0)), ("Dstn", UntF("#Pxl", 19.0)), ("Ckmt", UntF("#Pxl", 100.0)), ("blur", UntF("#Pxl", 0.0)), ("Nose", UntF("#Prc", 0.0)), ("AntA", bool(false)), ("TrnS", Objc(("ShpC", [("Nm  ", TEXT("Linear")), ("Crv ", VlLs([Objc(("CrPt", [("Hrzn", doub(0.0)), ("Vrtc", doub(0.0))])), Objc(("CrPt", [("Hrzn", doub(255.0)), ("Vrtc", doub(255.0))]))]))]))), ("layerConceals", bool(true))])))
+                        
+                        "DrSh" =>
                         {
                             let (_, fx) = *fx.Objc();
                             
                             println!("{:#?}", fx);
+                            
+                            let mut hm = HashMap::new();
+                            hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
+                            
+                            for (name, data) in fx
+                            {
+                                match name.as_str()
+                                {
+                                    "enab" => { hm.insert("enabled".to_string(), vec!(data.bool().into())); }
+                                    "Md  " => { hm.insert("mode".to_string(), vec!(get_blend_mode_2(&data.r#enum().1).into())); }
+                                    "Opct" => { hm.insert("opacity".to_string(), vec!(data.UntF().1.into())); }
+                                    //"Angl" => { hm.insert("angle".to_string(), vec!(data.UntF().1.into())); }
+                                    
+                                    "uglg" => { hm.insert("use global angle".to_string(), vec!(data.bool().into())); }
+                                    "lagl" => { hm.insert("angle".to_string(), vec!(data.UntF().1.into())); }
+                                    "Dstn" => { hm.insert("distance".to_string(), vec!(data.UntF().1.into())); }
+                                    "Ckmt" => { hm.insert("spread".to_string(), vec!(data.UntF().1.into())); }
+                                    "Nose" => { hm.insert("noise".to_string(), vec!(data.UntF().1.into())); }
+                                    "blur" => { hm.insert("blur".to_string(), vec!(data.UntF().1.into())); }
+                                    
+                                    "AntA" => { hm.insert("antialias".to_string(), vec!(data.bool().into())); }
+                                    "layerConceals" => { hm.insert("knockout".to_string(), vec!(data.bool().into())); }
+                                    
+                                    "Clr " =>
+                                    {
+                                        let mut color = [0.0f64, 0.0f64, 0.0f64, 1.0f64];
+                                        let data = data.Objc();
+                                        match data.0.as_str()
+                                        {
+                                            "RGBC" =>
+                                            {
+                                                color[0] = data.1[0].1.doub() / 255.0;
+                                                color[1] = data.1[1].1.doub() / 255.0;
+                                                color[2] = data.1[2].1.doub() / 255.0;
+                                            }
+                                            _ => { }
+                                        }
+                                        hm.insert("color".to_string(), color.map(|x| x.into()).to_vec());
+                                    }
+                                    _ => { }
+                                }
+                            }
+                            
+                            layer.effects.insert("dropshadow".to_string(), hm);
+                        }
+                        
+                        "GrFl" =>
+                        {
+                            let (_, fx) = *fx.Objc();
                             
                             let mut hm = HashMap::new();
                             
@@ -212,7 +276,6 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                         let data = data.Objc();
                                         for data in data.1
                                         {
-                                            println!("? {}", data.0.as_str());
                                             match data.0.as_str()
                                             {
                                                 //"Intr" => n = data.1.doub(),
@@ -253,7 +316,6 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                                     for data in data.1.VlLs()
                                                     {
                                                         let data = data.Objc();
-                                                        println!("??????????{:?}", data);
                                                         let mut tx = vec![0.0f64, 0.0f64, 0.5f64];
                                                         for data in data.1
                                                         {
@@ -277,15 +339,12 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                             }
                             hm.insert("gradient".to_string(), vec!(colors.into(), trans.into()));
                             
-                            println!("-- OUT: {:#?}", hm);
-                            
                             layer.effects.insert("gradfill".to_string(), hm);
                         }
                         
                         "FrFX" =>
                         {
                             let (_, fx) = *fx.Objc();
-                            //println!("{:#?}", fx);
                             
                             let mut hm = HashMap::new();
                             hm.insert("color".to_string(), vec!(0.0.into(), 0.0.into(), 0.0.into(), 1.0.into()));
@@ -328,8 +387,6 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
                                     _ => {}
                                 }
                             }
-                            
-                            //println!("{:#?}", hm);
                             
                             layer.effects.insert("stroke".to_string(), hm);
                         }

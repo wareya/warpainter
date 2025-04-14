@@ -42,6 +42,10 @@ pub (crate) fn canvas_preview(ui: &mut egui::Ui, app : &mut crate::Warpainter, f
 }
 */
 
+/// test
+/// ```
+/// color_picker(): test
+/// ```
 pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, small : bool) -> egui::Response
 {
     let input = ui.input(|input| input.clone());

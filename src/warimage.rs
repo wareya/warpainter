@@ -457,6 +457,7 @@ pub (crate) fn fx_get_radius(fx : &(String, HashMap<String, Vec<crate::FxData>>)
         "stroke" => fx.1["size"][0].f() as f32 + 2.0,
         "colorfill" => 0.0,
         "gradfill" => 0.0,
+        "dropshadow" => fx.1["distance"][0].f() as f32,
         _ => panic!()
     }
 }
@@ -488,6 +489,7 @@ pub (crate) fn fx_get_early_blend_mode(fx : &(String, HashMap<String, Vec<crate:
         "stroke" => fx.1["mode"][0].s(),
         "colorfill" => fx.1["mode"][0].s(),
         "gradfill" => fx.1["mode"][0].s(),
+        "dropshadow" => fx.1["mode"][0].s(),
         _ => "Copy".to_string(),
     }
 }
@@ -498,6 +500,7 @@ pub (crate) fn fx_is_fill(fx : &(String, HashMap<String, Vec<crate::FxData>>)) -
         "stroke" => false,
         "colorfill" => true,
         "gradfill" => true,
+        "dropshadow" => false,
         _ => false
     }
 }
@@ -524,16 +527,10 @@ pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData
             if fx.1["size"][0].f() == 1.0 && fx.1["style"][0].s() == "center"
             {
                 "Normal".to_string()
-                //"Soft Weld".to_string()
-                //"Weld".to_string()
-                //"Hard Interpolate".to_string()
             }
             else if fx.1["style"][0].s() == "outside"
             {
-                //"Soft Weld".to_string()
                 "Sum Weld".to_string()
-                //"Weld Under".to_string()
-                //"Weld".to_string()
             }
             else if fx.1["style"][0].s() == "inside"
             {
@@ -544,14 +541,10 @@ pub (crate) fn fx_get_weld_func(fx : &(String, HashMap<String, Vec<crate::FxData
                 "Soft Weld".to_string()
             }
         }
-        "colorfill" =>
-        {
-            fx.1["mode"][0].s()
-        }
-        "gradfill" =>
-        {
-            fx.1["mode"][0].s()
-        }
+        "colorfill" => "Copy".to_string(),
+        "gradfill" => "Copy".to_string(),
+        "dropshadow" => "Interpolate".to_string(),
+        //"dropshadow" => fx.1["mode"][0].s(),
         _ => "Weld".to_string()
     }
 }
@@ -663,6 +656,36 @@ impl Image<4>
                     //let c = img.get_pixel_float(x, y);
                     //[r, g, b, c[3]]
                     [r, g, b, 1.0]
+                })
+            }
+            "dropshadow" =>
+            {
+                let _r = fx.1["color"][0].f() as f32;
+                let _g = fx.1["color"][1].f() as f32;
+                let _b = fx.1["color"][2].f() as f32;
+                
+                let angle = fx.1["angle"][0].f() * (std::f64::consts::PI / 180.0);
+                let (mut b, mut a) = angle.sin_cos();
+                a *= fx.1["distance"][0].f();
+                let a = a.round() as isize;
+                b *= -fx.1["distance"][0].f();
+                let b = b.round() as isize;
+                //a /= n;
+                //b /= n;
+                println!("---- {} {}", a, b);
+                
+                //let wdp = wd/(wd+hd);
+                //let wdp = wd/wd.max(hd);
+                let wdp = 1.0;
+                
+                Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
+                {
+                    let img = img.unwrap();
+                    let x = x as isize + a;
+                    let y = y as isize + b;
+                    let c = img.get_pixel_float(x, y);
+                    
+                    [_r, _g, _b, c[3]]
                 })
             }
             "gradfill" =>
