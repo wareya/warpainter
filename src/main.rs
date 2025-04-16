@@ -13,6 +13,9 @@ use egui::mutex::Mutex;
 use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
 
+use serde::{Serialize, Deserialize};
+use rmp_serde::{Serializer, Deserializer};
+
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -42,14 +45,14 @@ use vecmap::*;
 use pixelmath::*;
 
 use bincode::{Decode, Encode};
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerInfoChange
 {
     uuid : u128,
     old : LayerInfo,
     new : LayerInfo,
 }
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerMove
 {
     uuid : Vec<u128>,
@@ -58,7 +61,7 @@ struct LayerMove
     old_position : Vec<usize>,
     new_position : Vec<usize>,
 }
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerPaint
 {
     uuid : u128,
@@ -67,7 +70,7 @@ struct LayerPaint
     new : Image<4>,
     mask : Vec<bool>,
 }
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 enum UndoEvent
 {
     #[default]
@@ -91,6 +94,7 @@ impl UndoEvent
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Warpainter
 {
     // saved to project (later...)
@@ -111,38 +115,55 @@ struct Warpainter
     
     current_tool : usize, // FIXME change to &'static str
     
+    xform : Transform, // view/camera. FIXME: support mirroring
+    
     // unsaved
     
+    #[serde(skip)]
     redo_buffer : Vec<Vec<u8>>,
+    #[serde(skip)]
     undo_buffer : Vec<Vec<u8>>,
     
-    xform : Transform, // view/camera. FIXME: support mirroring
+    #[serde(skip)]
     debug_text : Vec<String>,
     
+    #[serde(skip)]
     tools : Vec<Box<dyn Tool>>, // FIXME change to VecMap<&'static str, ....
     
+    #[serde(skip)]
     edit_is_direct : bool,
+    #[serde(skip)]
     edit_ignores_selection : bool,
+    #[serde(skip)]
     editing_image : Option<Image<4>>,
+    #[serde(skip)]
     editing_offset : [f32; 2],
     
+    #[serde(skip)]
     loaded_shaders : bool,
+    #[serde(skip)]
     shaders : VecMap<&'static str, Arc<Mutex<ShaderQuad>>>,
     
+    #[serde(skip)]
     loaded_fonts : bool,
-    
+    #[serde(skip)]
     loaded_icons : bool,
+    #[serde(skip)]
     icons : VecMap<&'static str, (egui::TextureHandle, Image<4>)>,
     
     selection_mask : Option<Image<1>>,
     selection_poly : Vec<Vec<[f32; 2]>>,
     
+    #[serde(skip)]
     did_event_setup : bool,
     
+    #[serde(skip)]
     open_dialog : String,
     
+    #[serde(skip)]
     edit_progress : u128,
     
+    #[serde(skip)]
     file_open_promise : Option<poll_promise::Promise<Option<(String, Vec<u8>)>>>,
 }
 

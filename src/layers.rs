@@ -5,8 +5,7 @@ use crate::transform::*;
 use crate::wpsd_raw::MaskInfo;
 use std::collections::HashMap;
 
-
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum FxData
 {
     VF(Vec<f64>),
@@ -59,7 +58,9 @@ impl FxData
 }
 
 use bincode::{Decode, Encode};
-#[derive(Clone, Debug, Default, Decode, Encode)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 pub (crate) struct LayerInfo
 {
     pub (crate) name : String,
@@ -99,7 +100,7 @@ impl LayerInfo
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub (crate) enum Adjustment
 {
     Invert,
@@ -160,7 +161,7 @@ impl std::fmt::Debug for Box<dyn CloneAny>
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub (crate) struct Layer
 {
     pub (crate) uuid : u128,
@@ -196,6 +197,7 @@ pub (crate) struct Layer
     
     pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
     
+    #[serde(skip)]
     pub (crate) thumbnail : Option<Box<dyn CloneAny>>,
 }
 

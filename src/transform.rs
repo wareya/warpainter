@@ -1,5 +1,7 @@
 
-#[derive(Clone, Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub (crate) struct Transform
 {
     pub (crate) rows : [[f32; 3]; 3],

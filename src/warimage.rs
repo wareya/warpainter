@@ -41,11 +41,19 @@ fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
 }
 
 use bincode::{Decode, Encode};
-#[derive(Clone, Debug, Decode, Encode)]
+use serde::{Serialize, Deserialize};
+use serde_with::serde_as;
+#[serde_as]
+#[derive(Clone, Debug, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum ImageData<const N : usize>
 {
-    Float(Vec<[f32; N]>),
-    Int(Vec<[u8; N]>),
+    
+    Float(
+        #[serde_as(as = "Vec<[_; N]>")]
+        Vec<[f32; N]>),
+    Int(
+        #[serde_as(as = "Vec<[_; N]>")]
+        Vec<[u8; N]>),
 }
 
 impl<const N: usize> Default for ImageData<N>
@@ -89,7 +97,7 @@ impl<const N : usize> ImageData<N>
 }
 
 // always RGBA
-#[derive(Clone, Debug, Default, Decode, Encode)]
+#[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 pub (crate) struct Image<const N : usize>
 {
     pub (crate) width : usize,

@@ -39,7 +39,8 @@ impl DescItem
 
 type Descriptor = (String, Vec<(String, DescItem)>);
 
-#[derive(Clone, Debug, Default)]
+use serde::{Serialize, Deserialize};
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MaskInfo {
     pub x : i32,
     pub y : i32,

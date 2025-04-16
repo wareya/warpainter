@@ -1,9 +1,17 @@
 // insert-only vec-based map
 
+#[derive(Debug)]
 pub (crate) struct VecMap<K, V>
 {
     keys   : Vec<K>,
     values : Vec<V>,
+}
+impl<K, V> Default for VecMap<K, V>
+{
+    fn default() -> Self
+    {
+        Self { keys: vec!(), values : vec!() }
+    }
 }
 impl<K, V> VecMap<K, V>
 where K : Eq
