@@ -850,13 +850,17 @@ impl Layer
                                 let rect_shifted = rect_translate(rect, [-above_offset[0] as f32, -above_offset[1] as f32]);
                                 
                                 // CLONE
+                                let weld_func = fx_get_weld_func(&fx);
+                                
+                                let mut overlay = fill.clone();
+                                
                                 let mut data = source_data.alike_grown(r_int as usize);
                                 data.apply_fx(rect_shifted, &fx, Some(source_data), child.mask.as_ref(), child.mask_info.as_ref(), 1.0, 1.0, child.funny_flag, [r_int, r_int], "Normal");
-                                fill.blend_rect_from(rect, &data, None, None, 1.0, fx_opacity, true, offset2, &fx_mode);
+                                overlay.blend_rect_from(rect, &data, None, None, 1.0, 1.0, false, offset2, &fx_mode);
                                 
                                 // FIXME: use separate alpha and mask
                                 full_mask.blend_rect_from(rect, &data, None, None, 1.0, 1.0, false, offset2, "Weld");
-                                //fill.blend_rect_from(rect, &overlay, None, None, fx_opacity, 1.0, false, [0, 0], &weld_func);
+                                fill.blend_rect_from(rect, &overlay, None, None, fx_opacity, 1.0, false, [0, 0], &weld_func);
                                 
                                 // CLONE
                                 dropshadow = Some(fill.clone());
@@ -935,13 +939,12 @@ impl Layer
                                     {
                                         fill_masking_performed = true;
                                         fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
-                                        
                                         if let Some(ds) = &dropshadow
                                         {
                                             let mut d2 = ds.clone();
                                             d2.blend_rect_from(rect, &fill, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                            d2.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
-                                            fill.blend_rect_from(rect, &d2, None, None, 1.0, 1.0, false, [0, 0], "Weld");
+                                            d2.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
+                                            fill.blend_rect_from(rect, &d2, None, None, 1.0, 1.0, false, [0, 0], "Normal");
                                         }
                                     }
                                 }
@@ -966,7 +969,7 @@ impl Layer
                                     if let Some(ds) = &dropshadow
                                     {
                                         let mut d2 = ds.clone();
-                                        d2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
+                                        d2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
                                         fill.blend_rect_from(rect, &d2, None, None, 1.0, 1.0, false, [0, 0], "Weld");
                                     }
                                     fill2.blend_rect_from(rect, &overlay, None, None, 1.0, 1.0, false, [0, 0], &weld_func);
@@ -984,8 +987,8 @@ impl Layer
                                 fill.blend_rect_from(rect, &fill_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
                                 if let Some(mut ds) = dropshadow
                                 {
-                                    ds.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Erase");
-                                    ds.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Clip Alpha");
+                                    ds.blend_rect_from(rect, &fill, None, None, 1.0, 1.0, false, [0, 0], "Erase");
+                                    ds.blend_rect_from(rect, &full_mask, None, None, 1.0, 1.0, false, [0, 0], "Merge Alpha");
                                     fill.blend_rect_from(rect, &ds, None, None, 1.0, 1.0, false, [0, 0], "Weld");
                                 }
                             }
