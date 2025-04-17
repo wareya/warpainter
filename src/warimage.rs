@@ -42,39 +42,87 @@ fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+trait ToBytesWrap
+{
+    fn ne_bytes_insert(&self, w : &mut Vec::<u8>);
+    fn from_ne_bytes(r : &[u8]) -> Self;
+}
+impl ToBytesWrap for u8
+{
+    fn ne_bytes_insert(&self, w : &mut Vec::<u8>)
+    {
+        w.extend_from_slice(&self.to_ne_bytes());
+    }
+    fn from_ne_bytes(r : &[u8]) -> Self
+    {
+        Self::from_ne_bytes([r[0]])
+    }
+}
+impl ToBytesWrap for f32
+{
+    fn ne_bytes_insert(&self, w : &mut Vec::<u8>)
+    {
+        w.extend_from_slice(&self.to_ne_bytes());
+    }
+    fn from_ne_bytes(r : &[u8]) -> Self
+    {
+        Self::from_ne_bytes([r[0], r[1], r[2], r[3]])
+    }
+}
+
 mod flat_array_vec
 {
     use super::*;
     
-    pub fn serialize<T, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T : ToBytesWrap, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
         where T : serde::Serialize + Copy, S : Serializer
     {
-        let flat: Vec<T> = vec.iter().flat_map(|arr| arr.iter().copied()).collect();
-        flat.serialize(serializer)
+        let _flat : Vec<T> = vec.iter().flat_map(|arr| arr.iter().copied()).collect();
+        let mut flat = Vec::<u8>::new();
+        for n in _flat
+        {
+            n.ne_bytes_insert(&mut flat);
+        }
+        let flat = serde_bytes::ByteBuf::from(flat);
+        (N, flat).serialize(serializer)
     }
 
-    pub fn deserialize<'d, T, const N : usize, D>(deserializer : D) -> Result<Vec<[T; N]>, D::Error>
+    pub fn deserialize<'d, T : ToBytesWrap, const N : usize, D>(deserializer : D) -> Result<Vec<[T; N]>, D::Error>
         where T : Deserialize<'d> + Copy + Default, D : Deserializer<'d>
     {
-        let flat : Vec<T> = Vec::deserialize(deserializer)?;
-        if flat.len() % N != 0
+        let (stored_n, flat) = <(usize, serde_bytes::ByteBuf)>::deserialize(deserializer)?;
+        if flat.len() % N != 0 || stored_n != N
         {
-            return Err(serde::de::Error::custom(format!("Tried to deserialize flattened vec with length not divisible by {}", N)));
+            return Err(serde::de::Error::custom(format!("Dimensional mismatch when trying to deserialize flattened vec with inner size {} (compare: {}, {})", N, flat.len() % N, stored_n)));
         }
-        Ok(flat.chunks_exact(N).map(|chunk| { let mut arr = [T::default(); N]; arr.copy_from_slice(chunk); arr }).collect())
+        let bytes = &flat[..];
+        let size = std::mem::size_of::<T>();
+        Ok(bytes.chunks_exact(N * size).map(|chunk|
+        {
+            let mut arr = [T::default(); N];
+            for (i, x) in arr.iter_mut().enumerate()
+            {
+                *x = T::from_ne_bytes(&chunk[i * size..(i + 1) * size]);
+            }
+            arr
+        }).collect())
     }
 }
 
 use bincode::{Decode, Encode};
+use serde_with::serde_as;
+#[serde_as]
 #[derive(Clone, Debug, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum ImageData<const N : usize>
 {
     Float(
         #[serde(with = "flat_array_vec")]
+        //#[serde_as(as = "DisplayFromStr")]
         Vec<[f32; N]>
     ),
     Int(
         #[serde(with = "flat_array_vec")]
+        //#[serde_as(as = "DisplayFromStr")]
         Vec<[u8; N]>),
 }
 
