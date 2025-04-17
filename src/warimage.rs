@@ -110,7 +110,6 @@ mod flat_array_vec
 }
 
 use bincode::{Decode, Encode};
-use serde_with::serde_as;
 #[serde_as]
 #[derive(Clone, Debug, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum ImageData<const N : usize>
