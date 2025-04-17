@@ -47,7 +47,6 @@ use serde_with::serde_as;
 #[derive(Clone, Debug, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum ImageData<const N : usize>
 {
-    
     Float(
         #[serde_as(as = "Vec<[_; N]>")]
         Vec<[f32; N]>),
@@ -714,7 +713,7 @@ impl Image<4>
                     let nc2 = (nc+1).min(colors.len()-1);
                     let mut tc = unlerp(colors[nc][3] as f32, colors[nc2][3] as f32, t);
                     let biascraw = (colors[nc2][3+1] as f32).clamp(0.0001, 0.9999);
-                    let biasc = (biascraw * 2.0 - 1.0);
+                    let biasc = biascraw * 2.0 - 1.0;
                     if tc > biascraw
                     {
                         tc = (tc - 1.0) / (1.0 - biasc) + 1.0;
@@ -738,7 +737,7 @@ impl Image<4>
                     let na2 = (na+1).min(alphas.len()-1);
                     let mut ta = unlerp(alphas[na][1] as f32, alphas[na2][1] as f32, t);
                     let biasaraw = (alphas[na2][1+1] as f32).clamp(0.0001, 0.9999);
-                    let biasa = (biasaraw * 2.0 - 1.0);
+                    let biasa = biasaraw * 2.0 - 1.0;
                     if ta > biasaraw
                     {
                         ta = (ta - 1.0) / (1.0 - biasa) + 1.0;
@@ -763,7 +762,7 @@ impl Image<4>
                 let y1 = fx.1["_y1"][0].f();
                 
                 let angle = fx.1["angle"][0].f() * (std::f64::consts::PI / 180.0);
-                let (mut a, mut b) = angle.sin_cos();
+                let (a, b) = angle.sin_cos();
                 //a /= n;
                 //b /= n;
                 println!("---- {} {}", a, b);
@@ -797,8 +796,8 @@ impl Image<4>
                     let y = y as isize;
                     //let c = img.get_pixel_float(x, y);
                     
-                    let xd = (x as f64 - wh);
-                    let yd = (y as f64 - hh);
+                    let xd = x as f64 - wh;
+                    let yd = y as f64 - hh;
                     
                     let mut xd2 = xd * b - yd * a;
                     //xd2 *= asdf;
@@ -806,7 +805,7 @@ impl Image<4>
                     
                     let xd2 = xd2 as f32 + 0.5;
                     let xd2 = xd2.clamp(0.0, 1.0);
-                    let mut c2 = read_gradient(&colors, &alphas, xd2);
+                    let c2 = read_gradient(&colors, &alphas, xd2);
                     //c2[3] *= c[3];
                     c2
                     

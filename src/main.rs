@@ -7,6 +7,8 @@
 
 extern crate alloc;
 
+use std::io::Write as _;
+
 use eframe::egui;
 use alloc::sync::Arc;
 use egui::mutex::Mutex;
@@ -14,7 +16,6 @@ use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
 
 use serde::{Serialize, Deserialize};
-use rmp_serde::{Serializer, Deserializer};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -48,10 +49,12 @@ use bincode::{Decode, Encode};
 #[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerInfoChange
 {
+    // the bson crate doesn't support u128s.........
     uuid : u128,
     old : LayerInfo,
     new : LayerInfo,
 }
+
 #[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerMove
 {
@@ -113,6 +116,7 @@ struct Warpainter
     sub_color_rgb : [f32; 4],
     sub_color_hsv : [f32; 4],
     
+    #[serde(skip_serializing, default)]
     current_tool : usize, // FIXME change to &'static str
     
     xform : Transform, // view/camera. FIXME: support mirroring
@@ -167,6 +171,19 @@ struct Warpainter
     file_open_promise : Option<poll_promise::Promise<Option<(String, Vec<u8>)>>>,
 }
 
+fn default_tools() -> Vec<Box<dyn Tool>>
+{
+    vec!(
+        Box::new(Pencil::new()),
+        Box::new(Pencil::new().into_eraser()),
+        Box::new(Line::new()),
+        Box::new(Fill::new()),
+        Box::new(Eyedropper::new()),
+        Box::new(Selection::new()),
+        Box::new(MoveTool::new()),
+    )
+}
+
 impl Default for Warpainter
 {
     fn default() -> Self
@@ -213,15 +230,7 @@ impl Default for Warpainter
             redo_buffer : Vec::new(),
             undo_buffer : Vec::new(),
             
-            tools : vec!(
-                Box::new(Pencil::new()),
-                Box::new(Pencil::new().into_eraser()),
-                Box::new(Line::new()),
-                Box::new(Fill::new()),
-                Box::new(Eyedropper::new()),
-                Box::new(Selection::new()),
-                Box::new(MoveTool::new()),
-            ),
+            tools : Vec::new(),
             current_tool : 0,
             
             loaded_shaders : false,
@@ -369,6 +378,9 @@ impl Warpainter
         {
             return;
         }
+        
+        self.tools = default_tools();
+        
         self.did_event_setup = true;
         
         self.zoom(2.0);
@@ -1120,6 +1132,23 @@ impl eframe::App for Warpainter
                         ui.close_menu();
                     }
                     
+                    // FIXME: highly duplicated grabage. deduplicate!!!
+                    
+                    macro_rules! get_state { () => {
+                    {
+                        self.cancel_edit();
+                        let data = {
+                            let mut buf = Vec::new();
+                            ciborium::ser::into_writer(self, &mut buf).unwrap();
+                            buf
+                        };
+                        let mut encoder = libflate::gzip::Encoder::new(Vec::new()).unwrap();
+                        encoder.write_all(&data).unwrap();
+                        let mut data = encoder.finish().into_result().unwrap();
+                        data.extend_from_slice(b"\0\0\0WARPAINTER\x01\x01\x01");
+                        data
+                    } } }
+                    
                     let _ = &ui; // suppress unused warning on wasm32
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -1127,7 +1156,7 @@ impl eframe::App for Warpainter
                         {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Supported Image Formats",
-                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi", "psd"])
+                                    &["wpp", "png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi", "psd"])
                                 //.add_filter("Warpainter Project",
                                 //    &["wrp"])
                                 .pick_file()
@@ -1140,6 +1169,27 @@ impl eframe::App for Warpainter
                                     let bytes = std::fs::read(path).unwrap();
                                     wpsd_open(self, &bytes);
                                 }
+                                else if path.extension().unwrap().to_string_lossy() == "wpp"
+                                {
+                                    self.cancel_edit();
+                                    
+                                    fn load(path : &std::path::Path) -> Result<Warpainter, String>
+                                    {
+                                        let file = std::fs::File::open(path).map_err(|x| x.to_string())?;
+                                        let gz = libflate::gzip::Decoder::new(file).map_err(|e| e.to_string())?;
+                                        let reader = std::io::BufReader::new(gz);
+                                        let data : Warpainter = ciborium::de::from_reader(reader).map_err(|x| x.to_string())?;
+                                        Ok(data)
+                                    }
+                                    
+                                    *self = load(&path).unwrap();
+                                    
+                                    self.setup_canvas();
+                                    self.zoom(-2.0);
+                                    self.load_icons(ctx);
+                                    self.load_font(ctx);
+                                    self.load_shaders(frame);
+                                }
                                 else
                                 {
                                     // FIXME handle error
@@ -1147,6 +1197,26 @@ impl eframe::App for Warpainter
                                     let img = Image::<4>::from_rgbaimage(&img);
                                     self.load_from_img(img);
                                 }
+                            }
+                            ui.close_menu();
+                        }
+                        
+                        if ui.button("Save...").clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Warpainter Project", &["wpp"])
+                                //.add_filter("Warpainter Project",
+                                //    &["wrp"])
+                                .save_file()
+                            {
+                                fn save_vec_u8_atomic(path : &std::path::Path, data : &[u8]) -> Result<(), String>
+                                {
+                                    use atomicwrites::{AtomicFile, AllowOverwrite};
+                                    let af = AtomicFile::new(path, AllowOverwrite);
+                                    af.write(|f| f.write_all(data)).map_err(|x| x.to_string())
+                                }
+                                // FIXME handle error
+                                save_vec_u8_atomic(&path, &get_state!()).unwrap();
                             }
                             ui.close_menu();
                         }
@@ -1175,7 +1245,7 @@ impl eframe::App for Warpainter
                             {
                                 let file = rfd::AsyncFileDialog::new()
                                     .add_filter("Supported Image Formats",
-                                                &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
+                                                &["wpp", "png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
                                     .pick_file().await;
                                 
                                 if let Some(file) = file
@@ -1193,6 +1263,40 @@ impl eframe::App for Warpainter
                             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
                             
                             // GOTO: OPENFILEWEB
+                        }
+                        if ui.button("Save...").clicked()
+                        {
+                            let data = get_state!();
+                            
+                            let future = async move
+                            {
+                                if let Some(file_handle) = rfd::AsyncFileDialog::new()
+                                    .set_file_name("WpProject.wpp").save_file().await
+                                {
+                                    file_handle.write(&data).await.unwrap();
+                                }
+                            };
+                            wasm_bindgen_futures::spawn_local(future);
+                            ui.close_menu();
+                        }
+                        if ui.button("Save Copy...").clicked()
+                        {
+                            self.cancel_edit();
+                            let img = self.flatten().to_imagebuffer();
+                            
+                            let future = async move
+                            {
+                                if let Some(file_handle) = rfd::AsyncFileDialog::new()
+                                    .set_file_name("WpProject.png").save_file().await
+                                {
+                                    let mut bytes = Vec::new();
+                                    img.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageOutputFormat::Png).unwrap();
+
+                                    file_handle.write(&bytes).await.unwrap();
+                                }
+                            };
+                            wasm_bindgen_futures::spawn_local(future);
+                            ui.close_menu();
                         }
                     }
                 });
@@ -1212,6 +1316,19 @@ impl eframe::App for Warpainter
                         if name.ends_with(".psd")
                         {
                             wpsd_open(self, &data);
+                        }
+                        else if name.ends_with(".wpp")
+                        {
+                            self.cancel_edit();
+                            // FIXME handle error
+                            
+                            let gz = libflate::gzip::Decoder::new(std::io::Cursor::new(data)).map_err(|e| e.to_string()).unwrap();
+                            let reader = std::io::BufReader::new(gz);
+                            *self = ciborium::de::from_reader(reader).map_err(|x| x.to_string()).unwrap();
+                            self.setup_canvas();
+                            self.load_icons(ctx);
+                            self.load_font(ctx);
+                            self.load_shaders(frame);
                         }
                         else
                         {
