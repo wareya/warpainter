@@ -1139,22 +1139,28 @@ impl eframe::App for Warpainter
                     {
                         self.cancel_edit();
                         
-                        //let mut encoder = snap::write::FrameEncoder::new(Vec::new());
-                        //cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
-                        //let data = encoder.into_inner().unwrap();
-                        
                         //let lz77 = libflate::lz77::DefaultLz77EncoderBuilder::new().max_length(258).window_size(32 * 1024).build();
                         //let lz77 = libflate::lz77::DefaultLz77EncoderBuilder::new().max_length(258).window_size(16).build();
                         //let mut encoder = libflate::gzip::Encoder::with_options(Vec::new(), libflate::gzip::EncodeOptions::with_lz77(lz77)).unwrap();
                         
-                        let mut encoder = libflate::gzip::Encoder::new(Vec::new()).unwrap();
-                        cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
-                        let mut data = encoder.finish().into_result().unwrap();
+                        //let mut encoder = libflate::gzip::Encoder::new(Vec::new()).unwrap();
+                        //cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
+                        //let mut data = encoder.finish().into_result().unwrap();
                         
-                        //let mut data = Vec::new();
-                        //cbor4ii::serde::to_writer(&mut data, self).unwrap();
+                        let mut data = Vec::new();
+                        cbor4ii::serde::to_writer(&mut data, self).unwrap();
                         
-                        data.extend_from_slice(b"\0\0\0WARPAINTER\x01\x01\x01");
+                        //let mut encoder = snap::write::FrameEncoder::new(Vec::new());
+                        //cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
+                        //let data = encoder.into_inner().unwrap();
+                        
+                        //let mut encoder = lz4::EncoderBuilder::new().build(Vec::new()).unwrap();
+                        //let mut encoder = zstd::Encoder::new(Vec::new(), 0).unwrap();
+                        //cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
+                        //let data = encoder.finish().0;
+                        //let data = encoder.finish().unwrap();
+                        
+                        //data.extend_from_slice(b"\0\0\0WARPAINTER\x01\x01\x01");
                         
                         data
                     } } }
@@ -1176,23 +1182,29 @@ impl eframe::App for Warpainter
                                 println!("{}", path.extension().unwrap().to_string_lossy());
                                 if path.extension().unwrap().to_string_lossy() == "psd"
                                 {
+                                    let start = web_time::Instant::now();
                                     let bytes = std::fs::read(path).unwrap();
                                     wpsd_open(self, &bytes);
+                                    println!("PSD load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
                                 }
                                 else if path.extension().unwrap().to_string_lossy() == "wpp"
                                 {
                                     self.cancel_edit();
                                     
+                                    let start = web_time::Instant::now();
+                                    
                                     fn load(path : &std::path::Path) -> Result<Warpainter, String>
                                     {
                                         let file = std::fs::File::open(path).map_err(|x| x.to_string())?;
                                         
+                                        //let gz = flate2::read::GzDecoder::new(file);
+                                        //let reader = std::io::BufReader::new(gz);
+                                        
+                                        let reader = std::io::BufReader::new(file);
+                                        
                                         //let reader = std::io::BufReader::new(snap::read::FrameDecoder::new(file));
-                                        
-                                        let gz = flate2::read::GzDecoder::new(file);
-                                        let reader = std::io::BufReader::new(gz);
-                                        
-                                        //let reader = std::io::BufReader::new(file);
+                                        //let reader = std::io::BufReader::new(lz4::Decoder::new(file).unwrap());
+                                        //let reader = std::io::BufReader::new(zstd::Decoder::new(file).unwrap());
                                         
                                         let data : Warpainter = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string())?;
                                         Ok(data)
@@ -1205,6 +1217,8 @@ impl eframe::App for Warpainter
                                     self.load_icons(ctx);
                                     self.load_font(ctx);
                                     self.load_shaders(frame);
+                                    
+                                    println!("WPP load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
                                 }
                                 else
                                 {
@@ -1338,11 +1352,14 @@ impl eframe::App for Warpainter
                             self.cancel_edit();
                             // FIXME handle error
                             
-                            //let reader = std::io::BufReader::new(snap::read::FrameDecoder::new(data));
+                            //let gz = flate2::read::GzDecoder::new(std::io::Cursor::new(data));
+                            //let reader = std::io::BufReader::new(gz);
                             
-                            let gz = flate2::read::GzDecoder::new(std::io::Cursor::new(data));
-                            let reader = std::io::BufReader::new(gz);
-                            //let reader = std::io::BufReader::new(data);
+                            let reader = std::io::BufReader::new(std::io::Cursor::new(data));
+                            
+                            //let reader = std::io::BufReader::new(snap::read::FrameDecoder::new(std::io::Cursor::new(data)));
+                            //let reader = std::io::BufReader::new(lz4::Decoder::new(std::io::Cursor::new(data)).unwrap());
+                            //let reader = std::io::BufReader::new(zstd::Decoder::new(std::io::Cursor::new(data)).unwrap());
                             
                             *self = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string()).unwrap();
                             self.setup_canvas();

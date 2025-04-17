@@ -44,14 +44,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 trait ToBytesWrap
 {
-    fn ne_bytes_insert(&self, w : &mut Vec::<u8>);
+    fn ne_bytes_insert<T : std::io::Write>(&self, w : &mut T);
     fn from_ne_bytes(r : &[u8]) -> Self;
 }
 impl ToBytesWrap for u8
 {
-    fn ne_bytes_insert(&self, w : &mut Vec::<u8>)
+    fn ne_bytes_insert<T : std::io::Write>(&self, w : &mut T)
     {
-        w.extend_from_slice(&self.to_ne_bytes());
+        w.write(&self.to_ne_bytes()).unwrap();
     }
     fn from_ne_bytes(r : &[u8]) -> Self
     {
@@ -60,9 +60,9 @@ impl ToBytesWrap for u8
 }
 impl ToBytesWrap for f32
 {
-    fn ne_bytes_insert(&self, w : &mut Vec::<u8>)
+    fn ne_bytes_insert<T : std::io::Write>(&self, w : &mut T)
     {
-        w.extend_from_slice(&self.to_ne_bytes());
+        w.write(&self.to_ne_bytes()).unwrap();
     }
     fn from_ne_bytes(r : &[u8]) -> Self
     {
@@ -72,40 +72,100 @@ impl ToBytesWrap for f32
 
 mod flat_array_vec
 {
+    use std::io::{Read, Write};
+
     use super::*;
     
     pub fn serialize<T : ToBytesWrap + Default, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
         where T : serde::Serialize + Copy, S : Serializer
     {
         let _flat : Vec<T> = vec.iter().flat_map(|arr| arr.iter().copied()).collect();
-        let mut flat = Vec::<u8>::new();
+        let mut flat = vec!();
         for n in _flat
         {
             n.ne_bytes_insert(&mut flat);
         }
+        let origlen = flat.len();
+        
+        let mut encoder = lz4_flex::frame::FrameEncoder::new(Vec::new());
+        encoder.write_all(&flat).unwrap();
+        let flat = encoder.finish().unwrap();
+        
+        // this is faster than using stream encoding
+        //let flat = lz4::compression::compress(&flat, None, false).unwrap();
+        
         let flat = serde_bytes::ByteBuf::from(flat);
-        (N, T::default(), flat).serialize(serializer)
+        (N, T::default(), origlen, flat).serialize(serializer)
     }
 
     pub fn deserialize<'d, T : ToBytesWrap, const N : usize, D>(deserializer : D) -> Result<Vec<[T; N]>, D::Error>
         where T : Deserialize<'d> + Copy + Default, D : Deserializer<'d>
     {
-        let (stored_n, _dummy, flat) = <(usize, T, serde_bytes::ByteBuf)>::deserialize(deserializer)?;
-        if flat.len() % N != 0 || stored_n != N
+        let (stored_n, _dummy, origlen, flat) = <(usize, T, usize, serde_bytes::ByteBuf)>::deserialize(deserializer)?;
+        if origlen % N != 0 || stored_n != N
         {
-            return Err(serde::de::Error::custom(format!("Dimensional mismatch when trying to deserialize flattened vec with inner size {} (compare: {}, {})", N, flat.len() % N, stored_n)));
+            return Err(serde::de::Error::custom(format!("Dimensional mismatch when trying to deserialize flattened vec with inner size {} (compare: {}, {})", N, origlen % N, stored_n)));
         }
-        let bytes = &flat[..];
+        
         let size = std::mem::size_of::<T>();
-        Ok(bytes.chunks_exact(N * size).map(|chunk|
+        /*
+        let total_elems = origlen / size;
+        let chunk_size = N * size;
+        let mut out = Vec::with_capacity(origlen / chunk_size);
+        let mut buf = vec![0u8; chunk_size];
+        
+        let mut reader = std::io::BufReader::new(
+            lz4::Decoder::new(&flat[..])
+                .map_err(|e| serde::de::Error::custom(format!("LZ4 decoder init failed: {}", e)))?,
+        );
+        use std::io::Read;
+        for _ in 0..origlen / chunk_size
         {
+            reader.read_exact(&mut buf).unwrap();
             let mut arr = [T::default(); N];
-            for (i, x) in arr.iter_mut().enumerate()
+            for i in 0..N
             {
-                *x = T::from_ne_bytes(&chunk[i * size..(i + 1) * size]);
+                let bytes = &buf[i * size..(i + 1) * size];
+                arr[i] = T::from_ne_bytes(bytes);
             }
-            arr
-        }).collect())
+            out.push(arr);
+        }
+        */
+        
+        // Decompress the LZ4-compressed bytes
+        //let bytes = decompress(&flat, Some(origlen)).map_err(|e| {
+        //    serde::de::Error::custom(format!("LZ4 decompression failed: {}", e))
+        //})?;
+        
+        
+        let mut decoder;
+        // lz4 is faster than lz4_flex but a nightmare to get working in wasm
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            decoder = std::io::BufReader::new(lz4::Decoder::new(&flat[..]).map_err(|e| serde::de::Error::custom(format!("LZ4 decoder init failed: {}", e)))?);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            decoder = std::io::BufReader::new(lz4_flex::frame::FrameDecoder::new(&flat[..]));
+        }
+        //let bytes = decoder.read_all().map_err(|e| serde::de::Error::custom(format!("LZ4 decompression failed: {}", e)))?;
+        let mut bytes = vec!();
+        decoder.read_to_end(&mut bytes).map_err(|e| serde::de::Error::custom(format!("LZ4 decompression failed: {}", e)))?;
+        
+        let mut out = vec!([T::default(); N]; origlen / (N * size));
+        for (j, chunk) in bytes.chunks_exact(N * size).enumerate()
+        {
+            out[j] = unsafe
+            {
+                // SAFETY: all representations of the underlying input and output are valid, and transmute_copy ignores alignment.
+                // Endian thrashing can corrupt data but will not be a safety concern.
+                std::mem::transmute_copy(&*(chunk.as_ptr() as *const [T; N]))
+            };
+            
+        }
+        
+        
+        Ok(out)
     }
 }
 

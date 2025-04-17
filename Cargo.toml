@@ -35,6 +35,8 @@ ciborium = "0.2.2"
 flate2 = "1.1.1"
 cbor4ii = { version = "1.0.0", features = ["serde1", "use_std"] }
 serde_bytes = "0.11.17"
+web-time = "1.1.0"
+lz4_flex = "0.11.3"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-sys = "0.4.1"
@@ -64,6 +66,7 @@ features = [
 mlua = { version = "0.8.8", features = ["luajit", "vendored", "send"] }
 arboard = "3.4.1"
 atomicwrites = "0.4.4"
+lz4 = "1.28.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
