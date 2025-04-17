@@ -413,7 +413,7 @@ impl Warpainter
             
             c.forget();
         }
-        self.debug(format!("BE AWARE: Warpainter is still Alpha Software, and project files might fail to open in later versions."));
+        self.debug(format!("BE AWARE: Warpainter is still Alpha Software, and project files will fail to open in later versions."));
     }
 }
 

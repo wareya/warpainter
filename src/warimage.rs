@@ -74,7 +74,7 @@ mod flat_array_vec
 {
     use super::*;
     
-    pub fn serialize<T : ToBytesWrap, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T : ToBytesWrap + Default, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
         where T : serde::Serialize + Copy, S : Serializer
     {
         let _flat : Vec<T> = vec.iter().flat_map(|arr| arr.iter().copied()).collect();
@@ -84,13 +84,13 @@ mod flat_array_vec
             n.ne_bytes_insert(&mut flat);
         }
         let flat = serde_bytes::ByteBuf::from(flat);
-        (N, flat).serialize(serializer)
+        (N, T::default(), flat).serialize(serializer)
     }
 
     pub fn deserialize<'d, T : ToBytesWrap, const N : usize, D>(deserializer : D) -> Result<Vec<[T; N]>, D::Error>
         where T : Deserialize<'d> + Copy + Default, D : Deserializer<'d>
     {
-        let (stored_n, flat) = <(usize, serde_bytes::ByteBuf)>::deserialize(deserializer)?;
+        let (stored_n, _dummy, flat) = <(usize, T, serde_bytes::ByteBuf)>::deserialize(deserializer)?;
         if flat.len() % N != 0 || stored_n != N
         {
             return Err(serde::de::Error::custom(format!("Dimensional mismatch when trying to deserialize flattened vec with inner size {} (compare: {}, {})", N, flat.len() % N, stored_n)));
