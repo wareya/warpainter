@@ -40,18 +40,41 @@ fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
     ret
 }
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+mod flat_array_vec
+{
+    use super::*;
+    
+    pub fn serialize<T, const N : usize, S>(vec : &Vec<[T; N]>, serializer : S) -> Result<S::Ok, S::Error>
+        where T : serde::Serialize + Copy, S : Serializer
+    {
+        let flat: Vec<T> = vec.iter().flat_map(|arr| arr.iter().copied()).collect();
+        flat.serialize(serializer)
+    }
+
+    pub fn deserialize<'d, T, const N : usize, D>(deserializer : D) -> Result<Vec<[T; N]>, D::Error>
+        where T : Deserialize<'d> + Copy + Default, D : Deserializer<'d>
+    {
+        let flat : Vec<T> = Vec::deserialize(deserializer)?;
+        if flat.len() % N != 0
+        {
+            return Err(serde::de::Error::custom(format!("Tried to deserialize flattened vec with length not divisible by {}", N)));
+        }
+        Ok(flat.chunks_exact(N).map(|chunk| { let mut arr = [T::default(); N]; arr.copy_from_slice(chunk); arr }).collect())
+    }
+}
+
 use bincode::{Decode, Encode};
-use serde::{Serialize, Deserialize};
-use serde_with::serde_as;
-#[serde_as]
 #[derive(Clone, Debug, Decode, Encode, Serialize, Deserialize)]
 pub (crate) enum ImageData<const N : usize>
 {
     Float(
-        #[serde_as(as = "Vec<[_; N]>")]
-        Vec<[f32; N]>),
+        #[serde(with = "flat_array_vec")]
+        Vec<[f32; N]>
+    ),
     Int(
-        #[serde_as(as = "Vec<[_; N]>")]
+        #[serde(with = "flat_array_vec")]
         Vec<[u8; N]>),
 }
 

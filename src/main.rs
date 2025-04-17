@@ -413,6 +413,7 @@ impl Warpainter
             
             c.forget();
         }
+        self.debug(format!("BE AWARE: Warpainter is still Alpha Software, and project files might fail to open in later versions."));
     }
 }
 
@@ -1137,15 +1138,24 @@ impl eframe::App for Warpainter
                     macro_rules! get_state { () => {
                     {
                         self.cancel_edit();
-                        let data = {
-                            let mut buf = Vec::new();
-                            ciborium::ser::into_writer(self, &mut buf).unwrap();
-                            buf
-                        };
+                        
+                        //let mut encoder = snap::write::FrameEncoder::new(Vec::new());
+                        //cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
+                        //let data = encoder.into_inner().unwrap();
+                        
+                        //let lz77 = libflate::lz77::DefaultLz77EncoderBuilder::new().max_length(258).window_size(32 * 1024).build();
+                        //let lz77 = libflate::lz77::DefaultLz77EncoderBuilder::new().max_length(258).window_size(16).build();
+                        //let mut encoder = libflate::gzip::Encoder::with_options(Vec::new(), libflate::gzip::EncodeOptions::with_lz77(lz77)).unwrap();
+                        
                         let mut encoder = libflate::gzip::Encoder::new(Vec::new()).unwrap();
-                        encoder.write_all(&data).unwrap();
+                        cbor4ii::serde::to_writer(&mut encoder, self).unwrap();
                         let mut data = encoder.finish().into_result().unwrap();
+                        
+                        //let mut data = Vec::new();
+                        //cbor4ii::serde::to_writer(&mut data, self).unwrap();
+                        
                         data.extend_from_slice(b"\0\0\0WARPAINTER\x01\x01\x01");
+                        
                         data
                     } } }
                     
@@ -1176,9 +1186,15 @@ impl eframe::App for Warpainter
                                     fn load(path : &std::path::Path) -> Result<Warpainter, String>
                                     {
                                         let file = std::fs::File::open(path).map_err(|x| x.to_string())?;
-                                        let gz = libflate::gzip::Decoder::new(file).map_err(|e| e.to_string())?;
+                                        
+                                        //let reader = std::io::BufReader::new(snap::read::FrameDecoder::new(file));
+                                        
+                                        let gz = flate2::read::GzDecoder::new(file);
                                         let reader = std::io::BufReader::new(gz);
-                                        let data : Warpainter = ciborium::de::from_reader(reader).map_err(|x| x.to_string())?;
+                                        
+                                        //let reader = std::io::BufReader::new(file);
+                                        
+                                        let data : Warpainter = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string())?;
                                         Ok(data)
                                     }
                                     
@@ -1322,9 +1338,13 @@ impl eframe::App for Warpainter
                             self.cancel_edit();
                             // FIXME handle error
                             
-                            let gz = libflate::gzip::Decoder::new(std::io::Cursor::new(data)).map_err(|e| e.to_string()).unwrap();
+                            //let reader = std::io::BufReader::new(snap::read::FrameDecoder::new(data));
+                            
+                            let gz = flate2::read::GzDecoder::new(std::io::Cursor::new(data));
                             let reader = std::io::BufReader::new(gz);
-                            *self = ciborium::de::from_reader(reader).map_err(|x| x.to_string()).unwrap();
+                            //let reader = std::io::BufReader::new(data);
+                            
+                            *self = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string()).unwrap();
                             self.setup_canvas();
                             self.load_icons(ctx);
                             self.load_font(ctx);
