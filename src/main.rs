@@ -1023,6 +1023,7 @@ impl Warpainter
         let x_name = xot.add_name("x");
         let y_name = xot.add_name("y");
         let opacity_name = xot.add_name("opacity");
+        let visibility_name = xot.add_name("visibility");
         let isolation_name = xot.add_name("isolation");
         let composite_op_name = xot.add_name("composite-op");
         
@@ -1118,8 +1119,84 @@ impl Warpainter
             ret
         }
         
-        fn get_composite_op(s : &str) // TODO
+        fn get_svg_composite_op(s : &str) -> &'static str
         {
+            match s
+            {
+                "Normal" => "svg:src-over",
+                "Composite" => "svg:src-over",
+                "Multiply" => "svg:multiply",
+                "Divide" => "svg:difference",
+                "Screen" => "svg:multiply",
+                "Add" => "svg:plus",
+                "Glow Add" => "svg:plus",
+                "Subtract" => "svg:difference",
+                "Difference" => "svg:difference",
+                "Signed Diff" => "svg:difference",
+                "Signed Add" => "svg:plus",
+                "Negation" => "svg:difference",
+                "Lighten" => "svg:lighten",
+                "Darken" => "svg:darken",
+                "Linear Burn" => "svg:multiply",
+                "Color Burn" => "svg:color-burn",
+                "Color Dodge" => "svg:color-dodge",
+                "Glow Dodge" => "svg:color-dodge",
+                "Glow" => "svg:color-dodge", // or hard light
+                "Reflect" => "svg:hard-light",
+                "Overlay" => "svg:overlay",
+                
+                "Soft Light" => "svg:soft-light",
+                
+                "Hard Light" => "svg:hard-light",
+                "Vivid Light" => "svg:hard-light",
+                "Linear Light" => "svg:hard-light",
+                "Pin Light" => "svg:hard-light",
+                "Hard Mix" => "svg:hard-light",
+                
+                "Exclusion" => "svg:difference",
+                
+                "Hue" => "svg:hue",
+                "Saturation" => "svg:saturation",
+                "Color" => "svg:color",
+                "Luminosity" => "svg:luminosity",
+                "Flat Hue" => "svg:hue",
+                "Flat Sat" => "svg:saturation",
+                "Flat Color" => "svg:luminosity",
+                "Value" => "svg:luminosity",
+                "Hard Sat" => "svg:saturation",
+                "Hard Color" => "svg:color",
+                "Lightness" => "svg:luminosity",
+                
+                "Erase" => "svg:dst-out",
+                "Reveal" => "svg:dst-atop",
+                "Alpha Mask" => "svg:dst-in",
+                "Alpha Reject" => "svg:dst-out",
+                "Under" => "svg:src-over", // svg:dst-over
+                "Interpolate" => "svg:src-over", // svg:src-in
+                
+                "Dither" => "svg:src-over",
+                
+                // internal
+                "Hard Interpolate" => "FIXME",
+                "Clamp Erase" => "FIXME",
+                "Merge Alpha" => "FIXME",
+                "Clip Alpha" => "FIXME",
+                "Max Alpha" => "FIXME",
+                "Copy Alpha" => "FIXME",
+                
+                "Copy" => "FIXME",
+                "Weld Under" => "FIXME",
+                "Alpha Antiblend" => "FIXME",
+                "Blend Weld" => "FIXME",
+                "Sum Weld" => "FIXME",
+                "Weld" => "FIXME",
+                "Soft Weld" => "FIXME",
+                "Hard Weld" => "FIXME",
+                "Clip Weld" => "FIXME",
+                
+                // fallback
+                _ => "svg:src-over",
+            }
         }
         
         use std::rc::Rc;
@@ -1133,7 +1210,7 @@ impl Warpainter
                 let d = xot.new_element(stack_name);
                 xot.append(node, d).unwrap();
                 xot.attributes_mut(d).insert(name_name, layer.name.clone());
-                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                xot.attributes_mut(d).insert(composite_op_name, get_svg_composite_op(&layer.blend_mode).to_string());
                 xot.attributes_mut(d).insert(isolation_name, "isolated".to_string());
                 
                 let f = selfie.clone().downcast::<Rc<dyn Fn(&mut Zw, Rc<dyn Any>, &mut Xot, xot::Node, &Layer)>>().unwrap();
@@ -1149,7 +1226,7 @@ impl Warpainter
                 let d = xot.new_element(layer_name);
                 xot.append(node, d).unwrap();
                 xot.attributes_mut(d).insert(name_name, layer.name.clone());
-                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                xot.attributes_mut(d).insert(composite_op_name, get_svg_composite_op(&layer.blend_mode).to_string());
                 
                 let img = data.to_imagebuffer();
                 let bytes = save_image_to_vec(&img);
@@ -1168,12 +1245,13 @@ impl Warpainter
                 let d = xot.new_element(stack_name);
                 xot.append(node, d).unwrap();
                 xot.attributes_mut(d).insert(name_name, layer.name.clone() + " (dummy/adjustment)");
-                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                xot.attributes_mut(d).insert(composite_op_name, get_svg_composite_op(&layer.blend_mode).to_string());
                 d
             };
             
             xot.attributes_mut(d).insert(uuidhex_name, format!("{}", layer.uuid));
             xot.attributes_mut(d).insert(opacity_name, format!("{}", layer.opacity * layer.fill_opacity));
+            xot.attributes_mut(d).insert(visibility_name, if layer.visible { "visible" } else { "hidden" }.to_string() );
             
             xot.attributes_mut(d).insert(fill_opacity_name, format!("{}", layer.fill_opacity));
             xot.attributes_mut(d).insert(real_opacity_name, format!("{}", layer.fill_opacity));
@@ -1384,8 +1462,13 @@ impl eframe::App for Warpainter
                         if ui.button("Open...").clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("Supported Image Formats",
+                                .add_filter("Supported Formats",
                                     &["wpp", "png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi", "psd"])
+                                .add_filter("Warpainter Project", &["wpp"])
+                                .add_filter("Other Projects", &["psd"])
+                                //.add_filter("Other Projects", &["psd", "ora"])
+                                .add_filter("Images",
+                                    &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi"])
                                 //.add_filter("Warpainter Project",
                                 //    &["wrp"])
                                 .pick_file()
@@ -1494,8 +1577,13 @@ impl eframe::App for Warpainter
                             let future = async
                             {
                                 let file = rfd::AsyncFileDialog::new()
-                                    .add_filter("Supported Image Formats",
+                                    .add_filter("Supported Formats",
                                                 &["wpp", "png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "psd"])
+                                    .add_filter("Warpainter Project", &["wpp"])
+                                    .add_filter("Other Projects", &["psd"])
+                                    //.add_filter("Other Projects", &["psd", "ora"])
+                                    .add_filter("Images",
+                                        &["png", "jpg", "jpeg", "gif", "bmp", "tga", "tiff", "webp", "ico", "pnm", "pbm", "ppm", "avif", "dds", "qoi"])
                                     .pick_file().await;
                                 
                                 if let Some(file) = file
