@@ -116,10 +116,13 @@ struct Warpainter
     sub_color_rgb : [f32; 4],
     sub_color_hsv : [f32; 4],
     
-    #[serde(skip_serializing, default)]
+    #[serde(default)]
     current_tool : usize, // FIXME change to &'static str
     
     xform : Transform, // view/camera. FIXME: support mirroring
+    
+    selection_mask : Option<Image<1>>,
+    selection_poly : Vec<Vec<[f32; 2]>>,
     
     // unsaved
     
@@ -154,9 +157,6 @@ struct Warpainter
     loaded_icons : bool,
     #[serde(skip)]
     icons : VecMap<&'static str, (egui::TextureHandle, Image<4>)>,
-    
-    selection_mask : Option<Image<1>>,
-    selection_poly : Vec<Vec<[f32; 2]>>,
     
     #[serde(skip)]
     did_event_setup : bool,
@@ -257,6 +257,27 @@ impl Default for Warpainter
 
 impl Warpainter
 {
+    fn load_from(&mut self, other : Self)
+    {
+        self.layers = other.layers;
+        self.current_layer = other.current_layer;
+        
+        self.canvas_width = other.canvas_width;
+        self.canvas_height = other.canvas_height;
+        
+        self.eraser_mode = other.eraser_mode;
+        self.main_color_rgb = other.main_color_rgb;
+        self.main_color_hsv = other.main_color_hsv;
+        self.sub_color_rgb = other.sub_color_rgb;
+        self.sub_color_hsv = other.sub_color_hsv;
+        
+        self.current_tool = other.current_tool;
+        
+        self.xform = other.xform;
+        
+        self.selection_mask = other.selection_mask;
+        self.selection_poly = other.selection_poly;
+    }
     fn load_shaders(&mut self, frame : &mut eframe::Frame)
     {
         if self.loaded_shaders || frame.gl().is_none()
@@ -983,6 +1004,198 @@ impl Warpainter
 
 impl Warpainter
 {
+    fn build_ora_data(&mut self) -> Vec<u8>
+    {
+        self.cancel_edit();
+        
+        use xot::Xot;
+        let mut xot = Xot::new();
+        
+        let image_name = xot.add_name("image");
+        let stack_name = xot.add_name("stack");
+        let layer_name = xot.add_name("layer");
+        
+        let version_name = xot.add_name("version");
+        let src_name = xot.add_name("src");
+        let name_name = xot.add_name("name");
+        let w_name = xot.add_name("w");
+        let h_name = xot.add_name("h");
+        let x_name = xot.add_name("x");
+        let y_name = xot.add_name("y");
+        let opacity_name = xot.add_name("opacity");
+        let isolation_name = xot.add_name("isolation");
+        let composite_op_name = xot.add_name("composite-op");
+        
+        // extensions
+        let fill_opacity_name = xot.add_name("fill-opacity");
+        let real_opacity_name = xot.add_name("real-opacity");
+        let clipped_name = xot.add_name("clipped");
+        let uuidhex_name = xot.add_name("uuidhex");
+        let _masks_name = xot.add_name("masks"); // TODO
+        let _mask_name = xot.add_name("mask"); // TODO
+        
+        let root = xot.new_element(image_name);
+        //xot.attributes_mut(root).insert(version_name, "0.0.6-wp.1".to_string());
+        xot.attributes_mut(root).insert(version_name, "0.0.6".to_string());
+        xot.attributes_mut(root).insert(w_name, format!("{}", self.canvas_width));
+        xot.attributes_mut(root).insert(h_name, format!("{}", self.canvas_height));
+        
+        let stack = xot.new_element(stack_name);
+        xot.append(root, stack).unwrap();
+        
+        use zip::write::ZipWriter;
+        type Zw<'a> = ZipWriter<std::io::Cursor<&'a mut Vec<u8>>>;
+        let mut zipbuf = vec!();
+        let mut zip = zip::write::ZipWriter::new(std::io::Cursor::new(&mut zipbuf));
+        let zipref = &mut zip;
+        let _zip_options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let zip_options = _zip_options.clone();
+        
+        zipref.start_file("mimetype", zip_options).unwrap();
+        zipref.write(b"image/openraster").unwrap();
+        
+        let mut img = self.flatten().to_imagebuffer();
+        let bytes = save_image_to_vec(&img);
+        zipref.start_file("mergedimage.png", zip_options).unwrap();
+        zipref.write(&bytes).unwrap();
+        
+        fn premultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
+        {
+            for p in img.pixels_mut()
+            {
+                let [r, g, b, a] = p.0;
+                let af = a as f32 / 255.0;
+                p.0 = [(r as f32 * af) as u8, (g as f32 * af) as u8, (b as f32 * af) as u8, a];
+            }
+        }
+        
+        fn unpremultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
+        {
+            for p in img.pixels_mut()
+            {
+                let [r, g, b, a] = p.0;
+                if a != 0
+                {
+                    let af = 255.0 / a as f32;
+                    p.0 = [
+                        (r as f32 * af).clamp(0.0, 255.0) as u8,
+                        (g as f32 * af).clamp(0.0, 255.0) as u8,
+                        (b as f32 * af).clamp(0.0, 255.0) as u8,
+                        a,
+                    ];
+                }
+            }
+        }
+        
+        if img.width() > 256 || img.height() > 256
+        {
+            let mut w = img.width() as f64;
+            let mut h = img.height() as f64;
+            let n = 256.0 / w.max(h);
+            w = (w*n).floor();
+            h = (h*n).floor();
+            premultiply(&mut img);
+            img = image::imageops::resize(&img, w as u32, h as u32, image::imageops::FilterType::Gaussian);
+            unpremultiply(&mut img);
+        }
+        
+        let bytes = save_image_to_vec(&img);
+        zipref.start_file("Thumbnails/thumbnail.png", zip_options).unwrap();
+        zipref.write(&bytes).unwrap();
+        
+        fn save_image_to_vec(buffer : &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> Vec<u8>
+        {
+            let mut ret = Vec::new();
+            {
+                let mut encoder = png::Encoder::new(&mut ret, buffer.width(), buffer.height());
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                encoder.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
+                encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
+                let mut writer = encoder.write_header().unwrap();
+                writer.write_image_data(buffer.as_raw()).unwrap();
+            }
+            ret
+        }
+        
+        fn get_composite_op(s : &str) // TODO
+        {
+        }
+        
+        use std::rc::Rc;
+        use std::any::Any;
+        let visitor
+            : Rc<dyn Fn(&mut Zw, Rc<dyn Any>, &mut Xot, xot::Node, &Layer) -> ()>
+            = Rc::new(move |zipref : &mut Zw, selfie : Rc<dyn Any>, xot : &mut Xot, node : xot::Node, layer : &Layer| -> ()
+        {
+            let d = if layer.is_group()
+            {
+                let d = xot.new_element(stack_name);
+                xot.append(node, d).unwrap();
+                xot.attributes_mut(d).insert(name_name, layer.name.clone());
+                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                xot.attributes_mut(d).insert(isolation_name, "isolated".to_string());
+                
+                let f = selfie.clone().downcast::<Rc<dyn Fn(&mut Zw, Rc<dyn Any>, &mut Xot, xot::Node, &Layer)>>().unwrap();
+                for c in layer.children.iter()
+                {
+                    f(zipref, Rc::clone(&selfie), xot, d, c);
+                }
+                
+                d
+            }
+            else if let Some(data) = &layer.data
+            {
+                let d = xot.new_element(layer_name);
+                xot.append(node, d).unwrap();
+                xot.attributes_mut(d).insert(name_name, layer.name.clone());
+                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                
+                let img = data.to_imagebuffer();
+                let bytes = save_image_to_vec(&img);
+                let fname = format!("data/{}.png", layer.uuid);
+                zipref.start_file(&fname, zip_options).unwrap();
+                zipref.write(&bytes).unwrap();
+                
+                xot.attributes_mut(d).insert(x_name, format!("{}", layer.offset[0] as i64));
+                xot.attributes_mut(d).insert(y_name, format!("{}", layer.offset[1] as i64));
+                xot.attributes_mut(d).insert(src_name, fname);
+                
+                d
+            }
+            else
+            {
+                let d = xot.new_element(stack_name);
+                xot.append(node, d).unwrap();
+                xot.attributes_mut(d).insert(name_name, layer.name.clone() + " (dummy/adjustment)");
+                xot.attributes_mut(d).insert(composite_op_name, "svg:src-over".to_string());
+                d
+            };
+            
+            xot.attributes_mut(d).insert(uuidhex_name, format!("{}", layer.uuid));
+            xot.attributes_mut(d).insert(opacity_name, format!("{}", layer.opacity * layer.fill_opacity));
+            
+            xot.attributes_mut(d).insert(fill_opacity_name, format!("{}", layer.fill_opacity));
+            xot.attributes_mut(d).insert(real_opacity_name, format!("{}", layer.fill_opacity));
+            xot.attributes_mut(d).insert(clipped_name, if layer.clipped { "true" } else { "false" }.to_string() );
+        });
+        
+        for c in self.layers.children.iter()
+        {
+            visitor.clone()(zipref, Rc::new(visitor.clone()), &mut xot, stack, c);
+        }
+        
+        let doc = xot.new_document_with_element(root).unwrap();
+        
+        let zip_options = _zip_options.clone();
+        zipref.start_file("stack.xml", zip_options).unwrap();
+        let xml = xot.to_string(doc).unwrap();
+        zipref.write(xml.as_bytes()).unwrap();
+        
+        drop(zip);
+        
+        zipbuf
+    }
     fn new_layer(&mut self)
     {
         let layer = Layer::new_layer("New Layer", self.canvas_width, self.canvas_height);
@@ -1210,14 +1423,8 @@ impl eframe::App for Warpainter
                                         Ok(data)
                                     }
                                     
-                                    *self = load(&path).unwrap();
-                                    
-                                    self.setup_canvas();
-                                    self.zoom(-2.0);
-                                    self.load_icons(ctx);
-                                    self.load_font(ctx);
-                                    self.load_shaders(frame);
-                                    
+                                    let new = load(&path).unwrap();
+                                    self.load_from(new);
                                     println!("WPP load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
                                 }
                                 else
@@ -1231,6 +1438,12 @@ impl eframe::App for Warpainter
                             ui.close_menu();
                         }
                         
+                        fn save_vec_u8_atomic(path : &std::path::Path, data : &[u8]) -> Result<(), String>
+                        {
+                            use atomicwrites::{AtomicFile, AllowOverwrite};
+                            let af = AtomicFile::new(path, AllowOverwrite);
+                            af.write(|f| f.write_all(data)).map_err(|x| x.to_string())
+                        }
                         if ui.button("Save...").clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new()
@@ -1239,18 +1452,12 @@ impl eframe::App for Warpainter
                                 //    &["wrp"])
                                 .save_file()
                             {
-                                fn save_vec_u8_atomic(path : &std::path::Path, data : &[u8]) -> Result<(), String>
-                                {
-                                    use atomicwrites::{AtomicFile, AllowOverwrite};
-                                    let af = AtomicFile::new(path, AllowOverwrite);
-                                    af.write(|f| f.write_all(data)).map_err(|x| x.to_string())
-                                }
                                 // FIXME handle error
                                 save_vec_u8_atomic(&path, &get_state!()).unwrap();
                             }
                             ui.close_menu();
                         }
-                        if ui.button("Save Copy...").clicked()
+                        if ui.button("Save PNG...").clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("PNG", &["png"])
@@ -1263,6 +1470,19 @@ impl eframe::App for Warpainter
                                 let img = self.flatten().to_imagebuffer();
                                 // FIXME handle error
                                 img.save(path).unwrap();
+                            }
+                            ui.close_menu();
+                        }
+                        if ui.button("Save ORA...").clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Open Raster", &["ora"])
+                                //.add_filter("Warpainter Project",
+                                //    &["wrp"])
+                                .save_file()
+                            {
+                                let zipbuf = self.build_ora_data();
+                                save_vec_u8_atomic(&path, &zipbuf).unwrap();
                             }
                             ui.close_menu();
                         }
@@ -1309,7 +1529,7 @@ impl eframe::App for Warpainter
                             wasm_bindgen_futures::spawn_local(future);
                             ui.close_menu();
                         }
-                        if ui.button("Save Copy...").clicked()
+                        if ui.button("Save PNG...").clicked()
                         {
                             self.cancel_edit();
                             let img = self.flatten().to_imagebuffer();
@@ -1323,6 +1543,22 @@ impl eframe::App for Warpainter
                                     img.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageOutputFormat::Png).unwrap();
 
                                     file_handle.write(&bytes).await.unwrap();
+                                }
+                            };
+                            wasm_bindgen_futures::spawn_local(future);
+                            ui.close_menu();
+                        }
+                        if ui.button("Save ORA...").clicked()
+                        {
+                            self.cancel_edit();
+                            let zipbuf = self.build_ora_data();
+                            
+                            let future = async move
+                            {
+                                if let Some(file_handle) = rfd::AsyncFileDialog::new()
+                                    .set_file_name("WpProject.ora").save_file().await
+                                {
+                                    file_handle.write(&zipbuf).await.unwrap();
                                 }
                             };
                             wasm_bindgen_futures::spawn_local(future);
@@ -1361,11 +1597,8 @@ impl eframe::App for Warpainter
                             //let reader = std::io::BufReader::new(lz4::Decoder::new(std::io::Cursor::new(data)).unwrap());
                             //let reader = std::io::BufReader::new(zstd::Decoder::new(std::io::Cursor::new(data)).unwrap());
                             
-                            *self = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string()).unwrap();
-                            self.setup_canvas();
-                            self.load_icons(ctx);
-                            self.load_font(ctx);
-                            self.load_shaders(frame);
+                            let new = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string()).unwrap();
+                            self.load_from(new);
                         }
                         else
                         {
@@ -2025,6 +2258,42 @@ impl eframe::App for Warpainter
                 {
                     // FIXME go back to ctrl when egui adds a way to not block clipboard shortcuts
                     let shortcut_paste = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::V);
+                    if state.consume_shortcut(&shortcut_paste)
+                    {
+                        println!("b");
+                        if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        {
+                            println!("c");
+                            if let Ok(image_data) = clipboard.get().image()
+                            {
+                                if self.is_editing()
+                                {
+                                    self.commit_edit();
+                                }
+                                
+                                // FIXME undo/redo for layer operations
+                                
+                                println!("d");
+                                self.new_layer();
+                                let data = self.get_current_layer_data().unwrap();
+                                
+                                let w = image_data.width;
+                                let h = image_data.height;
+                                let pixels = image_data.bytes.chunks(4).map(|x| [x[0], x[1], x[2], x[3]]).collect::<Vec<_>>();
+                                for y in 0..h
+                                {
+                                    for x in 0..w
+                                    {
+                                        data.set_pixel(x as isize, y as isize, pixels[y*w + x]);
+                                    }
+                                }
+                                self.full_rerender();
+                                
+                                // FIXME undo/redo for layer operations
+                            }
+                        }
+                    }
+                    let shortcut_paste = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::C);
                     if state.consume_shortcut(&shortcut_paste)
                     {
                         println!("b");

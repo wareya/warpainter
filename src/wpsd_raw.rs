@@ -447,13 +447,14 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
         cursor.set_position(cursor.position() + blendat_len);
         
         let mut name_len = read_u8(&mut cursor);
+        let orig_namelen = name_len;
         while (name_len + 1) % 4 != 0
         {
             name_len += 1;
         }
         let mut name = vec![0; name_len as usize];
         cursor.read_exact(&mut name[..]).expect("Failed to read ASCII name");
-        let name = String::from_utf8_lossy(&name).to_string();
+        let name = String::from_utf8_lossy(&name[..orig_namelen as usize]).to_string();
 
         let mut layer = LayerInfo {
             name,
@@ -619,7 +620,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 "luni" =>
                 {
                     let len = read_u32(&mut cursor) as u64;
-                    let mut name = vec![0; len as usize * 2];
+                    let mut name = vec![0; len as usize];
                     for i in 0..len
                     {
                         name[i as usize] = read_u16(&mut cursor);
