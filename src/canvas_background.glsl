@@ -112,6 +112,14 @@ float soft_square(float x, float hardness)
     return clamp(((1.0 - abs(mod(x/2.0, 1.0) * 2.0 - 1.0)) - 0.5) * hardness * 2.0, -1.0, 1.0) * 0.5 + 0.5;
 }
 
+
+float miplevel(vec2 uv)
+{
+    vec2 dx = dFdx(uv);
+    vec2 dy = dFdy(uv);
+    return max(0.0, log2(max(dot(dx, dx), dot(dy, dy)))) * 0.5;
+}
+
 void main()
 {
     float x = (vertex.x-0.5) * width;
@@ -127,7 +135,27 @@ void main()
     
     // render canvas image
     
-    vec4 tex_color = texture(user_texture_0, uv);
+    float mip = miplevel(uv * vec2(textureSize(user_texture_0, 0)));
+    vec4 tex_color = textureLod(user_texture_0, uv, mip);
+    if (mip > 0.0)
+    {
+        tex_color *= 0.0;
+        mip = max(0.0, mip - 1.0);
+        vec2 dx = dFdx(uv)*0.25;
+        vec2 dy = dFdy(uv)*0.25;
+        vec4 sa = textureLod(user_texture_0, uv + dx + dy, mip);
+        vec4 sb = textureLod(user_texture_0, uv + dx - dy, mip);
+        vec4 sc = textureLod(user_texture_0, uv - dx + dy, mip);
+        vec4 sd = textureLod(user_texture_0, uv - dx - dy, mip);
+        sa.rgb *= sa.a;
+        sb.rgb *= sb.a;
+        sc.rgb *= sc.a;
+        sd.rgb *= sd.a;
+        tex_color = (sa+sb+sc+sd) * 0.25;
+        if (tex_color.a != 0.0)
+            tex_color.rgb *= (1.0 / tex_color.a);
+    }
+    //vec4 tex_color = texture(user_texture_0, uv);
     
     out_color = vec4(color, 1.0);
     out_color = mix_normal(tex_color, out_color);

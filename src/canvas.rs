@@ -278,11 +278,11 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         ("zoom_level", xform.get_scale()),
     ];
     let loops = app.get_selection_loop_data();
-    let colorpicker_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
+    let canvas_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     let tref = texture as *const crate::Image<4> as usize;
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
-        let mut shader = colorpicker_shader.lock();
+        let mut shader = canvas_shader.lock();
         // FIXME evil unsafe
         unsafe { shader.add_texture(glow_painter.gl(), &*(tref as *const crate::Image<4>), 0); }
         //shader.add_texture(glow_painter.gl(), texture, 0);
