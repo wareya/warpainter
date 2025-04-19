@@ -202,10 +202,21 @@ void main()
             wc /= wsum;
             wd /= wsum;
             
-            tex_color += textureLod(user_texture_0, uva * (1.0 / texsize), mip) * wa;
-            tex_color += textureLod(user_texture_0, uvb * (1.0 / texsize), mip) * wb;
-            tex_color += textureLod(user_texture_0, uvc * (1.0 / texsize), mip) * wc;
-            tex_color += textureLod(user_texture_0, uvd * (1.0 / texsize), mip) * wd;
+            vec4 a = textureLod(user_texture_0, uva * (1.0 / texsize), mip);
+            a.rgb *= a.a;
+            tex_color += a * wa;
+            vec4 b = textureLod(user_texture_0, uvb * (1.0 / texsize), mip);
+            b.rgb *= b.a;
+            tex_color += b * wb;
+            vec4 c = textureLod(user_texture_0, uvc * (1.0 / texsize), mip);
+            c.rgb *= c.a;
+            tex_color += c * wc;
+            vec4 d = textureLod(user_texture_0, uvd * (1.0 / texsize), mip);
+            d.rgb *= d.a;
+            tex_color += d * wd;
+            
+            if (tex_color.a > 0.0)
+                tex_color.rgb /= tex_color.a;
         }
     }
     
