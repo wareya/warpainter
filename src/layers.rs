@@ -161,6 +161,11 @@ impl std::fmt::Debug for Box<dyn CloneAny>
     }
 }
 
+fn is_root(l : &Layer) -> bool
+{
+    l.uuid == 0
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub (crate) struct Layer
 {
@@ -174,6 +179,7 @@ pub (crate) struct Layer
     
     pub (crate) flattened_data : Option<Image<4>>,
     pub (crate) flattened_dirty_rect : Option<[[f32; 2]; 2]>,
+    #[serde(skip)]
     pub (crate) edited_dirty_rect : Option<[[f32; 2]; 2]>,
     
     pub (crate) offset : [f32; 2],
@@ -197,6 +203,10 @@ pub (crate) struct Layer
     
     pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
     
+    #[serde(skip)]
+    pub (crate) _dummy_flattened_data : Option<Image<4>>,
+    #[serde(skip)]
+    pub (crate) _dummy_flattened_dirty_rect : Option<[[f32; 2]; 2]>,
     #[serde(skip)]
     pub (crate) thumbnail : Option<Box<dyn CloneAny>>,
 }
@@ -271,6 +281,8 @@ impl Layer
             
             effects : HashMap::new(),
             
+            _dummy_flattened_data : None,
+            _dummy_flattened_dirty_rect : None,
             thumbnail : None,
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
@@ -312,6 +324,8 @@ impl Layer
             
             effects : HashMap::new(),
             
+            _dummy_flattened_data : None,
+            _dummy_flattened_dirty_rect : None,
             thumbnail : None,
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
@@ -621,6 +635,11 @@ impl Layer
                     n += 1;
                     above = a.get_mut(alen - 1 - n);
                 }
+                if above.is_some() && !above.as_ref().unwrap().visible
+                {
+                    above = None;
+                }
+                
                 let mut mode = child.blend_mode.clone();
                 if mode == "Custom"
                 {
