@@ -263,8 +263,15 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         minima_x = minima_x.min(vert[0]);
         minima_y = minima_y.min(vert[1]);
         
-        vert[0] /= response.rect.width()/2.0;
-        vert[1] /= response.rect.height()/2.0;
+        let rot = (xform.get_rotation() + (360.0 + 45.0)) % 90.0;
+        if (xform.get_scale() - 1.0).abs() < 0.001 && (rot - 45.0).abs() < 0.001
+        {
+            vert[0] = vert[0].round();
+            vert[1] = vert[1].round();
+        }
+        
+        vert[0] *= 2.0/response.rect.width();
+        vert[1] *= 2.0/response.rect.height();
     }
     
     //// !!!! WARNING FIXME TODO: evil vile code

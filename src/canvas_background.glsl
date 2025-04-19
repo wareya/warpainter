@@ -117,7 +117,10 @@ float miplevel(vec2 uv)
 {
     vec2 dx = dFdx(uv);
     vec2 dy = dFdy(uv);
-    return max(0.0, log2(max(dot(dx, dx), dot(dy, dy)))) * 0.5;
+    float n = log2(max(dot(dx, dx), dot(dy, dy)));
+    if (abs(dx.x) > 0.0001 && abs(dx.y) > 0.0001)
+        n += 0.01;
+    return max(0.0, n) * 0.5;
 }
 
 void main()
@@ -140,7 +143,9 @@ void main()
     if (mip > 0.0)
     {
         tex_color *= 0.0;
-        mip = max(0.0, mip - 1.0);
+        //mip = max(0.0, mip - 1.0);
+        //mip = max(0.0, mip - 0.5);
+        mip = max(mip * 0.5, mip - 1.0);
         vec2 dx = dFdx(uv)*0.25;
         vec2 dy = dFdy(uv)*0.25;
         vec4 sa = textureLod(user_texture_0, uv + dx + dy, mip);
@@ -155,7 +160,6 @@ void main()
         if (tex_color.a != 0.0)
             tex_color.rgb *= (1.0 / tex_color.a);
     }
-    //vec4 tex_color = texture(user_texture_0, uv);
     
     out_color = vec4(color, 1.0);
     out_color = mix_normal(tex_color, out_color);
