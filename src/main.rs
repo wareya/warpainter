@@ -29,6 +29,7 @@ mod canvas;
 mod gizmos;
 mod tools;
 mod layers;
+mod layers_fxblend;
 mod quadrender;
 mod vecmap;
 mod pixelmath;
