@@ -407,7 +407,7 @@ impl Warpainter
         
         self.did_event_setup = true;
         
-        self.zoom(2.0);
+        //self.zoom(2.0);
         
         #[cfg(target_arch = "wasm32")]
         {

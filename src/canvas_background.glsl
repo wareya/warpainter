@@ -123,6 +123,11 @@ float miplevel(vec2 uv)
     return max(0.0, n) * 0.5;
 }
 
+float chebyshev(vec2 v)
+{
+    return max(abs(v.x), abs(v.y));
+}
+
 void main()
 {
     float x = (vertex.x-0.5) * width;
@@ -138,7 +143,9 @@ void main()
     
     // render canvas image
     
-    float mip = miplevel(uv * vec2(textureSize(user_texture_0, 0)));
+    vec2 texsize = vec2(textureSize(user_texture_0, 0));
+    vec2 uvbig = uv * texsize;
+    float mip = miplevel(uvbig);
     vec4 tex_color = textureLod(user_texture_0, uv, mip);
     if (mip > 0.0)
     {
@@ -159,6 +166,47 @@ void main()
         tex_color = (sa+sb+sc+sd) * 0.25;
         if (tex_color.a != 0.0)
             tex_color.rgb *= (1.0 / tex_color.a);
+    }
+    else if (zoom_level > 1.001)
+    {
+        // aa'd box filter
+        // FIXME: work out the proper version of this
+        
+        tex_color *= 0.0;
+        
+        vec2 dx = dFdx(uvbig)*0.5;
+        vec2 dy = dFdy(uvbig)*0.5;
+        
+        vec2 uva = floor(uvbig + dx + dy) + 0.5;
+        vec2 uvb = floor(uvbig + dx - dy) + 0.5;
+        vec2 uvc = floor(uvbig - dx + dy) + 0.5;
+        vec2 uvd = floor(uvbig - dx - dy) + 0.5;
+        
+        float f = 1.0 - 1.0/(zoom_level + 1.0);
+        
+        float wa = max(0.0, 0.5 - chebyshev(uvbig - uva) * f);
+        float wb = max(0.0, 0.5 - chebyshev(uvbig - uvb) * f);
+        float wc = max(0.0, 0.5 - chebyshev(uvbig - uvc) * f);
+        float wd = max(0.0, 0.5 - chebyshev(uvbig - uvd) * f);
+        
+        float wsum = wa + wb + wc + wd;
+        
+        if (wsum < 0.1 / zoom_level)
+        {
+            tex_color = textureLod(user_texture_0, uv, mip);
+        }
+        else
+        {
+            wa /= wsum;
+            wb /= wsum;
+            wc /= wsum;
+            wd /= wsum;
+            
+            tex_color += textureLod(user_texture_0, uva * (1.0 / texsize), mip) * wa;
+            tex_color += textureLod(user_texture_0, uvb * (1.0 / texsize), mip) * wb;
+            tex_color += textureLod(user_texture_0, uvc * (1.0 / texsize), mip) * wc;
+            tex_color += textureLod(user_texture_0, uvd * (1.0 / texsize), mip) * wd;
+        }
     }
     
     out_color = vec4(color, 1.0);
