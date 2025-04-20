@@ -132,14 +132,14 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         }
         for _ in 0..input.num_presses(egui::Key::Num2)
         {
-            app.xform.rotate(15.0);
+            app.xform.rotate(5.0);
             app.debug(format!("{}", app.xform.get_scale()));
             app.debug(format!("{}", app.xform.get_rotation()));
             app.debug(format!("{:?}", app.xform.get_translation()));
         }
         for _ in 0..input.num_presses(egui::Key::Num1)
         {
-            app.xform.rotate(-15.0);
+            app.xform.rotate(-5.0);
             app.debug(format!("{}", app.xform.get_scale()));
             app.debug(format!("{}", app.xform.get_rotation()));
             app.debug(format!("{:?}", app.xform.get_translation()));

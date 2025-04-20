@@ -34,6 +34,8 @@ mod quadrender;
 mod vecmap;
 mod pixelmath;
 mod spline;
+mod wabl;
+mod hwaccel;
 
 use wpsd::*;
 use warimage::*;
@@ -314,6 +316,12 @@ impl Warpainter
         {
             return;
         }
+        let mut theme = egui::Visuals::dark();
+        theme.panel_fill = theme.panel_fill.gamma_multiply(1.5);
+        theme.widgets.active.fg_stroke.color = theme.widgets.active.fg_stroke.color.gamma_multiply(1.25);
+        theme.widgets.inactive.fg_stroke.color = theme.widgets.inactive.fg_stroke.color.gamma_multiply(1.25);
+        theme.widgets.noninteractive.fg_stroke.color = theme.widgets.noninteractive.fg_stroke.color.gamma_multiply(1.35);
+        ctx.set_visuals(theme);
         self.loaded_fonts = true;
         
         const GZ_BYTES: &[u8] = include_bytes!("data/IBMPlexSansJP-Regular.ttf.gz");
@@ -1215,7 +1223,7 @@ impl Warpainter
                 xot.append(node, d).unwrap();
                 xot.attributes_mut(d).insert(name_name, layer.name.clone());
                 xot.attributes_mut(d).insert(composite_op_name, get_svg_composite_op(&layer.blend_mode).to_string());
-                xot.attributes_mut(d).insert(isolation_name, "isolated".to_string());
+                xot.attributes_mut(d).insert(isolation_name, "isolate".to_string());
                 
                 let f = selfie.clone().downcast::<Rc<dyn Fn(&mut Zw, Rc<dyn Any>, &mut Xot, xot::Node, &Layer)>>().unwrap();
                 for c in layer.children.iter()
@@ -1836,10 +1844,10 @@ impl eframe::App for Warpainter
                     let mut rerender = false;
                     if layer.blend_mode == "Custom"
                     {
-                        if layer.custom_blend_mode == ""
-                        {
-                            layer.custom_blend_mode = "".to_string();
-                        }
+                        //if layer.custom_blend_mode == ""
+                        //{
+                        //    layer.custom_blend_mode = "".to_string();
+                        //}
                         egui::Window::new("Custom Blend Mode Editor").vscroll(true).show(ctx, |ui|
                         {
                             let editor = egui::TextEdit::multiline(&mut layer.custom_blend_mode).code_editor();
@@ -2522,6 +2530,7 @@ fn main()
     //options.initial_window_size = Some([1280.0, 720.0].into());
     options.viewport = egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]).with_drag_and_drop(true);
     options.viewport.icon = Some(Arc::new(icon));
+    options.multisampling = 4;
     
     let mut wp = Box::<Warpainter>::default();
     
@@ -2590,7 +2599,7 @@ fn main()
     // Redirect tracing to console.log and friends:
     tracing_wasm::set_as_global_default();
     
-    let web_options = eframe::WebOptions::default();
+    let mut web_options = eframe::WebOptions::default();
     
     web_sys::console::log_1(&format!("event received").into());
     
