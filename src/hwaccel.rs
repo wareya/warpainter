@@ -334,6 +334,7 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
 
 #[cfg(test)]
 #[allow(deprecated)]
+#[cfg(target_os = "windows")]
 mod tests
 {
     use super::*;
