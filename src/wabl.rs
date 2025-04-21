@@ -140,7 +140,7 @@ impl Parser
             children.push(binding);
         }
 
-        if let Some(expr) = self.parse_expr()
+        if let Some(expr) = self.parse_returnval()
         {
             children.push(expr);
             Some(ASTNode
@@ -169,6 +169,48 @@ impl Parser
         None
     }
     
+    pub fn parse_returnval(&mut self) -> Option<ASTNode>
+    {
+        if let Some(x) = self.parse_expr()
+        {
+            return Some(x);
+        }
+        let start = self.pos;
+
+        if self.match_token("[")
+        {
+            let mut ret = ASTNode
+            {
+                name : "arraylit".to_string(),
+                token : None,
+                children : vec!(),
+            };
+            
+            while self.peek() != "0EOF" && !self.match_token("]")
+            {
+                if let Some(expr) = self.parse_expr()
+                {
+                    ret.children.push(expr);
+                }
+                if self.peek() == ","
+                {
+                    self.advance();
+                }
+                else if self.peek() == "]"
+                {
+                    break;
+                }
+                else
+                {
+                    return None;
+                }
+            }
+            self.advance();
+            return Some(ret);
+        }
+        self.pos = start;
+        None
+    }
     pub fn parse_arraydef(&mut self) -> Option<ASTNode>
     {
         let start = self.pos;
@@ -188,7 +230,7 @@ impl Parser
                             children : vec!(name),
                         };
                         
-                        while self.peek() != "0EOF" && !self.match_token(")")
+                        while self.peek() != "0EOF" && !self.match_token("]")
                         {
                             if let Some(expr) = self.parse_literal()
                             {
@@ -651,6 +693,21 @@ impl Compiler
                 {
                     ret += ")";
                 }
+                ret
+            }
+            "arraylit" =>
+            {
+                let mut ret = format!("vec{}(", expr.children.len());
+                for (i, child) in expr.children.iter().enumerate()
+                {
+                    let n = self.compile(child)?;
+                    ret += &n;
+                    if i + 1 < expr.children.len()
+                    {
+                        ret += ", ";
+                    }
+                }
+                ret += ")";
                 ret
             }
             "fcall" =>

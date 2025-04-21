@@ -1856,10 +1856,12 @@ impl eframe::App for Warpainter
                         ui.separator();
                         
                         ui.selectable_value(&mut layer.blend_mode, "Custom".to_string(), "Custom");
+                        ui.selectable_value(&mut layer.blend_mode, "Custom Tri".to_string(), "Custom Tri");
+                        ui.selectable_value(&mut layer.blend_mode, "Custom Quad".to_string(), "Custom Quad");
                     });
                     
                     let mut rerender = false;
-                    if layer.blend_mode == "Custom"
+                    if layer.blend_mode == "Custom" || layer.blend_mode == "Custom Tri" || layer.blend_mode == "Custom Quad"
                     {
                         //if layer.custom_blend_mode == ""
                         //{

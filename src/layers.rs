@@ -645,6 +645,14 @@ impl Layer
                 {
                     mode += &("\n".to_string() + &child.custom_blend_mode);
                 }
+                if mode == "Custom Tri"
+                {
+                    mode = "TriCustom".to_string() + &("\n".to_string() + &child.custom_blend_mode);
+                }
+                if mode == "Custom Quad"
+                {
+                    mode = "QuadCustom".to_string() + &("\n".to_string() + &child.custom_blend_mode);
+                }
                 let opacity = child.opacity;
                 let fill_opacity = child.fill_opacity;
                 let child_clipped = child.clipped;

@@ -1433,8 +1433,12 @@ impl Image<4>
         
         let self_width = self.width;
         
-        if blend_mode.starts_with("Custom")
+        if blend_mode.starts_with("Custom") || blend_mode.starts_with("TriCustom") || blend_mode.starts_with("QuadCustom")
         {
+            let mono = blend_mode.starts_with("Custom");
+            let tri = blend_mode.starts_with("TriCustom");
+            let quad = blend_mode.starts_with("QuadCustom");
+            
             //if let ImageData::Int(ref mut data) = &mut 
             if matches!(self.data, ImageData::Int(_))
             {
@@ -1451,46 +1455,117 @@ impl Image<4>
                     }
                     else if let Some(parsed) = parsed
                     {
-                        if let Ok(prog) = Compiler::compile_program(&parsed, &["a".to_string(), "b".to_string()])
+                        let predef : &[String] = if mono { &["a".to_string(), "b".to_string()] }
+                        else if tri { &["a1".to_string(), "a2".to_string(), "a3".to_string(), "b1".to_string(), "b2".to_string(), "b3".to_string()] }
+                        else { &["a1".to_string(), "a2".to_string(), "a3".to_string(), "a4".to_string(),
+                                "b1".to_string(), "b2".to_string(), "b3".to_string(), "b4".to_string()] };
+                        let prog = Compiler::compile_program(&parsed, predef);
+                        if let Err(prog) = &prog
                         {
-                            let prog = format!("
-                                float f2(float a, float b)
-                                {{
-                                    {}
-                                }}
-                                vec4 f(vec2 uv1, vec2 uv2)
-                                {{
-                                    vec4 a = texture(tex1, uv1);
-                                    vec4 b = texture(tex2, uv2);
-                                    
-                                    if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
-                                        a *= 0.0;
-                                    if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
-                                        b *= 0.0;
-                                    
-                                    vec4 b_old = b;
-                                    
-                                    b.r = f2(a.r, b.r);
-                                    b.g = f2(a.g, b.g);
-                                    b.b = f2(a.b, b.b);
-                                    
-                                    b = mix(b_old, b, a[3]);
-                                    b = mix(a, b, b[3]);
-                                    
-                                    return b;
-                                }}
-                            ", prog);
+                            println!("shader comp error: {}", prog);
+                        }
+                        if let Ok(prog) = prog
+                        {
+                            let prog = if mono
+                            {
+                                format!("
+                                    float f2(float a, float b)
+                                    {{
+                                        {}
+                                    }}
+                                    vec4 f(vec2 uv1, vec2 uv2)
+                                    {{
+                                        vec4 a = texture(tex1, uv1);
+                                        vec4 b = texture(tex2, uv2);
+                                        
+                                        if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
+                                            a *= 0.0;
+                                        if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
+                                            b *= 0.0;
+                                        
+                                        vec4 b_old = b;
+                                        
+                                        b.r = f2(a.r, b.r);
+                                        b.g = f2(a.g, b.g);
+                                        b.b = f2(a.b, b.b);
+                                        
+                                        b = mix(b_old, b, a[3]);
+                                        b = mix(a, b, b[3]);
+                                        
+                                        return b;
+                                    }}
+                                ", prog)
+                            }
+                            else if tri
+                            {
+                                format!("
+                                    vec3 f2(float a1, float a2, float a3, float b1, float b2, float b3)
+                                    {{
+                                        {}
+                                    }}
+                                    vec4 f(vec2 uv1, vec2 uv2)
+                                    {{
+                                        vec4 a = texture(tex1, uv1);
+                                        vec4 b = texture(tex2, uv2);
+                                        
+                                        if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
+                                            a *= 0.0;
+                                        if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
+                                            b *= 0.0;
+                                        
+                                        vec4 b_old = b;
+                                        
+                                        b.rgb = f2(a.r, a.g, a.b, b.r, b.g, b.b);
+                                        
+                                        b = mix(b_old, b, a[3]);
+                                        b = mix(a, b, b[3]);
+                                        
+                                        return b;
+                                    }}
+                                ", prog)
+                            }
+                            else
+                            {
+                                assert!(quad);
+                                format!("
+                                    vec4 f2(float a1, float a2, float a3, float a4, float b1, float b2, float b3, float b4)
+                                    {{
+                                        {}
+                                    }}
+                                    vec4 f(vec2 uv1, vec2 uv2)
+                                    {{
+                                        vec4 a = texture(tex1, uv1);
+                                        vec4 b = texture(tex2, uv2);
+                                        
+                                        if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
+                                            a *= 0.0;
+                                        if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
+                                            b *= 0.0;
+                                        
+                                        vec4 b_old = b;
+                                        
+                                        b.rgba = f2(a.r, a.g, a.b, a.a, b.r, b.g, b.b, b.a);
+                                        
+                                        return b;
+                                    }}
+                                ", prog)
+                            };
                             
                             
                             if let Some(gl) = unsafe { &* &raw const crate::GL }
                             {
                                 println!("A");
                                 use crate::hwaccel::*;
-                                if let Ok(bytes) = hw_blend(
+                                let n = hw_blend(
                                     &gl, Some(prog),
                                     Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
                                     [self.width as u32, self.height as u32]
-                                )
+                                );
+                                if let Err(err) = &n
+                                {
+                                    println!("shader comp error: {}", err);
+                                }
+                                if let Ok(bytes) = n
                                 {
                                     if let ImageData::Int(ref mut data) = &mut self.data
                                     {
