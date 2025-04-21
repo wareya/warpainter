@@ -644,6 +644,26 @@ impl Layer
                 if mode == "Custom"
                 {
                     mode += &("\n".to_string() + &child.custom_blend_mode);
+                    
+                    // example custom blend mode: hard mix
+                    
+                    // n = b + a*fill_opacity;
+                    // n = n - 0.5;
+                    // n = n - (fill_opacity*0.5);
+                    // n = n / (1.0 - fill_opacity);
+                    // n = n + 0.5;
+                    // clamp(n, 0.0, 1.0)
+                    
+                    // bad hard mix (e.g. similar to the krita/gimp implementation)
+                    
+                    // n = b + a;
+                    // n = n * 0.5;
+                    // n = ~n;
+                    // clamp(n, 0.0, 1.0)
+                    
+                    // photoshop-accurate linear dodge/add (TODO)
+                    
+                    // clamp(b+a*fill_opacity, 0, 1)
                 }
                 if mode == "Custom Tri"
                 {

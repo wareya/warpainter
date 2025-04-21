@@ -723,6 +723,8 @@ impl Compiler
                     "exp2" => 1,
                     "sqrt" => 1,
                     
+                    "limit" => 1,
+                    
                     "round" => 1,
                     "ceil" => 1,
                     "floor" => 1,
@@ -736,6 +738,11 @@ impl Compiler
                     "acos" => 1,
                     "atan" => 1,
                     "atan2" => 2,
+                    
+                    "max" => 2,
+                    "min" => 2,
+                    "clamp" => 3,
+                    "mix" => 3,
                     
                     _unk => { return Err(format!("unknown function name `{}`", _unk)); }
                 };
@@ -754,6 +761,10 @@ impl Compiler
                 else if !js && name == "atan2"
                 {
                     format!("(atan({}, {}))", self.compile(&expr.children[0])?, self.compile(&expr.children[1])?)
+                }
+                else if name == "limit"
+                {
+                    format!("(clamp({}, 0.0, 1.0))", self.compile(&expr.children[0])?)
                 }
                 else
                 {

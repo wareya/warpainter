@@ -157,7 +157,7 @@ impl OpenGLContextState
     }
 }
 
-pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&Image<4>>, img1_pos : [f32; 2], img2 : Option<&Image<4>>, img2_pos : [f32; 2], outres : [u32; 2]) -> Result<Vec<u8>, String>
+pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&Image<4>>, img1_pos : [f32; 2], img2 : Option<&Image<4>>, img2_pos : [f32; 2], outres : [u32; 2], opacity : f32, modifier : f32, funny_flag : bool) -> Result<Vec<u8>, String>
 {
     let mut state = OpenGLContextState::new();
     state.save_state(gl);
@@ -228,6 +228,10 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         uniform vec2 tex1_pos;
         uniform vec2 tex2_pos;
         
+        uniform float opacity;
+        uniform float _fill_opacity;
+        uniform float funny_flag;
+        
         //JIT_CODE_INSERTION_POINT
         
         void main()
@@ -290,6 +294,10 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         
         gl.uniform_2_f32(gl.get_uniform_location(prog, "tex1_pos").as_ref(), img1_pos[0] as f32, img1_pos[1] as f32);
         gl.uniform_2_f32(gl.get_uniform_location(prog, "tex2_pos").as_ref(), img2_pos[0] as f32, img2_pos[1] as f32);
+        
+        gl.uniform_1_f32(gl.get_uniform_location(prog, "opacity").as_ref(), opacity);
+        gl.uniform_1_f32(gl.get_uniform_location(prog, "_fill_opacity").as_ref(), modifier);
+        gl.uniform_1_f32(gl.get_uniform_location(prog, "funny_flag").as_ref(), if funny_flag { 1.0 } else { 0.0 });
         
         let vertices : [f32; 12] = [
             -1.0,  1.0, 0.0,
@@ -394,7 +402,7 @@ mod tests
             
             let gl = glow::Context::from_loader_function_cstr(|s| display.get_proc_address(s) as *const _);
             
-            hw_blend(&gl, None, Some(&img1), [2.0, 0.0], Some(&img2), [0.0, 0.0], [20, 20]);
+            hw_blend(&gl, None, Some(&img1), [2.0, 0.0], Some(&img2), [0.0, 0.0], [20, 20], 1.0, 1.0, false);
         }
     }
 }

@@ -1459,7 +1459,11 @@ impl Image<4>
                         else if tri { &["a1".to_string(), "a2".to_string(), "a3".to_string(), "b1".to_string(), "b2".to_string(), "b3".to_string()] }
                         else { &["a1".to_string(), "a2".to_string(), "a3".to_string(), "a4".to_string(),
                                 "b1".to_string(), "b2".to_string(), "b3".to_string(), "b4".to_string()] };
-                        let prog = Compiler::compile_program(&parsed, predef);
+                        let mut predef : Vec<_> = predef.iter().cloned().collect();
+                        predef.push("opacity".to_string());
+                        predef.push("fill_opacity".to_string());
+                        predef.push("funny_flag".to_string());
+                        let prog = Compiler::compile_program(&parsed, &predef);
                         if let Err(prog) = &prog
                         {
                             println!("shader comp error: {}", prog);
@@ -1469,12 +1473,13 @@ impl Image<4>
                             let prog = if mono
                             {
                                 format!("
-                                    float f2(float a, float b)
+                                    float f2(float a, float b, float fill_opacity)
                                     {{
                                         {}
                                     }}
                                     vec4 f(vec2 uv1, vec2 uv2)
                                     {{
+                                        float fill_opacity = _fill_opacity;
                                         vec4 a = texture(tex1, uv1);
                                         vec4 b = texture(tex2, uv2);
                                         
@@ -1483,28 +1488,45 @@ impl Image<4>
                                         if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
                                             b *= 0.0;
                                         
+                                        if (funny_flag != 0.0)
+                                        {{
+                                            fill_opacity *= a[3];
+                                            a[3] = opacity;
+                                        }}
+                                        else
+                                        {{
+                                            a[3] *= opacity;
+                                        }}
+                                        
                                         vec4 b_old = b;
                                         
-                                        b.r = f2(a.r, b.r);
-                                        b.g = f2(a.g, b.g);
-                                        b.b = f2(a.b, b.b);
+                                        b.r = f2(a.r, b.r, fill_opacity);
+                                        b.g = f2(a.g, b.g, fill_opacity);
+                                        b.b = f2(a.b, b.b, fill_opacity);
                                         
-                                        b = mix(b_old, b, a[3]);
-                                        b = mix(a, b, b[3]);
+                                        float b_under_a = b_old[3] * (1.0 - a[3] * fill_opacity);
+                                        b[3] = b_under_a + a[3] * fill_opacity;
+                                        float m = 1.0 / b[3];
+                                        
+                                        b.rgb = mix(b_old.rgb, b.rgb, a[3] {});
+                                        b.rgb = mix(a.rgb    , b.rgb, b_old[3] * m);
+                                        
+                                        //b = mix(b_old, b, opacity);
                                         
                                         return b;
                                     }}
-                                ", prog)
+                                ", prog.clone(), if prog.contains("fill_opacity") { "" } else { "* fill_opacity" })
                             }
                             else if tri
                             {
                                 format!("
-                                    vec3 f2(float a1, float a2, float a3, float b1, float b2, float b3)
+                                    vec3 f2(float a1, float a2, float a3, float b1, float b2, float b3, float fill_opacity)
                                     {{
                                         {}
                                     }}
                                     vec4 f(vec2 uv1, vec2 uv2)
                                     {{
+                                        float fill_opacity = _fill_opacity;
                                         vec4 a = texture(tex1, uv1);
                                         vec4 b = texture(tex2, uv2);
                                         
@@ -1513,27 +1535,44 @@ impl Image<4>
                                         if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
                                             b *= 0.0;
                                         
+                                        if (funny_flag != 0.0)
+                                        {{
+                                            fill_opacity *= a[3];
+                                            a[3] = opacity;
+                                        }}
+                                        else
+                                        {{
+                                            a[3] *= opacity;
+                                        }}
+                                        
                                         vec4 b_old = b;
                                         
-                                        b.rgb = f2(a.r, a.g, a.b, b.r, b.g, b.b);
+                                        b.rgb = f2(a.r, a.g, a.b, b.r, b.g, b.b, fill_opacity);
                                         
-                                        b = mix(b_old, b, a[3]);
-                                        b = mix(a, b, b[3]);
+                                        float b_under_a = b_old[3] * (1.0 - a[3] * fill_opacity);
+                                        b[3] = b_under_a + a[3] * fill_opacity;
+                                        float m = 1.0 / b[3];
+                                        
+                                        b.rgb = mix(b_old.rgb, b.rgb, a[3] {});
+                                        b.rgb = mix(a.rgb    , b.rgb, b_old[3] * m);
+                                        
+                                        //b = mix(b_old, b, opacity);
                                         
                                         return b;
                                     }}
-                                ", prog)
+                                ", prog.clone(), if prog.contains("fill_opacity") { "" } else { "* fill_opacity" })
                             }
                             else
                             {
                                 assert!(quad);
                                 format!("
-                                    vec4 f2(float a1, float a2, float a3, float a4, float b1, float b2, float b3, float b4)
+                                    vec4 f2(float a1, float a2, float a3, float a4, float b1, float b2, float b3, float b4, float fill_opacity)
                                     {{
                                         {}
                                     }}
                                     vec4 f(vec2 uv1, vec2 uv2)
                                     {{
+                                        float fill_opacity = _fill_opacity;
                                         vec4 a = texture(tex1, uv1);
                                         vec4 b = texture(tex2, uv2);
                                         
@@ -1544,7 +1583,9 @@ impl Image<4>
                                         
                                         vec4 b_old = b;
                                         
-                                        b.rgba = f2(a.r, a.g, a.b, a.a, b.r, b.g, b.b, b.a);
+                                        b.rgba = f2(a.r, a.g, a.b, a.a, b.r, b.g, b.b, b.a, fill_opacity);
+                                        
+                                        b = mix(b_old, b, opacity);
                                         
                                         return b;
                                     }}
@@ -1559,7 +1600,8 @@ impl Image<4>
                                 let n = hw_blend(
                                     &gl, Some(prog),
                                     Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
-                                    [self.width as u32, self.height as u32]
+                                    [self.width as u32, self.height as u32],
+                                    top_opacity, top_alpha_modifier, top_funny_flag
                                 );
                                 if let Err(err) = &n
                                 {
