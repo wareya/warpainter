@@ -11,8 +11,6 @@ use std::io::Write as _;
 
 use eframe::egui;
 use alloc::sync::Arc;
-use std::sync::OnceLock;
-use std::rc::Rc;
 use egui::mutex::Mutex;
 use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
@@ -1364,7 +1362,7 @@ impl eframe::App for Warpainter
         
         unsafe
         {
-            if GL.is_none()
+            if (*&raw const GL).is_none()
             {
                 use eframe::egui_glow;
                 let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|

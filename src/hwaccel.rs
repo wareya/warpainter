@@ -58,7 +58,7 @@ fn upload_texture_rgba8(gl : &Context, width : i32, height : i32, pixels : &[u8]
         tex
     }
 }
-fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8], default : f32) -> Texture
+fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8]) -> Texture
 {
     unsafe
     {
@@ -85,7 +85,6 @@ fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8], d
     }
 }
 
-use std::{collections::HashMap, num::NonZeroU32};
 struct OpenGLContextState
 {
     //program: Option<u32>,
@@ -158,7 +157,7 @@ impl OpenGLContextState
     }
 }
 
-pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&Image<4>>, img1_pos : [f32; 2], img2 : Option<&Image<4>>, img2_pos : [f32; 2], outres : [u32; 2]) -> Vec<u8>
+pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&Image<4>>, img1_pos : [f32; 2], img2 : Option<&Image<4>>, img2_pos : [f32; 2], outres : [u32; 2]) -> Result<Vec<u8>, String>
 {
     let mut state = OpenGLContextState::new();
     state.save_state(gl);
@@ -201,7 +200,7 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
             "#version 300 es\nprecision highp float;".to_string()
         }};
         
-        let shvert = gl.create_shader(VERTEX_SHADER).unwrap();
+        let shvert = gl.create_shader(VERTEX_SHADER)?;
         gl.shader_source(shvert, &(prefix.clone() + "
         in vec3 vertPos;
         out vec2 uv;
@@ -215,10 +214,10 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         let shader_log = gl.get_shader_info_log(shvert);
         if !shader_log.is_empty()
         {
-            panic!("Vertex Shader Compile Error: {}", shader_log);
+            return Err(format!("Vertex Shader Compile Error: {}", shader_log));
         }
         
-        let shfrag = gl.create_shader(FRAGMENT_SHADER).unwrap();
+        let shfrag = gl.create_shader(FRAGMENT_SHADER)?;
         let shfrag_src = prefix + &"
         in vec2 uv;
         out vec4 out_color;
@@ -258,17 +257,17 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         let shader_log = gl.get_shader_info_log(shfrag);
         if !shader_log.is_empty()
         {
-            panic!("Vertex Shader Compile Error: {}", shader_log);
+            return Err(format!("Vertex Shader Compile Error: {}", shader_log));
         }
         
-        let prog = gl.create_program().unwrap();
+        let prog = gl.create_program()?;
         gl.attach_shader(prog, shvert);
         gl.attach_shader(prog, shfrag);
         gl.link_program(prog);
         let linked = gl.get_program_info_log(prog);
         if !linked.is_empty()
         {
-            panic!("Program link error: {}", linked);
+            return Err(format!("Program link error: {}", linked));
         }
         
         let (target, tex) = create_render_target(gl, w, h);
@@ -300,14 +299,15 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         ];
         
         let mut vert_bytes = Vec::with_capacity(vertices.len() * std::mem::size_of::<f32>());
-        for &v in &vertices {
+        for &v in &vertices
+        {
             vert_bytes.extend_from_slice(&v.to_ne_bytes());
         }
         
-        let vao = gl.create_vertex_array().unwrap();
+        let vao = gl.create_vertex_array()?;
         gl.bind_vertex_array(Some(vao));
         
-        let vbo = gl.create_buffer().unwrap();
+        let vbo = gl.create_buffer()?;
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
         gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, &vert_bytes, STATIC_DRAW);
         
@@ -328,7 +328,7 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         
         state.load_state(gl);
         
-        return pixels;
+        return Ok(pixels);
     }
 }
 

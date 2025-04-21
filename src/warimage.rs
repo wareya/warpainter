@@ -1482,44 +1482,46 @@ impl Image<4>
                             ", prog);
                             
                             
-                            if let Some(gl) = unsafe { &crate::GL }
+                            if let Some(gl) = unsafe { &* &raw const crate::GL }
                             {
                                 println!("A");
                                 use crate::hwaccel::*;
-                                let bytes = hw_blend(
+                                if let Ok(bytes) = hw_blend(
                                     &gl, Some(prog),
                                     Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
                                     [self.width as u32, self.height as u32]
-                                );
-                                if let ImageData::Int(ref mut data) = &mut self.data
+                                )
                                 {
-                                    assert!(data.len() * 4 == bytes.len());
-                                    
-                                    let mut data2 = vec!([0, 0, 0, 0]; data.len());
-                                    
-                                    for (j, chunk) in bytes.chunks_exact(4).enumerate()
+                                    if let ImageData::Int(ref mut data) = &mut self.data
                                     {
-                                        data2[j] = unsafe
+                                        assert!(data.len() * 4 == bytes.len());
+                                        
+                                        let mut data2 = vec!([0, 0, 0, 0]; data.len());
+                                        
+                                        for (j, chunk) in bytes.chunks_exact(4).enumerate()
                                         {
-                                            // SAFETY: all representations of the underlying input and output are valid, and transmute_copy ignores alignment.
-                                            // Endian thrashing can corrupt data but will not be a safety concern.
-                                            std::mem::transmute_copy(&*(chunk.as_ptr() as *const [u8; 4]))
-                                        };
-                                    }
-                                    
-                                    for y in min_y..max_y
-                                    {
-                                        let index_y_part = y*self_width;
-                                        for x in min_x..max_x
+                                            data2[j] = unsafe
+                                            {
+                                                // SAFETY: all representations of the underlying input and output are valid, and transmute_copy ignores alignment.
+                                                // Endian thrashing can corrupt data but will not be a safety concern.
+                                                std::mem::transmute_copy(&*(chunk.as_ptr() as *const [u8; 4]))
+                                            };
+                                        }
+                                        
+                                        for y in min_y..max_y
                                         {
-                                            let index = index_y_part + x;
-                                            data[index] = data2[index];
+                                            let index_y_part = y*self_width;
+                                            for x in min_x..max_x
+                                            {
+                                                let index = index_y_part + x;
+                                                data[index] = data2[index];
+                                            }
                                         }
                                     }
+                                    println!("B");
+                                    
+                                    return;
                                 }
-                                println!("B");
-                                
-                                return;
                             }
                         }
                     }
