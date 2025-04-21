@@ -11,6 +11,8 @@ use std::io::Write as _;
 
 use eframe::egui;
 use alloc::sync::Arc;
+use std::sync::OnceLock;
+use std::rc::Rc;
 use egui::mutex::Mutex;
 use egui::{Ui, SliderClamping};
 use eframe::egui_glow::glow;
@@ -1347,6 +1349,8 @@ impl Warpainter
     }
 }
 
+static mut GL : Option<Arc<glow::Context>> = None;
+
 use egui::{Margin, Frame};
 
 impl eframe::App for Warpainter
@@ -1357,6 +1361,21 @@ impl eframe::App for Warpainter
         self.load_icons(ctx);
         self.load_font(ctx);
         self.load_shaders(frame);
+        
+        unsafe
+        {
+            if GL.is_none()
+            {
+                use eframe::egui_glow;
+                let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
+                {
+                    GL = Some(Arc::clone(glow_painter.gl()));
+                });
+                let callback = egui::PaintCallback { rect : [[0.0, 0.0].into(), [100.0, 100.0].into()].into(), callback : Arc::new(cb) };
+                ctx.debug_painter().add(callback);
+                return;
+            }
+        }
         
         let mut focus_is_global = true;
         let mut new_dialog_opened = &self.open_dialog == "New Window";

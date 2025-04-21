@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
-struct ASTNode
+pub struct ASTNode
 {
     name : String,
     token : Option<String>,
@@ -9,10 +9,10 @@ struct ASTNode
 }
 
 #[derive(Debug, Clone)]
-struct Parser
+pub struct Parser
 {
-    tokens : Vec<String>,
-    pos : usize,
+    pub tokens : Vec<String>,
+    pub pos : usize,
 }
 
 impl Parser
@@ -27,7 +27,7 @@ impl Parser
             match c
             {
                 ' ' | '\n' | '\t' => { chars.next(); }
-                ';' | '(' | ')' | '[' | ']' | '?' | ':' | '+' | '-' | '*' | '/' | '%' | '^' | '~' | '#' | '@' | '.' | ',' =>
+                ';' | '(' | ')' | '[' | ']' | '?' | ':' | '+' | '-' | '*' | '/' | '%' | '^' | '~' | '#' | '@' | ',' =>
                 {
                     tokens.push(chars.next().unwrap().to_string());
                 }
@@ -59,10 +59,11 @@ impl Parser
                     }
                     tokens.push(op);
                 }
-                '0'..='9' =>
+                '0'..='9' | '.' =>
                 {
                     let mut num = String::new();
-                    while chars.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                    while chars.peek().map(|c| c.is_ascii_digit()).unwrap_or(false)
+                    {
                         num.push(chars.next().unwrap());
                     }
                     if chars.peek() == Some(&'.')
@@ -310,7 +311,7 @@ impl Parser
     pub fn parse_unexpr(&mut self) -> Option<ASTNode>
     {
         let start = self.pos;
-        let unops = vec!("+", "-", "@", "#", "?", "!", "~", ",", "^", ":", "%", ".", "$");
+        let unops = vec!("+", "-", "?", "!", "~");
         if unops.contains(&self.peek())
         {
             let op = self.advance();
@@ -529,14 +530,14 @@ impl Parser
 }
 
 
-struct Compiler
+pub struct Compiler
 {
     vars : HashSet<String>,
 }
 
 impl Compiler
 {
-    fn compile_program(ast : &ASTNode, varnames : &[String]) -> Result<String, String>
+    pub fn compile_program(ast : &ASTNode, varnames : &[String]) -> Result<String, String>
     {
         let mut compiler = Self { vars : varnames.iter().cloned().collect::<HashSet<String>>() };
         let mut glsl_code = String::new();
@@ -563,7 +564,7 @@ impl Compiler
         Ok(glsl_code)
     }
 
-    fn compile(&mut self, expr : &ASTNode) -> Result<String, String>
+    pub fn compile(&mut self, expr : &ASTNode) -> Result<String, String>
     {
         let js = false;
         Ok(match expr.name.as_str()
@@ -785,6 +786,7 @@ mod tests
             x = z[2];
             y = 639;
             a = x + x * x + sin(x);
+            b = .2;
             a^x^2
         ").unwrap();
         let parsed = parser.parse();

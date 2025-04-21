@@ -230,7 +230,7 @@ pub (crate) struct Image<const N : usize>
 {
     pub (crate) width : usize,
     pub (crate) height : usize,
-    data : ImageData<N>,
+    pub (crate) data : ImageData<N>,
 }
 
 impl<const N : usize> Image<N>
@@ -1431,9 +1431,103 @@ impl Image<4>
         let min_y = 0.max(rect[0][1].floor() as isize).max(top_offset[1]) as usize;
         let max_y = ((self.height as isize).min(top.height as isize + top_offset[1])).min(rect[1][1].ceil() as isize + 1).max(0) as usize;
         
+        let self_width = self.width;
+        
+        if blend_mode.starts_with("Custom")
+        {
+            //if let ImageData::Int(ref mut data) = &mut 
+            if matches!(self.data, ImageData::Int(_))
+            {
+                use crate::wabl::*;
+                let prog = blend_mode.split_once("Custom").unwrap().1;
+                
+                let parser = Parser::tokenize(prog);
+                if let Ok(mut parser) = parser
+                {
+                    let parsed = parser.parse();
+                    if parsed.is_none()
+                    {
+                        println!("got to {} (aka `{}`)", parser.pos, parser.tokens[parser.pos.min(parser.tokens.len()-1)]);
+                    }
+                    else if let Some(parsed) = parsed
+                    {
+                        if let Ok(prog) = Compiler::compile_program(&parsed, &["a".to_string(), "b".to_string()])
+                        {
+                            let prog = format!("
+                                float f2(float a, float b)
+                                {{
+                                    {}
+                                }}
+                                vec4 f(vec2 uv1, vec2 uv2)
+                                {{
+                                    vec4 a = texture(tex1, uv1);
+                                    vec4 b = texture(tex2, uv2);
+                                    
+                                    if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
+                                        a *= 0.0;
+                                    if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
+                                        b *= 0.0;
+                                    
+                                    vec4 b_old = b;
+                                    
+                                    b.r = f2(a.r, b.r);
+                                    b.g = f2(a.g, b.g);
+                                    b.b = f2(a.b, b.b);
+                                    
+                                    b = mix(b_old, b, a[3]);
+                                    b = mix(a, b, b[3]);
+                                    
+                                    return b;
+                                }}
+                            ", prog);
+                            
+                            
+                            if let Some(gl) = unsafe { &crate::GL }
+                            {
+                                println!("A");
+                                use crate::hwaccel::*;
+                                let bytes = hw_blend(
+                                    &gl, Some(prog),
+                                    Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
+                                    [self.width as u32, self.height as u32]
+                                );
+                                if let ImageData::Int(ref mut data) = &mut self.data
+                                {
+                                    assert!(data.len() * 4 == bytes.len());
+                                    
+                                    let mut data2 = vec!([0, 0, 0, 0]; data.len());
+                                    
+                                    for (j, chunk) in bytes.chunks_exact(4).enumerate()
+                                    {
+                                        data2[j] = unsafe
+                                        {
+                                            // SAFETY: all representations of the underlying input and output are valid, and transmute_copy ignores alignment.
+                                            // Endian thrashing can corrupt data but will not be a safety concern.
+                                            std::mem::transmute_copy(&*(chunk.as_ptr() as *const [u8; 4]))
+                                        };
+                                    }
+                                    
+                                    for y in min_y..max_y
+                                    {
+                                        let index_y_part = y*self_width;
+                                        for x in min_x..max_x
+                                        {
+                                            let index = index_y_part + x;
+                                            data[index] = data2[index];
+                                        }
+                                    }
+                                }
+                                println!("B");
+                                
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         //println!("{:?}, {}, {}", top_offset, self.height, max_y);
         
-        let self_width = self.width;
         if self_width == 0
         {
             return;
