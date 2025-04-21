@@ -336,6 +336,16 @@ pub (crate) fn hw_blend(gl : &glow::Context, f : Option<String>, img1 : Option<&
         
         state.load_state(gl);
         
+        gl.delete_vertex_array(vao);
+        gl.delete_buffer(vbo);
+        gl.delete_framebuffer(target);
+        if let Some(x) = tex1 { gl.delete_texture(x); }
+        if let Some(x) = tex2 { gl.delete_texture(x); }
+        gl.delete_texture(tex);
+        gl.delete_shader(shvert);
+        gl.delete_shader(shfrag);
+        gl.delete_program(prog);
+        
         return Ok(pixels);
     }
 }
@@ -402,7 +412,7 @@ mod tests
             
             let gl = glow::Context::from_loader_function_cstr(|s| display.get_proc_address(s) as *const _);
             
-            hw_blend(&gl, None, Some(&img1), [2.0, 0.0], Some(&img2), [0.0, 0.0], [20, 20], 1.0, 1.0, false);
+            hw_blend(&gl, None, Some(&img1), [2.0, 0.0], Some(&img2), [0.0, 0.0], [20, 20], 1.0, 1.0, false).unwrap();
         }
     }
 }
