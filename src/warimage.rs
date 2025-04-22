@@ -1592,17 +1592,23 @@ impl Image<4>
                                 ", prog)
                             };
                             
-                            
                             if let Some(gl) = unsafe { &* &raw const crate::GL }
                             {
                                 println!("A");
                                 use crate::hwaccel::*;
+                                
+                                //let start = std::time::Instant::now();
+                                
                                 let n = hw_blend(
                                     &gl, Some(prog),
                                     Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
                                     [self.width as u32, self.height as u32],
                                     top_opacity, top_alpha_modifier, top_funny_flag
                                 );
+                                
+                                //let elapsed = start.elapsed().as_secs_f32();
+                                //println!("HW Blended in {:.6} seconds", elapsed);
+                                
                                 if let Err(err) = &n
                                 {
                                     println!("shader comp error: {}", err);
@@ -1792,7 +1798,7 @@ impl Image<4>
         }
         
         //let elapsed = start.elapsed().as_secs_f32();
-        //println!("Blended in {:.6} seconds", elapsed);
+        //println!("SW blended in {:.6} seconds", elapsed);
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
