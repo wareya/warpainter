@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use glow::*;
 use crate::warimage::*;
 
@@ -174,8 +175,28 @@ impl OpenGLContextState
     }
 }
 
+fn get_now() -> web_time::Instant
+{
+    //web_time::Instant::now()
+    unsafe
+    {
+        let mut uninit = std::mem::MaybeUninit::<web_time::Instant>::uninit();
+        std::ptr::write_bytes(uninit.as_mut_ptr() as *mut u8, 0, size_of::<web_time::Instant>());
+        uninit.assume_init()
+    }
+}
+
+fn timing_print(_s : String)
+{
+    //println!("{}", _s);
+}
+
+static mut SHADERLOG : Option<HashMap<String, Option<Program>>> = None;
+
 pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<String>, img1 : Option<&Image<4>>, mut img1_pos : [f32; 2], img2 : Option<&mut Image<4>>, mut img2_pos : [f32; 2], opacity : f32, modifier : f32, funny_flag : bool) -> Result<(), String>
 {
+    let start = get_now();
+    
     let mut state = OpenGLContextState::new();
     state.save_state(gl);
     
@@ -189,142 +210,164 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
     {
         return Ok(());
     }
-    println!("{:?}", rect);
+    //println!("{:?}", rect);
+    
+    let f = f.unwrap_or("
+    vec4 f(vec2 uv1, vec2 uv2)
+    {
+        vec4 a = texture(tex1, uv1);
+        vec4 b = texture(tex2, uv2);
+        if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
+            a *= 0.0;
+        if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
+            b *= 0.0;
+        return (a+b)*0.5;
+    }
+    ".to_string());
+    
+    let elapsed = start.elapsed().as_secs_f32();
+    let start = get_now();
+    timing_print(format!("Early setup took {:.6} seconds", elapsed));
     
     unsafe
     {
-        let prefix = {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            "#version 330\n".to_string()
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            "#version 300 es\nprecision highp float;".to_string()
-        }};
         
-        let shvert = gl.create_shader(VERTEX_SHADER);
-        if let Err(err) = shvert
+        if (&raw mut SHADERLOG).as_ref().unwrap().is_none()
         {
-            return Err(err);
-        }
-        let shvert = shvert.unwrap();
-        gl.shader_source(shvert, &(prefix.clone() + "
-        in vec3 vertPos;
-        out vec2 uv;
-        void main()
-        {
-            gl_Position = vec4(vertPos, 1.0);
-            uv = vertPos.xy * 0.5 + vec2(0.5);
-        }
-        "));
-        gl.compile_shader(shvert);
-        let shader_log = gl.get_shader_info_log(shvert);
-        if !shader_log.is_empty()
-        {
-            gl.delete_shader(shvert);
-            return Err(format!("Vertex Shader Compile Error: {}", shader_log));
+            SHADERLOG = Some(HashMap::new());
         }
         
-        let shfrag = gl.create_shader(FRAGMENT_SHADER);
-        if let Err(err) = shfrag
+        let shaderlog = (&raw mut SHADERLOG).as_mut().unwrap().as_mut().unwrap();
+        
+        let prog = if let Some(program) = shaderlog.get(&f)
         {
-            gl.delete_shader(shvert);
-            return Err(err);
+            timing_print(format!("using cached shader"));
+            *program
         }
-        let shfrag = shfrag.unwrap();
-        let shfrag_src = prefix + &"
-        in vec2 uv;
-        out vec4 out_color;
-        
-        uniform sampler2D tex1;
-        uniform sampler2D tex2;
-        uniform vec2 out_size;
-        uniform vec2 tex1_pos;
-        uniform vec2 tex2_pos;
-        
-        uniform float opacity;
-        uniform float _fill_opacity;
-        uniform float funny_flag;
-        
-        //JIT_CODE_INSERTION_POINT
-        
-        void main()
+        else
         {
-            vec2 uv1 = uv - tex1_pos / out_size;
-            uv1 /= vec2(textureSize(tex1, 0)) / out_size;
-            vec2 uv2 = uv - tex2_pos / out_size;
-            uv2 /= vec2(textureSize(tex2, 0)) / out_size;
-            out_color = f(uv1, uv2);
-        }".replace("//JIT_CODE_INSERTION_POINT", f.unwrap_or("
-        vec4 f(vec2 uv1, vec2 uv2)
-        {
-            vec4 a = texture(tex1, uv1);
-            vec4 b = texture(tex2, uv2);
-            if (uv1.x < 0.0 || uv1.x > 1.0 || uv1.y < 0.0 || uv1.y > 1.0)
-                a *= 0.0;
-            if (uv2.x < 0.0 || uv2.x > 1.0 || uv2.y < 0.0 || uv2.y > 1.0)
-                b *= 0.0;
-            return (a+b)*0.5;
-        }
-        ".to_string()).as_str());
-        gl.shader_source(shfrag, &shfrag_src);
+            let prefix = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                "#version 330\n".to_string()
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                "#version 300 es\nprecision highp float;".to_string()
+            }};
+            
+            let shvert = gl.create_shader(VERTEX_SHADER);
+            if let Err(err) = shvert
+            {
+                return Err(err);
+            }
+            let shvert = shvert.unwrap();
+            gl.shader_source(shvert, &(prefix.clone() + "
+            in vec3 vertPos;
+            out vec2 uv;
+            void main()
+            {
+                gl_Position = vec4(vertPos, 1.0);
+                uv = vertPos.xy * 0.5 + vec2(0.5);
+            }
+            "));
+            gl.compile_shader(shvert);
+            let shader_log = gl.get_shader_info_log(shvert);
+            if !shader_log.is_empty()
+            {
+                gl.delete_shader(shvert);
+                return Err(format!("Vertex Shader Compile Error: {}", shader_log));
+            }
+            
+            let shfrag = gl.create_shader(FRAGMENT_SHADER);
+            if let Err(err) = shfrag
+            {
+                gl.delete_shader(shvert);
+                return Err(err);
+            }
+            let shfrag = shfrag.unwrap();
+            let shfrag_src = prefix + &"
+            in vec2 uv;
+            out vec4 out_color;
+            
+            uniform sampler2D tex1;
+            uniform sampler2D tex2;
+            uniform vec2 out_size;
+            uniform vec2 tex1_pos;
+            uniform vec2 tex2_pos;
+            
+            uniform float opacity;
+            uniform float _fill_opacity;
+            uniform float funny_flag;
+            
+            //JIT_CODE_INSERTION_POINT
+            
+            void main()
+            {
+                vec2 uv1 = uv - tex1_pos / out_size;
+                uv1 /= vec2(textureSize(tex1, 0)) / out_size;
+                vec2 uv2 = uv - tex2_pos / out_size;
+                uv2 /= vec2(textureSize(tex2, 0)) / out_size;
+                out_color = f(uv1, uv2);
+            }".replace("//JIT_CODE_INSERTION_POINT", f.as_str());
+            gl.shader_source(shfrag, &shfrag_src);
+            
+            //println!("{}", shfrag_src);
+            
+            gl.compile_shader(shfrag);
+            let shader_log = gl.get_shader_info_log(shfrag);
+            if !shader_log.is_empty()
+            {
+                shaderlog.insert(f, None);
+                gl.delete_shader(shvert);
+                gl.delete_shader(shfrag);
+                return Err(format!("Vertex Shader Compile Error: {}", shader_log));
+            }
+            
+            let prog = gl.create_program();
+            if let Err(err) = prog
+            {
+                shaderlog.insert(f, None);
+                gl.delete_shader(shvert);
+                gl.delete_shader(shfrag);
+                return Err(err);
+            }
+            let prog = prog.unwrap();
+            gl.attach_shader(prog, shvert);
+            gl.attach_shader(prog, shfrag);
+            gl.link_program(prog);
+            let linked = gl.get_program_info_log(prog);
+            if !linked.is_empty()
+            {
+                shaderlog.insert(f, None);
+                gl.delete_shader(shvert);
+                gl.delete_shader(shfrag);
+                gl.delete_program(prog);
+                return Err(format!("Program link error: {}", linked));
+            }
+            
+            shaderlog.insert(f, Some(prog));
+            
+            Some(prog)
+        };
+        let prog = prog.ok_or("Previously failed to compile shader program")?;
         
-        //println!("{}", shfrag_src);
-        
-        gl.compile_shader(shfrag);
-        let shader_log = gl.get_shader_info_log(shfrag);
-        if !shader_log.is_empty()
-        {
-            gl.delete_shader(shvert);
-            gl.delete_shader(shfrag);
-            return Err(format!("Vertex Shader Compile Error: {}", shader_log));
-        }
-        
-        let prog = gl.create_program();
-        if let Err(err) = prog
-        {
-            gl.delete_shader(shvert);
-            gl.delete_shader(shfrag);
-            return Err(err);
-        }
-        let prog = prog.unwrap();
-        gl.attach_shader(prog, shvert);
-        gl.attach_shader(prog, shfrag);
-        gl.link_program(prog);
-        let linked = gl.get_program_info_log(prog);
-        if !linked.is_empty()
-        {
-            gl.delete_shader(shvert);
-            gl.delete_shader(shfrag);
-            gl.delete_program(prog);
-            return Err(format!("Program link error: {}", linked));
-        }
-        
-        let vao = gl.create_vertex_array();
-        if let Err(err) = vao
-        {
-            gl.delete_shader(shvert);
-            gl.delete_shader(shfrag);
-            gl.delete_program(prog);
-            return Err(err);
-        }
-        let vao = vao.unwrap();
+        let vao = gl.create_vertex_array()?;
         
         let vbo = gl.create_buffer();
         if let Err(err) = vbo
         {
             gl.delete_vertex_array(vao);
-            gl.delete_shader(shvert);
-            gl.delete_shader(shfrag);
-            gl.delete_program(prog);
             return Err(err);
         }
         let vbo = vbo.unwrap();
         
         let orig_offs = [rect[0][0] - img2_pos[0] as i32, rect[0][1] - img2_pos[1] as i32];
         
-        let start = web_time::Instant::now();
+        let elapsed = start.elapsed().as_secs_f32();
+        let start = get_now();
+        timing_print(format!("Program load took {:.6} seconds", elapsed));
+        
         
         img1_pos[0] -= rect[0][0] as f32;
         img1_pos[1] -= rect[0][1] as f32;
@@ -376,7 +419,7 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
             }
             else
             {
-                println!("rect1: {:?}", rect);
+                //println!("rect1: {:?}", rect);
                 if let ImageData::Int(ref data) = x.data
                 {
                     Some(upload_texture_rgba8(gl, rect, x.width as i32, x.height as i32, std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4)))
@@ -386,9 +429,9 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         } else { None };
         
         let elapsed = start.elapsed().as_secs_f32();
-        println!("Upload tex1 took {:.6} seconds", elapsed);
+        let start = get_now();
+        timing_print(format!("Upload tex1 took {:.6} seconds", elapsed));
         
-        let start = web_time::Instant::now();
         
         let tex2 = if let Some(x) = &img2
         {
@@ -399,7 +442,7 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
             }
             else
             {
-                println!("rect2: {:?}", rect);
+                //println!("rect2: {:?}", rect);
                 if let ImageData::Int(ref data) = x.data
                 {
                     Some(upload_texture_rgba8(gl, rect, x.width as i32, x.height as i32, std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4)))
@@ -409,9 +452,9 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         } else { None };
         
         let elapsed = start.elapsed().as_secs_f32();
-        println!("Upload tex2 took {:.6} seconds", elapsed);
+        let start = get_now();
+        timing_print(format!("Upload tex2 took {:.6} seconds", elapsed));
         
-        let start = web_time::Instant::now();
         
         let (target, tex) = create_render_target(gl, w, h);
         
@@ -468,9 +511,9 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         gl.finish();
         
         let elapsed = start.elapsed().as_secs_f32();
-        println!("Draw took {:.6} seconds", elapsed);
+        let start = get_now();
+        timing_print(format!("Draw took {:.6} seconds", elapsed));
         
-        let start = web_time::Instant::now();
         
         gl.bind_texture(TEXTURE_2D, Some(tex));
         
@@ -491,7 +534,9 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         }
         
         let elapsed = start.elapsed().as_secs_f32();
-        println!("Readback took {:.6} seconds", elapsed);
+        let start = get_now();
+        timing_print(format!("Readback took {:.6} seconds", elapsed));
+        
         
         state.load_state(gl);
         
@@ -501,9 +546,9 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         gl.delete_framebuffer(target);
         gl.delete_vertex_array(vao);
         gl.delete_buffer(vbo);
-        gl.delete_shader(shvert);
-        gl.delete_shader(shfrag);
-        gl.delete_program(prog);
+        
+        let elapsed = start.elapsed().as_secs_f32();
+        timing_print(format!("Cleanup took {:.6} seconds", elapsed));
         
         return Ok(());
     }

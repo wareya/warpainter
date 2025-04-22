@@ -1594,7 +1594,6 @@ impl Image<4>
                             
                             if let Some(gl) = unsafe { &* &raw const crate::GL }
                             {
-                                println!("A");
                                 use crate::hwaccel::*;
                                 
                                 let start = web_time::Instant::now();
