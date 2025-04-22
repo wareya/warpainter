@@ -70,7 +70,6 @@ features = [
 ]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-mlua = { version = "0.8.8", features = ["luajit", "vendored", "send"] }
 arboard = "3.4.1"
 atomicwrites = "0.4.4"
 lz4 = "1.28.1"

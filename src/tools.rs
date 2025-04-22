@@ -445,7 +445,9 @@ pub (crate) struct Pencil
     direction_shapes : Vec<Vec<((isize, isize), [f32; 4])>>,
     prev_input : CanvasInputState,
     cursor_memory : [f32; 2],
+    cursor_log : Vec<[f32; 2]>,
     smooth_mode : bool,
+    spline : u32,
     is_eraser : bool,
 }
 
@@ -464,7 +466,9 @@ impl Pencil
             direction_shapes,
             prev_input : CanvasInputState::default(),
             cursor_memory : [0.0, 0.0],
+            cursor_log : vec!([0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]),
             smooth_mode : false,
+            spline : 1,
             is_eraser : false,
         }
     }
@@ -496,70 +500,146 @@ impl Tool for Pencil
             app.begin_edit(true, false);
             self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
         }
-        // press or hold or release
-        if new_input.held[0] || self.prev_input.held[0]
+        
+        self.cursor_log.push(new_input.canvas_mouse_coord);
+        self.cursor_log.remove(0);
+        
+        let in_0 = self.cursor_log[0];
+        let in_1 = self.cursor_log[1];
+        let in_2 = self.cursor_log[2];
+        let in_3 = self.cursor_log[3];
+        
+        let vel_1 = vec_sub(&in_1, &in_0);
+        let vel_2 = vec_sub(&in_2, &in_1);
+        let vel_3 = vec_sub(&in_3, &in_2);
+        let accel_2 = vec_sub(&vel_2, &vel_1);
+        let accel_3 = vec_sub(&vel_3, &vel_2);
+        
+        let vel3_not = vec_add(&vel_2, &accel_2);
+        let vel4_not = vec_add(&vel_3, &accel_3);
+        
+        let in_3_not = vec_add(&in_2, &vel3_not);
+        let in_4_not = vec_add(&in_3, &vel4_not);
+        
+        let tanc_2 = vec_mul_scalar(&vec_sub(&in_3, &in_1), 0.5);
+        
+        let tanc_3not = vec_mul_scalar(&vec_sub(&in_4_not, &in_2), 0.5);
+        let tanc_2not = vec_mul_scalar(&vec_sub(&in_3_not, &in_1), 0.5);
+        
+        let _tan_1 = vec_sub(&in_2, &in_1);
+        let _tan_2 = vec_sub(&in_3, &in_2);
+        
+        let mut prev_in = in_2;
+        
+        for t in 1..=self.spline
         {
-            let do_smooth = self.smooth_mode;
-            let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&self.prev_input.canvas_mouse_coord) };
-            let mut coord = vec_floor(&new_input.canvas_mouse_coord);
+            let t = t as f32 * (1.0 / self.spline as f32);
             
-            // broken lint
-            #[allow(clippy::suspicious_else_formatting)]
-            if do_smooth
+            /*
+            // real but high latency
+            let h00 = 2.0*t*t*t - 3.0*t*t + 1.0;
+            let h01 = -2.0*t*t*t + 3.0*t*t;
+            let h10 = t*t*t - 2.0*t*t + t;
+            let h11 = t*t*t - t*t;
+            
+            let new_in = vec_add(&vec_mul_scalar(&in_1, h00), &vec_mul_scalar(&in_2, h01));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tanc_1, h10));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tanc_2, h11));
+            */
+            
+            /*
+            let h00 = 1.0 - t*t;
+            let h01 = t*t;
+            let h10 = t*(1.0-t)*t;
+            let h11 = -h10;
+            
+            let new_in = vec_add(&vec_mul_scalar(&in_2, h00), &vec_mul_scalar(&in_3, h01));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tan_1, h10));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tan_2, h11));
+            */
+            
+            let h00 = 2.0*t*t*t - 3.0*t*t + 1.0;
+            let h01 = -2.0*t*t*t + 3.0*t*t;
+            let h10 = t*t*t - 2.0*t*t + t;
+            let h11 = t*t*t - t*t;
+            
+            let tan_out = tanc_3not;
+            //let tan_in = vec_lerp(&tanc_2not, &tanc_2, 1.0-(1.0-t)*(1.0-t));
+            //let tan_in = vec_lerp(&tanc_2not, &tanc_2, t);
+            let tan_in = vec_lerp(&tanc_2not, &tanc_2, t.sqrt());
+            //let tan_in = tanc_2;
+            
+            let new_in = vec_add(&vec_mul_scalar(&in_2, h00), &vec_mul_scalar(&in_3, h01));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tan_in, h10));
+            let new_in = vec_add(&new_in, &vec_mul_scalar(&tan_out, h11));
+            
+            // press or hold or release
+            if new_input.held[0] || self.prev_input.held[0]
             {
-                let coord_d = vec_sub(&coord, &prev_coord);
-                if coord_d[0].abs() > 1.0 || coord_d[1].abs() > 1.0
+                let do_smooth = self.smooth_mode;
+                let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&prev_in) };
+                let mut coord = vec_floor(&new_in);
+                
+                // broken lint
+                #[allow(clippy::suspicious_else_formatting)]
+                if do_smooth
                 {
-                    // exact diagonal movement
-                    if coord_d[0].abs() == coord_d[1].abs()
+                    let coord_d = vec_sub(&coord, &prev_coord);
+                    if coord_d[0].abs() > 1.0 || coord_d[1].abs() > 1.0
                     {
-                        coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), coord_d[1].clamp(-1.0, 1.0)]);
+                        // exact diagonal movement
+                        if coord_d[0].abs() == coord_d[1].abs()
+                        {
+                            coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), coord_d[1].clamp(-1.0, 1.0)]);
+                        }
+                        // more horizontal
+                        else if coord_d[0].abs() > coord_d[1].abs()
+                        {
+                            coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), 0.0]);
+                        }
+                        // more vertical
+                        else
+                        {
+                            coord = vec_sub(&coord, &[0.0, coord_d[1].clamp(-1.0, 1.0)]);
+                        }
                     }
-                    // more horizontal
-                    else if coord_d[0].abs() > coord_d[1].abs()
-                    {
-                        coord = vec_sub(&coord, &[coord_d[0].clamp(-1.0, 1.0), 0.0]);
-                    }
-                    // more vertical
+                    // not enough motion to move
                     else
                     {
-                        coord = vec_sub(&coord, &[0.0, coord_d[1].clamp(-1.0, 1.0)]);
+                        coord = prev_coord;
                     }
                 }
-                // not enough motion to move
-                else
+                
+                let coord2 = vec_sub(&coord, &app.get_editing_offset());
+                let prev_coord2 = vec_sub(&prev_coord, &app.get_editing_offset());
+                
+                let color = app.main_color_rgb;
+                let eraser = app.eraser_mode || self.is_eraser;
+                let alpha_locked = app.current_layer_is_alpha_locked();
+                if let Some(image) = app.get_editing_image()
                 {
-                    coord = prev_coord;
+                    let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
+                    let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
+                    if !self.prev_input.held[0]
+                    {
+                        draw_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked);
+                        app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
+                    }
+                    else if prev_coord[0] != coord[0] || prev_coord[1] != coord[1]
+                    {
+                        draw_brush_line_no_start_float(image, prev_coord2, coord2, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                        app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
+                    }
                 }
+                
+                self.cursor_memory = coord;
             }
-            
-            let coord2 = vec_sub(&coord, &app.get_editing_offset());
-            let prev_coord2 = vec_sub(&prev_coord, &app.get_editing_offset());
-            
-            let color = app.main_color_rgb;
-            let eraser = app.eraser_mode || self.is_eraser;
-            let alpha_locked = app.current_layer_is_alpha_locked();
-            if let Some(image) = app.get_editing_image()
+            else
             {
-                let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
-                let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
-                if !self.prev_input.held[0]
-                {
-                    draw_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked);
-                    app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
-                }
-                else if prev_coord[0] != coord[0] || prev_coord[1] != coord[1]
-                {
-                    draw_brush_line_no_start_float(image, prev_coord2, coord2, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
-                    app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
-                }
+                self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
             }
             
-            self.cursor_memory = coord;
-        }
-        else
-        {
-            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+            prev_in = new_in;
         }
         // release
         if !new_input.held[0] && self.prev_input.held[0]
@@ -611,7 +691,14 @@ impl Tool for Pencil
         {
             self.update_brush();
         }
+        
         ui.checkbox(&mut self.smooth_mode, "Smooth Diagonals");
+        
+        ui.label("Spline Smoothing");
+        ui.label("(for low FPS devices)");
+        let mut spline = self.spline as f32;
+        ui.add(egui::Slider::new(&mut spline, 1.0..=16.0).step_by(1.0).clamping(SliderClamping::Always));
+        self.spline = spline as u32;
     }
 }
 

@@ -1554,7 +1554,7 @@ impl eframe::App for Warpainter
                             let af = AtomicFile::new(path, AllowOverwrite);
                             af.write(|f| f.write_all(data)).map_err(|x| x.to_string())
                         }
-                        if ui.button("Save...").clicked()
+                        if ui.button("Save As...").clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("Warpainter Project", &["wpp"])
@@ -1623,7 +1623,7 @@ impl eframe::App for Warpainter
                             
                             // GOTO: OPENFILEWEB
                         }
-                        if ui.button("Save...").clicked()
+                        if ui.button("Save As...").clicked()
                         {
                             let data = get_state!();
                             

@@ -256,6 +256,30 @@ pub (crate) fn vec_add
     }
     out
 }
+pub (crate) fn vec_mul
+    <const N: usize,
+     T : core::ops::Mul<Output = T> + std::marker::Copy + Default>
+    (from : &[T; N], to : &[T; N]) -> [T; N]
+{
+    let mut out = [T::default(); N];
+    for i in 0..N
+    {
+        out[i] = from[i] * to[i];
+    }
+    out
+}
+pub (crate) fn vec_mul_scalar
+    <const N: usize,
+     T : core::ops::Mul<Output = T> + std::marker::Copy + Default>
+    (from : &[T; N], to : T) -> [T; N]
+{
+    let mut out = [T::default(); N];
+    for i in 0..N
+    {
+        out[i] = from[i] * to;
+    }
+    out
+}
 pub (crate) fn vec_dot
     <const N: usize,
      T : core::ops::Add<Output = T> + std::marker::Copy + Default + std::ops::Mul<Output = T>>

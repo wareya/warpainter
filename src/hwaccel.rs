@@ -365,7 +365,7 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
             
             let rect = [[rect[0][0] as u32, rect[0][1] as u32], [rect[1][0] as u32, rect[1][1] as u32]];
             rect
-        };
+        }
 
         let tex1 = if let Some(x) = &img1
         {

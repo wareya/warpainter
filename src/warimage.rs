@@ -1612,53 +1612,8 @@ impl Image<4>
                                 {
                                     println!("shader comp error: {}", err);
                                 }
-                                if let Ok(bytes) = n
+                                else
                                 {
-                                    /*
-                                    if let ImageData::Int(ref mut data) = &mut self.data
-                                    {
-                                        //let mut data2 = vec!([0, 0, 0, 0]; bytes.len() / 4);
-                                        //
-                                        //for (j, chunk) in bytes.chunks_exact(4).enumerate()
-                                        //{
-                                        //    data2[j] = unsafe
-                                        //    {
-                                        //        // SAFETY: all representations of the underlying input and output are valid, and transmute_copy ignores alignment.
-                                        //        // Endian thrashing can corrupt data but will not be a safety concern.
-                                        //        std::mem::transmute_copy(&*(chunk.as_ptr() as *const [u8; 4]))
-                                        //    };
-                                        //}
-                                        let start = web_time::Instant::now();
-                                        
-                                        if data.len() == bytes.len() / 4
-                                        {
-                                            unsafe
-                                            {
-                                                std::ptr::copy_nonoverlapping(bytes.as_ptr(), data.as_mut_ptr() as *mut u8, data.len() * 4);
-                                            }
-                                        }
-                                        else
-                                        {
-                                            for y in min_y..max_y
-                                            {
-                                                let index_y_part = y*self_width;
-                                                let count = max_x - min_x;
-                                                let dirty_index_y_part = (y - min_y) * count;
-                                                unsafe
-                                                {
-                                                    std::ptr::copy_nonoverlapping(
-                                                        bytes.as_ptr().add(dirty_index_y_part * 4),
-                                                        (data.as_mut_ptr() as *mut u8).add((index_y_part + min_x) * 4),
-                                                        count * 4
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        let elapsed = start.elapsed().as_secs_f32();
-                                        println!("HW blend applied in in {:.6} seconds", elapsed);
-                                    }
-                                    println!("B");
-                                    */
                                     return;
                                 }
                             }
