@@ -1597,17 +1597,16 @@ impl Image<4>
                                 println!("A");
                                 use crate::hwaccel::*;
                                 
-                                //let start = std::time::Instant::now();
+                                let start = web_time::Instant::now();
                                 
                                 let n = hw_blend(
-                                    &gl, Some(prog),
+                                    &gl, [[min_x as i32, min_y as i32], [max_x as i32, max_y as i32]], Some(prog),
                                     Some(top), [top_offset[0] as f32, top_offset[1] as f32], Some(self), [0.0, 0.0],
-                                    [self.width as u32, self.height as u32],
                                     top_opacity, top_alpha_modifier, top_funny_flag
                                 );
                                 
-                                //let elapsed = start.elapsed().as_secs_f32();
-                                //println!("HW Blended in {:.6} seconds", elapsed);
+                                let elapsed = start.elapsed().as_secs_f32();
+                                println!("HW Blended in {:.6} seconds", elapsed);
                                 
                                 if let Err(err) = &n
                                 {
@@ -1617,9 +1616,7 @@ impl Image<4>
                                 {
                                     if let ImageData::Int(ref mut data) = &mut self.data
                                     {
-                                        assert!(data.len() * 4 == bytes.len());
-                                        
-                                        let mut data2 = vec!([0, 0, 0, 0]; data.len());
+                                        let mut data2 = vec!([0, 0, 0, 0]; bytes.len() / 4);
                                         
                                         for (j, chunk) in bytes.chunks_exact(4).enumerate()
                                         {
@@ -1634,10 +1631,12 @@ impl Image<4>
                                         for y in min_y..max_y
                                         {
                                             let index_y_part = y*self_width;
+                                            let dirty_index_y_part = (y - min_y) * (max_x - min_x);
                                             for x in min_x..max_x
                                             {
                                                 let index = index_y_part + x;
-                                                data[index] = data2[index];
+                                                let dirty_index = dirty_index_y_part + x - min_x;
+                                                data[index] = data2[dirty_index];
                                             }
                                         }
                                     }
@@ -1782,8 +1781,8 @@ impl Image<4>
             }
         }
         
-        //use std::time::Instant;
-        //let start = Instant::now();
+        use web_time::Instant;
+        let start = Instant::now();
 
         match (&mut self.data, &top.data)
         {
@@ -1797,8 +1796,8 @@ impl Image<4>
                 do_loop!(bottom, top, nop, nop, nop, find_blend_func, find_post_func),
         }
         
-        //let elapsed = start.elapsed().as_secs_f32();
-        //println!("SW blended in {:.6} seconds", elapsed);
+        let elapsed = start.elapsed().as_secs_f32();
+        println!("SW blended in {:.6} seconds", elapsed);
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {

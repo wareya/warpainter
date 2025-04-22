@@ -25,43 +25,44 @@ fn create_render_target(gl : &Context, width : i32, height : i32) -> (Framebuffe
         gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR as i32);
         gl.framebuffer_texture_2d(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, Some(tex), 0);
 
+        assert_ne!(gl.check_framebuffer_status(FRAMEBUFFER), FRAMEBUFFER_INCOMPLETE_ATTACHMENT);
+        assert_ne!(gl.check_framebuffer_status(FRAMEBUFFER), FRAMEBUFFER_INCOMPLETE_DIMENSIONS);
+        assert_ne!(gl.check_framebuffer_status(FRAMEBUFFER), FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT);
+        assert_ne!(gl.check_framebuffer_status(FRAMEBUFFER), FRAMEBUFFER_UNSUPPORTED);
         assert_eq!(gl.check_framebuffer_status(FRAMEBUFFER), FRAMEBUFFER_COMPLETE);
         gl.bind_framebuffer(FRAMEBUFFER, None);
 
         (fbo, tex)
     }
 }
-unsafe fn upload_texture_rgba8_with_pbo(gl : &Context, width : i32, height : i32, pixels : *const u8) -> (Buffer, Texture) {
+fn upload_texture_rgba8(gl : &Context, rect : [[u32; 2]; 2], width : i32, height : i32, pixels : &[u8]) -> Texture
+{
     unsafe
     {
-        let size = (width * height * 4) as i32;
-
-        // Create and fill PBO
-        let pbo = gl.create_buffer().unwrap();
-        gl.bind_buffer(PIXEL_UNPACK_BUFFER, Some(pbo));
-        
-        gl.buffer_data_size(PIXEL_UNPACK_BUFFER, size, STREAM_DRAW);
-        /*
-        let ptr = gl.map_buffer_range(
-            PIXEL_UNPACK_BUFFER,
-            0,
-            size,
-            MAP_WRITE_BIT | MAP_INVALIDATE_BUFFER_BIT | MAP_UNSYNCHRONIZED_BIT,
-        ) as *mut u8;
-        std::ptr::copy_nonoverlapping(pixels.as_ptr(), ptr, size as usize);
-        gl.unmap_buffer(PIXEL_UNPACK_BUFFER);
-        */
-        gl.buffer_sub_data_u8_slice(PIXEL_UNPACK_BUFFER, 0, std::slice::from_raw_parts(pixels, size as usize) );
-
-        // Create and upload texture from PBO
         let tex = gl.create_texture().unwrap();
         gl.bind_texture(TEXTURE_2D, Some(tex));
         
-        // Texture params
         gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR as i32);
         gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR as i32);
-        gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_BORDER as i32);
-        gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_WRAP_T, CLAMP_TO_BORDER as i32);
+        // not supported on glow's web backend
+        //gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_BORDER as i32);
+        //gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_WRAP_T, CLAMP_TO_BORDER as i32);
+        
+        gl.pixel_store_i32(glow::UNPACK_ROW_LENGTH, width as i32);
+
+        gl.tex_image_2d(
+            glow::TEXTURE_2D,
+            0,
+            glow::RGBA8 as i32,
+            (rect[1][0] - rect[0][0]) as i32,
+            (rect[1][1] - rect[0][1]) as i32,
+            0,
+            glow::RGBA,
+            glow::UNSIGNED_BYTE,
+            PixelUnpackData::Slice(Some(&pixels[(rect[0][1] * width as u32 + rect[0][0]) as usize * 4..])),
+        );
+
+        gl.pixel_store_i32(glow::UNPACK_ROW_LENGTH, 0);
 
         gl.tex_image_2d(
             TEXTURE_2D,
@@ -72,13 +73,12 @@ unsafe fn upload_texture_rgba8_with_pbo(gl : &Context, width : i32, height : i32
             0,
             RGBA,
             UNSIGNED_BYTE,
-            PixelUnpackData::BufferOffset(0),
+            PixelUnpackData::Slice(Some(pixels)),
         );
-
-        // Cleanup
+        
         gl.bind_buffer(PIXEL_UNPACK_BUFFER, None);
         
-        (pbo, tex)
+        tex
     }
 }
 fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8]) -> Texture
@@ -180,7 +180,7 @@ impl OpenGLContextState
     }
 }
 
-pub (crate) fn hw_blend(gl : &Context, f : Option<String>, img1 : Option<&Image<4>>, img1_pos : [f32; 2], img2 : Option<&Image<4>>, img2_pos : [f32; 2], outres : [u32; 2], opacity : f32, modifier : f32, funny_flag : bool) -> Result<Vec<u8>, String>
+pub (crate) fn hw_blend(gl : &Context, rect : [[i32; 2]; 2], f : Option<String>, img1 : Option<&Image<4>>, mut img1_pos : [f32; 2], img2 : Option<&Image<4>>, mut img2_pos : [f32; 2], opacity : f32, modifier : f32, funny_flag : bool) -> Result<Vec<u8>, String>
 {
     let mut state = OpenGLContextState::new();
     state.save_state(gl);
@@ -189,8 +189,13 @@ pub (crate) fn hw_blend(gl : &Context, f : Option<String>, img1 : Option<&Image<
     {
         vec.iter().flat_map(|arr| arr.iter().copied()).flat_map(|x| x.to_ne_bytes()).collect()
     }
-    let w = outres[0] as i32;
-    let h = outres[1] as i32;
+    let w = (rect[1][0] - rect[0][0]) as i32;
+    let h = (rect[1][1] - rect[0][1]) as i32;
+    if w <= 0 || h <= 0
+    {
+        return Ok(vec!());
+    }
+    println!("{:?}", rect);
     
     unsafe
     {
@@ -323,40 +328,87 @@ pub (crate) fn hw_blend(gl : &Context, f : Option<String>, img1 : Option<&Image<
         }
         let vbo = vbo.unwrap();
         
-        fn split<T, S>(input: Option<(T, S)>) -> (Option<T>, Option<S>) {
-            match input {
-                Some((t, s)) => (Some(t), Some(s)),
-                None => (None, None),
-            }
-        }
+        let start = web_time::Instant::now();
         
-        //let start = std::time::Instant::now();
+        let rect_offset = |mut rect : [[i32; 2]; 2], pos : &mut [f32; 2], w : i32, h : i32|
+        {
+            rect[0][0] -= pos[0] as i32;
+            rect[0][1] -= pos[1] as i32;
+            rect[1][0] -= pos[0] as i32;
+            rect[1][1] -= pos[1] as i32;
+            
+            if rect[0][0] < 0
+            {
+                pos[0] -= rect[0][0] as f32;
+                rect[0][0] = 0;
+            }
+            if rect[0][1] < 0
+            {
+                pos[1] -= rect[0][1] as f32;
+                rect[0][1] = 0;
+            }
+            
+            if rect[1][0] > w
+            {
+                rect[1][0] = w;
+            }
+            if rect[1][1] > h
+            {
+                rect[1][1] = h;
+            }
+            
+            let rect = [[rect[0][0] as u32, rect[0][1] as u32], [rect[1][0] as u32, rect[1][1] as u32]];
+            rect
+        };
 
-        let (pbo1, tex1) = split(img1.map(|x : &Image<4>|
+        let tex1 = if let Some(x) = img1
         {
-            if let ImageData::Int(ref data) = x.data
+            let rect = rect_offset(rect, &mut img1_pos, x.width as i32, x.height as i32);
+            if rect[0][0] >= rect[1][0] || rect[0][1] >= rect[1][1]
             {
-                upload_texture_rgba8_with_pbo(gl, x.width as i32, x.height as i32, data.as_ptr() as *const u8)
+                None
             }
-            else { panic!(); }
-        }));
+            else
+            {
+                println!("rect1: {:?}", rect);
+                if let ImageData::Int(ref data) = x.data
+                {
+                    Some(upload_texture_rgba8(gl, rect, x.width as i32, x.height as i32, std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4)))
+                }
+                else { panic!(); }
+            }
+        } else { None };
         
-        //let elapsed = start.elapsed().as_secs_f32();
-        //println!("Upload tex1 took {:.6} seconds", elapsed);
+        let elapsed = start.elapsed().as_secs_f32();
+        println!("Upload tex1 took {:.6} seconds", elapsed);
         
-        //let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
         
-        let (pbo2, tex2) = split(img2.map(|x : &Image<4>|
+        let tex2 = if let Some(x) = img2
         {
-            if let ImageData::Int(ref data) = x.data
+            let rect = rect_offset(rect, &mut img2_pos, x.width as i32, x.height as i32);
+            if rect[0][0] >= rect[1][0] || rect[0][1] >= rect[1][1]
             {
-                upload_texture_rgba8_with_pbo(gl, x.width as i32, x.height as i32, data.as_ptr() as *const u8)
+                None
             }
-            else { panic!(); }
-        }));
+            else
+            {
+                println!("rect2: {:?}", rect);
+                if let ImageData::Int(ref data) = x.data
+                {
+                    Some(upload_texture_rgba8(gl, rect, x.width as i32, x.height as i32, std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4)))
+                }
+                else { panic!(); }
+            }
+        } else { None };
         
-        //let elapsed = start.elapsed().as_secs_f32();
-        //println!("Upload tex2 took {:.6} seconds", elapsed);
+        img1_pos[0] -= rect[0][0] as f32;
+        img1_pos[1] -= rect[0][1] as f32;
+        img2_pos[0] -= rect[0][0] as f32;
+        img2_pos[1] -= rect[0][1] as f32;
+        
+        let elapsed = start.elapsed().as_secs_f32();
+        println!("Upload tex2 took {:.6} seconds", elapsed);
         
         let (target, tex) = create_render_target(gl, w, h);
         
@@ -412,21 +464,19 @@ pub (crate) fn hw_blend(gl : &Context, f : Option<String>, img1 : Option<&Image<
         
         gl.finish();
         
-        //let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
 
         let mut pixels = vec![0u8; (w * h * 4) as usize];
         gl.bind_texture(TEXTURE_2D, Some(tex));
         gl.read_pixels(0, 0, w, h, RGBA, UNSIGNED_BYTE, PixelPackData::Slice(Some(&mut pixels)));
         
-        //let elapsed = start.elapsed().as_secs_f32();
-        //println!("Readback took {:.6} seconds", elapsed);
+        let elapsed = start.elapsed().as_secs_f32();
+        println!("Readback took {:.6} seconds", elapsed);
 
         state.load_state(gl);
         
         if let Some(x) = tex1 { gl.delete_texture(x); }
-        if let Some(x) = pbo1 { gl.delete_buffer(x); }
         if let Some(x) = tex2 { gl.delete_texture(x); }
-        if let Some(x) = pbo2 { gl.delete_buffer(x); }
         gl.delete_texture(tex);
         gl.delete_framebuffer(target);
         gl.delete_vertex_array(vao);
