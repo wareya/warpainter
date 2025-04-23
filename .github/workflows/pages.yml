@@ -19,12 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2 # repo checkout
-      - uses: actions-rs/toolchain@v1 # get rust toolchain for wasm
+      - uses: dtolnay/rust-toolchain@master
         with:
-          profile: minimal
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
+          toolchain: nightly-2025-04-22
+          targets: wasm32-unknown-unknown
       - name: Rust Cache # cache the rust build artefacts
         uses: Swatinem/rust-cache@v1
       - name: Download and install Trunk binary
