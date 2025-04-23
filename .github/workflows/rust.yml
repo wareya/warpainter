@@ -50,9 +50,9 @@ jobs:
         with:
           toolchain: nightly-2025-04-22
           targets: wasm32-unknown-unknown
-      - name: Download and install Trunk
-        run: cargo install --locked trunk
+      - name: Download Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/v0.21.13/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
       - name: Fix RUSTFLAGS
-        run: export RUSTFLAGS="${RUSTFLAGS} --target wasm32-unknown-unknown -C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--max-memory=4294967296"
+        run: echo "export RUSTFLAGS=${RUSTFLAGS} --target wasm32-unknown-unknown -C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--max-memory=4294967296"
       - name: Build
         run: ./trunk build --release --filehash false
