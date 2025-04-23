@@ -52,5 +52,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Download and install Trunk
         run: cargo install --locked trunk
+      - name: Fix RUSTFLAGS
+        run: export RUSTFLAGS="${RUSTFLAGS} --target wasm32-unknown-unknown -C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--max-memory=4294967296"
       - name: Build
-        run: trunk build --release --filehash false
+        run: ./trunk build --release --filehash false
