@@ -503,7 +503,7 @@ impl Tool for Pencil
         _new.delta = 0.0;
         if _old == _new
         {
-            println!("duplicated.");
+            //println!("duplicated.");
             return;
         }
         

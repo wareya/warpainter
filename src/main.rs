@@ -323,6 +323,15 @@ impl Warpainter
             self.loaded_shaders = false;
         }
         
+        if let Some(shader) = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("funbar.glsl")))
+        {
+            self.shaders.insert("funbar", Arc::new(Mutex::new(shader)));
+        }
+        else
+        {
+            self.loaded_shaders = false;
+        }
+        
         if let Some(shader) = ShaderQuad::new(frame.gl().unwrap(), Some(include_str!("canvas_background.glsl")))
         {
             self.shaders.insert("canvasbackground", Arc::new(Mutex::new(shader)));
@@ -2322,6 +2331,12 @@ impl eframe::App for Warpainter
                 if !sidebars_on_bottom
                 {
                     ui.add(egui::Label::new(egui::RichText::new(&rgbainfotext).size(9.0)).selectable(false)).clicked();
+                    
+                    let mut a = self.main_color_rgb[3];
+                    ui.add(|ui : &mut egui::Ui| bar_picker(ui, self, 0.0, self.main_color_rgb, &mut a));
+                    a = a.clamp(0.0, 1.0);
+                    self.main_color_rgb[3] = a;
+                    
                     ui.add(|ui : &mut egui::Ui| color_picker(ui, self, sidebars_on_bottom));
                     ui.separator();
                 }

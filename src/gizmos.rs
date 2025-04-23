@@ -70,6 +70,40 @@ pub (crate) fn draw_doubled(painter : &egui::Painter, point_lists : &[&[[f32; 2]
     }
 }
 
+
+pub (crate) fn draw_doubled_smaller(painter : &egui::Painter, point_lists : &[&[[f32; 2]]])
+{
+    let white = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 255));
+    let black = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 255));
+    
+    // white section for outline
+    for points in point_lists.iter()
+    {
+        for i in 0..points.len()-1
+        {
+            let v1 = [points[i][0], points[i][1]];
+            let v2 = [points[i+1][0], points[i+1][1]];
+            let v3 = vec_sub(&v1, &v2);
+            let v4 = [v3[1], -v3[0]];
+            let v5 = vec_normalize(&v4);
+            let p = [vec_add(&points[i], &v5).into(), vec_add(&points[i+1], &v5).into()];
+            painter.line_segment(p, white);
+        }
+    }
+    // black section for inner line
+    for points in point_lists.iter()
+    {
+        for i in 0..points.len()-1
+        {
+            painter.line_segment([points[i].into(), points[i+1].into()], black);
+            
+            //// counteract bad linear-color-space AA by drawing twice
+            //painter.line_segment([pair[0].into(), pair[1].into()].into(), black);
+            // not needed in egui 0.21.0
+        }
+    }
+}
+
 pub (crate) struct BoxGizmo
 {
     pub (crate) x : f32,
