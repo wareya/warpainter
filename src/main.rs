@@ -504,16 +504,17 @@ impl Warpainter
     {
         if self.current_tool < self.tools.len()
         {
-            fn fast_rng() -> u32
-            {
-                static mut SEED: u32 = 0x12345678;
-                unsafe {
-                    SEED ^= SEED << 13;
-                    SEED ^= SEED >> 17;
-                    SEED ^= SEED << 5;
-                    SEED
-                }
-            }
+            //fn fast_rng() -> u32
+            //{
+            //    static mut SEED: u32 = 0x12345678;
+            //    unsafe {
+            //        SEED ^= SEED << 13;
+            //        SEED ^= SEED >> 17;
+            //        SEED ^= SEED << 5;
+            //        SEED
+            //    }
+            //}
+            
             let mut tool = self.tools.remove(self.current_tool);
             tool.think(self, inputstate);
             
@@ -2256,8 +2257,8 @@ impl eframe::App for Warpainter
             }
         }}
         
-        let layers_on_right = window_size.size().x >= 720.0;
-        let sidebars_on_bottom = window_size.size().x < 480.0;
+        let layers_on_right = window_size.size().x >= 900.0;
+        let sidebars_on_bottom = window_size.size().x < 700.0;
         
         if layers_on_right
         {
