@@ -495,10 +495,16 @@ impl Tool for Pencil
         new_input.canvas_mouse_coord[0] += a;
         new_input.canvas_mouse_coord[1] += b;
         
+        // press
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(true, false);
             self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+            
+            for n in self.cursor_log.iter_mut()
+            {
+                *n = new_input.canvas_mouse_coord;
+            }
         }
         
         self.cursor_log.push(new_input.canvas_mouse_coord);
