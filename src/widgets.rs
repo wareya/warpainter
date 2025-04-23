@@ -155,7 +155,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, sma
     response
 }
 
-pub (crate) fn bar_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, glsl_mode : f32, glsl_dat : [f32; 4], float : &mut f32) -> egui::Response
+pub (crate) fn bar_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, small : bool, glsl_mode : f32, glsl_dat : [f32; 4], float : &mut f32) -> egui::Response
 {
     let height = 19.0;
     
@@ -163,7 +163,11 @@ pub (crate) fn bar_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, glsl_
     let _time = input.time as f32;
     
     let avail = ui.available_size();
-    let least = avail.x.min(ui.available_size_before_wrap().x) as usize;
+    let mut least = avail.x.min(ui.available_size_before_wrap().x) as usize;
+    if small
+    {
+        least = least.clamp(0, 100);
+    }
     let least_f = least as f32;
     
     let least_vec2 = [least as f32, height].into();
