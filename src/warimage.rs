@@ -1833,54 +1833,30 @@ impl Image<4>
             let w = max_x - min_x + 1;
             let h = max_y - min_y + 1;
             
-            let mut old_copy = if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) };
-            let mut new_copy = if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) };
-            let mut mask = vec!(false; w*h);
+            let old_copy = std::sync::Arc::new(std::sync::Mutex::new(if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) }));
+            let new_copy = std::sync::Arc::new(std::sync::Mutex::new(if old_data.is_int() { Image::<4>::blank(w, h) } else { Image::<4>::blank_float(w, h) }));
+            let mut mask = Image::<1>::blank(w, h);
             
-            if old_data.is_int()
-            {
-                for y in min_y..=max_y
+            mask.loop_rect_threaded([[0 as f32, 0 as f32], [w as f32, h as f32]],
+                &|x, y, _color : [f32; 1]|
                 {
-                    for x in min_x..=max_x
+                    let old_c = old_data.get_pixel(x as isize + min_x as isize, y as isize + min_y as isize);
+                    let new_c = new_data.get_pixel(x as isize + min_x as isize, y as isize + min_y as isize);
+                    if !vec_eq_u8(&old_c, &new_c)
                     {
-                        let old_c = old_data.get_pixel(x as isize, y as isize);
-                        let new_c = new_data.get_pixel(x as isize, y as isize);
-                        if !vec_eq_u8(&old_c, &new_c)
-                        {
-                            let x2 = x - min_x;
-                            let y2 = y - min_y;
-                            old_copy.set_pixel(x2 as isize, y2 as isize, old_c);
-                            new_copy.set_pixel(x2 as isize, y2 as isize, new_c);
-                            mask[y2 * w + x2] = true;
-                        }
+                        old_copy.lock().unwrap().set_pixel(x as isize, y as isize, old_c);
+                        new_copy.lock().unwrap().set_pixel(x as isize, y as isize, new_c);
+                        return [1.0];
                     }
+                    [0.0]
                 }
-            }
-            else
-            {
-                for y in min_y..=max_y
-                {
-                    for x in min_x..=max_x
-                    {
-                        let old_c = old_data.get_pixel_float_wrapped(x as isize, y as isize);
-                        let new_c = new_data.get_pixel_float_wrapped(x as isize, y as isize);
-                        if !vec_eq(&old_c, &new_c)
-                        {
-                            let x2 = x - min_x;
-                            let y2 = y - min_y;
-                            old_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, old_c);
-                            new_copy.set_pixel_float_wrapped(x2 as isize, y2 as isize, new_c);
-                            mask[y2 * w + x2] = true;
-                        }
-                    }
-                }
-            }
+            );
             
             return UndoEvent::LayerPaint(LayerPaint {
                 uuid,
                 rect : [[min_x, min_y], [max_x+1, max_y+1]], 
-                old : old_copy,
-                new : new_copy,
+                old : std::sync::Arc::into_inner(old_copy).unwrap().into_inner().unwrap(),
+                new : std::sync::Arc::into_inner(new_copy).unwrap().into_inner().unwrap(),
                 mask
             });
         }
@@ -1899,7 +1875,7 @@ impl Image<4>
             {
                 let x2 = x - rect[0][0];
                 let y2 = y - rect[0][1];
-                if event.mask[y2 * w + x2]
+                if event.mask.get_pixel_float(x2 as isize, y2 as isize)[0] == 1.0
                 {
                     let c = source.get_pixel_float_wrapped(x2 as isize, y2 as isize);
                     self.set_pixel_float_wrapped(x as isize, y as isize, c);
@@ -2024,32 +2000,50 @@ impl<const N : usize> Image<N>
                         }
                     };
                     
-                    // FEARLESS CONCURRENCY
-                    rayon::scope(|s|
+                    macro_rules! do_it
                     {
-                        for info in infos
+                        () =>
                         {
-                            let func = &func;
-                            s.spawn(move |_|
+                            rayon::scope(|s|
                             {
-                                let bottom = info.0;
-                                let offset = info.1;
-                                let min_y = 0;
-                                let max_y = bottom.len()/self_width;
-                                for y in min_y..max_y
+                                for info in infos
                                 {
-                                    let self_index_y_part = y*self_width;
-                                    for x in min_x..max_x
+                                    let func = &func;
+                                    s.spawn(move |_|
                                     {
-                                        let bottom_index = self_index_y_part + x;
-                                        let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                        bottom_pixel = func(x, y + offset, bottom_pixel);
-                                        bottom[bottom_index] = $bottom_write_f(bottom_pixel);
-                                    }
+                                        let bottom = info.0;
+                                        let offset = info.1;
+                                        let min_y = 0;
+                                        let max_y = bottom.len()/self_width;
+                                        for y in min_y..max_y
+                                        {
+                                            let self_index_y_part = y*self_width;
+                                            for x in min_x..max_x
+                                            {
+                                                let bottom_index = self_index_y_part + x;
+                                                let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                                bottom_pixel = func(x, y + offset, bottom_pixel);
+                                                bottom[bottom_index] = $bottom_write_f(bottom_pixel);
+                                            }
+                                        }
+                                    });
                                 }
-                            });
+                            })
                         }
-                    });
+                    }
+                    
+                    
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        get_pool().install(||
+                        {
+                            do_it!();
+                        })
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        do_it!();
+                    }
                 }
             }
         }

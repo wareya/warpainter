@@ -69,7 +69,7 @@ struct LayerPaint
     rect : [[usize; 2]; 2],
     old : Image<4>,
     new : Image<4>,
-    mask : Vec<bool>,
+    mask : Image<1>,
 }
 #[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 enum UndoEvent
@@ -88,8 +88,8 @@ impl UndoEvent
         let mut compressed : Vec<u8> = Vec::new();
         
         {
-            struct Asdf<'a> { s : snap::write::FrameEncoder<&'a mut Vec<u8>> }
-            let mut asdf = Asdf { s : snap::write::FrameEncoder::new(&mut compressed) };
+            struct Asdf<'a> { s : std::io::BufWriter<snap::write::FrameEncoder<&'a mut Vec<u8>>> }
+            let mut asdf = Asdf { s : std::io::BufWriter::new(snap::write::FrameEncoder::new(&mut compressed)) };
             impl<'a> bincode::enc::write::Writer for Asdf<'a>
             {
                 fn write(&mut self, bytes : &[u8]) -> Result<(), bincode::error::EncodeError>
@@ -107,8 +107,8 @@ impl UndoEvent
     fn decompress(data : &[u8]) -> Self
     {
         {
-            struct Asdf<'a> { s : snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>> }
-            let asdf = Asdf { s : snap::read::FrameDecoder::new(std::io::Cursor::new(data)) };
+            struct Asdf<'a> { s : std::io::BufReader<snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>>> }
+            let asdf = Asdf { s : std::io::BufReader::new(snap::read::FrameDecoder::new(std::io::Cursor::new(data)) )};
             impl<'a> bincode::de::read::Reader for Asdf<'a>
             {
                 fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
@@ -776,9 +776,13 @@ impl Warpainter
                             rect[1] = vec_sub(&rect[1], &layer.offset);
                         }
                         //println!("B? {:?}", rect);
+                        let start = web_time::Instant::now();
                         let event = Image::<4>::analyze_edit(&image, current_image, self.current_layer, rect);
+                        println!("Edit analysis time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
                         //println!("{}", event.len());
+                        let start = web_time::Instant::now();
                         self.undo_buffer.push(event.compress());
+                        println!("Edit encoding time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
                     }
                 }
             }
