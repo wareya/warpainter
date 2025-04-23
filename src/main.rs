@@ -650,12 +650,15 @@ impl Warpainter
     fn begin_edit(&mut self, inplace : bool, ignore_selection : bool)
     {
         self.edit_progress += 1;
-        if let Some(layer) = self.layers.find_layer(self.current_layer)
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
             if !layer.locked
             {
+                //println!("start edit dirty rect {:?}", layer.edited_dirty_rect);
+                //println!("start edit flattening rect {:?}", layer.flattened_dirty_rect);
                 if let Some(image) = &layer.data
                 {
+                    layer.edited_dirty_rect = None;
                     self.edit_is_direct = inplace;
                     self.edit_ignores_selection = ignore_selection;
                     if inplace
@@ -869,9 +872,10 @@ impl Warpainter
                             data.undo_edit(event);
                             println!("undo done");
                         }
-                        let _r = event.rect;
-                        //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
-                        layer.dirtify_all();
+                        let r = event.rect;
+                        println!("{:?}", r);
+                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        //layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
@@ -912,9 +916,10 @@ impl Warpainter
                             data.redo_edit(event);
                             println!("redo done");
                         }
-                        let _r = event.rect;
-                        //layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
-                        layer.dirtify_all();
+                        let r = event.rect;
+                        println!("{:?}", r);
+                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        //layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
