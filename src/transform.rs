@@ -244,6 +244,21 @@ pub (crate) fn vec_sub<const N: usize>(from : &[f32; N], to : &[f32; N]) -> [f32
     out
 }
 
+pub (crate) fn vec_len<const N: usize>(from : &[f32; N]) -> f32
+{
+    let mut out = 0.0;
+    for i in 0..N
+    {
+        out += from[i]*from[i];
+    }
+    out.sqrt()
+}
+
+pub (crate) fn vec_normalize<const N: usize>(from : &[f32; N]) -> [f32; N]
+{
+    vec_mul_scalar(from, 1.0 / (vec_len(from) + 0.0001))
+}
+
 pub (crate) fn vec_add
     <const N: usize,
      T : core::ops::Add<Output = T> + std::marker::Copy + Default>

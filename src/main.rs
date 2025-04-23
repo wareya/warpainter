@@ -495,8 +495,25 @@ impl Warpainter
     {
         if self.current_tool < self.tools.len()
         {
+            fn fast_rng() -> u32
+            {
+                static mut SEED: u32 = 0x12345678;
+                unsafe {
+                    SEED ^= SEED << 13;
+                    SEED ^= SEED >> 17;
+                    SEED ^= SEED << 5;
+                    SEED
+                }
+            }
             let mut tool = self.tools.remove(self.current_tool);
             tool.think(self, inputstate);
+            
+            // think twice! (debugging buggy tools)
+            //if (fast_rng() & 1) == 0
+            //{
+            //    tool.think(self, inputstate);
+            //}
+            
             self.tools.insert(self.current_tool, tool);
         }
     }

@@ -5,7 +5,7 @@ use eframe::egui;
 use eframe::egui_glow;
 use crate::transform::*;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub (crate) struct CanvasInputState
 {
     pub (crate) time : f32,

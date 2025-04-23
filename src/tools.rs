@@ -495,6 +495,18 @@ impl Tool for Pencil
         new_input.canvas_mouse_coord[0] += a;
         new_input.canvas_mouse_coord[1] += b;
         
+        let mut _old = self.prev_input.clone();
+        let mut _new = new_input.clone();
+        _old.time = 0.0;
+        _old.delta = 0.0;
+        _new.time = 0.0;
+        _new.delta = 0.0;
+        if _old == _new
+        {
+            println!("duplicated.");
+            return;
+        }
+        
         // press
         if new_input.held[0] && !self.prev_input.held[0]
         {
@@ -571,11 +583,18 @@ impl Tool for Pencil
             let h10 = t*t*t - 2.0*t*t + t;
             let h11 = t*t*t - t*t;
             
-            let tan_out = tanc_3not;
+            let mut tan_out = tanc_3not;
             //let tan_in = vec_lerp(&tanc_2not, &tanc_2, 1.0-(1.0-t)*(1.0-t));
-            //let tan_in = vec_lerp(&tanc_2not, &tanc_2, t);
-            let tan_in = vec_lerp(&tanc_2not, &tanc_2, t.sqrt());
+            let mut tan_in = vec_lerp(&tanc_2not, &tanc_2, t);
+            //let tan_in = vec_lerp(&tanc_2not, &tanc_2, (t*4.0).clamp(0.0, 1.0));
+            //let tan_in = vec_lerp(&tanc_2not, &tanc_2, t.sqrt());
             //let tan_in = tanc_2;
+            
+            let fac = (vec_len(&vel_3)*t/(vec_len(&vel_2)*0.05+0.1)).min(vec_len(&vel_2)*(1.0-t)/(vec_len(&vel_3)*0.05+0.1)).min(1.0);
+            tan_in[0] *= fac;
+            tan_in[1] *= fac;
+            tan_out[0] *= fac;
+            tan_out[1] *= fac;
             
             let new_in = vec_add(&vec_mul_scalar(&in_2, h00), &vec_mul_scalar(&in_3, h01));
             let new_in = vec_add(&new_in, &vec_mul_scalar(&tan_in, h10));

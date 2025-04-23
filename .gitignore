@@ -2,3 +2,4 @@
 *.trace
 ignore.*
 dist/
+*.pem
