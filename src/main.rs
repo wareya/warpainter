@@ -1,13 +1,8 @@
-//#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-
-// always show console, because still in early development
-#![windows_subsystem = "console"]
-// not useful while prototyping
 #![allow(dead_code)]
 
 extern crate alloc;
 
-use std::io::Write as _;
+use std::io::{Read as _, Write as _};
 
 use eframe::egui;
 use alloc::sync::Arc;
@@ -90,13 +85,40 @@ impl UndoEvent
 {
     fn compress(&self) -> Vec<u8>
     {
-        let encoded = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
-        snap::raw::Encoder::new().compress_vec(&encoded).unwrap()
+        let mut compressed : Vec<u8> = Vec::new();
+        
+        {
+            struct Asdf<'a> { s : snap::write::FrameEncoder<&'a mut Vec<u8>> }
+            let mut asdf = Asdf { s : snap::write::FrameEncoder::new(&mut compressed) };
+            impl<'a> bincode::enc::write::Writer for Asdf<'a>
+            {
+                fn write(&mut self, bytes : &[u8]) -> Result<(), bincode::error::EncodeError>
+                {
+                    self.s.write(bytes).unwrap();
+                    Ok(())
+                }
+            }
+            bincode::encode_into_writer(self, &mut asdf, bincode::config::standard()).unwrap();
+        }
+
+        compressed
     }
+    
     fn decompress(data : &[u8]) -> Self
     {
-        let vec = snap::raw::Decoder::new().decompress_vec(data).unwrap();
-        bincode::decode_from_slice(&vec, bincode::config::standard()).unwrap().0
+        {
+            struct Asdf<'a> { s : snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>> }
+            let asdf = Asdf { s : snap::read::FrameDecoder::new(std::io::Cursor::new(data)) };
+            impl<'a> bincode::de::read::Reader for Asdf<'a>
+            {
+                fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
+                {
+                    self.s.read_exact(bytes).unwrap();
+                    Ok(())
+                }
+            }
+            bincode::decode_from_reader(asdf, bincode::config::standard()).unwrap()
+        }
     }
 }
 
@@ -729,11 +751,13 @@ impl Warpainter
         }
         None
     }
+    
+    #[inline(never)]
     fn commit_edit(&mut self)
     {
         self.edit_progress += 1;
         self.debug("Committing edit");
-        if let Some(image) = self.get_temp_edit_image()
+        if let Some(mut image) = self.get_temp_edit_image()
         {
             if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
             {
@@ -741,8 +765,7 @@ impl Warpainter
                 {
                     if let Some(current_image) = &mut layer.data
                     {
-                        let old_data = current_image.clone();
-                        *current_image = image;
+                        std::mem::swap(&mut image, &mut *current_image);
                         
                         self.redo_buffer = Vec::new();
                         let mut rect : Option<[[f32; 2]; 2]> = layer.edited_dirty_rect;
@@ -753,7 +776,8 @@ impl Warpainter
                             rect[1] = vec_sub(&rect[1], &layer.offset);
                         }
                         //println!("B? {:?}", rect);
-                        let event = Image::<4>::analyze_edit(&old_data, current_image, self.current_layer, rect);
+                        let event = Image::<4>::analyze_edit(&image, current_image, self.current_layer, rect);
+                        //println!("{}", event.len());
                         self.undo_buffer.push(event.compress());
                     }
                 }
@@ -2618,40 +2642,84 @@ fn main()
     // Redirect tracing to console.log and friends:
     tracing_wasm::set_as_global_default();
     
-    let mut web_options = eframe::WebOptions::default();
+    web_sys::console::log_1(&format!("hello from non-async land!").into());
     
-    web_sys::console::log_1(&format!("event received").into());
-    
-    wasm_bindgen_futures::spawn_local(async
+    async fn realmain()
     {
-        use wasm_bindgen::JsCast;
+        web_sys::console::log_1(&format!("hello from async land!").into());
         
-        let document = web_sys::window().unwrap().document().unwrap();
-        
-        r#"import { greet } from "./hello_world";
-            greet("World!"); "#;
-        
-        let canvas = document
-            .get_element_by_id("the_canvas_id").unwrap()
-            .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-        
-        let start_result = eframe::WebRunner::new().start(
-            canvas,
-            web_options,
-            Box::new(|_| Ok(Box::new(Warpainter::default()))),
-        ).await;
-        
-        // Remove the loading text and spinner:
-        if let Some(loading_text) = document.get_element_by_id("loading_text")
+        #[wasm_bindgen]
+        pub async fn init_threads()
         {
-            match start_result {
-                Ok(_) => loading_text.remove(),
-                Err(e) =>
-                {
-                    loading_text.set_inner_html("<p> The app has crashed. See the developer console for details. </p>");
-                    panic!("Failed to start eframe: {e:?}");
+            web_sys::console::log_1(&format!("hello from super async land!").into());
+            
+            use wasm_bindgen::prelude::*;
+            
+            #[wasm_bindgen]
+            extern "C"
+            {
+                type Navigator;
+                
+                #[wasm_bindgen(method, getter, js_name = hardwareConcurrency)]
+                fn hardware_concurrency(this : &Navigator) -> f64;
+                
+                #[wasm_bindgen(thread_local_v2, js_namespace = globalThis, js_name = navigator)]
+                static NAV: Navigator;
+            }
+
+            #[wasm_bindgen]
+            pub fn get_cores() -> f64
+            {
+                NAV.with(|nav| nav.hardware_concurrency())
+            }
+            
+            let count = get_cores();
+            web_sys::console::log_1(&format!("initializing threadpool with count: {}", count).into());
+            use wasm_bindgen_rayon::init_thread_pool;
+            wasm_bindgen_futures::JsFuture::from(init_thread_pool(count as usize)).await.unwrap();
+            web_sys::console::log_1(&format!("threadpool initialized! threads: {}", count).into());
+        }
+        init_threads().await;
+        
+        let mut web_options = eframe::WebOptions::default();
+        
+        web_sys::console::log_1(&format!("event received").into());
+        
+        wasm_bindgen_futures::spawn_local(async
+        {
+            use wasm_bindgen::JsCast;
+            
+            let document = web_sys::window().unwrap().document().unwrap();
+            
+            r#"import { greet } from "./hello_world";
+                greet("World!"); "#;
+            
+            let canvas = document
+                .get_element_by_id("the_canvas_id").unwrap()
+                .dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+            
+            let start_result = eframe::WebRunner::new().start(
+                canvas,
+                web_options,
+                Box::new(|_| Ok(Box::new(Warpainter::default()))),
+            ).await;
+            
+            // Remove the loading text and spinner:
+            if let Some(loading_text) = document.get_element_by_id("loading_text")
+            {
+                match start_result {
+                    Ok(_) => loading_text.remove(),
+                    Err(e) =>
+                    {
+                        loading_text.set_inner_html("<p> The app has crashed. See the developer console for details. </p>");
+                        panic!("Failed to start eframe: {e:?}");
+                    }
                 }
             }
-        }
+        });
+    }
+    
+    wasm_bindgen_futures::spawn_local(async {
+        realmain().await;
     });
 }

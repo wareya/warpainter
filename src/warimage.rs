@@ -1230,9 +1230,10 @@ impl Image<4>
                         }
                     } }
                     
+
+                    // FEARLESS CONCURRENCY
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        // FEARLESS CONCURRENCY
                         get_pool().install(||
                         {
                             rayon::scope(|s|
@@ -1250,10 +1251,17 @@ impl Image<4>
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
-                        for info in infos
+                        rayon::scope(|s|
                         {
-                            apply_info!(info, get_opacity);
-                        }
+                            for info in infos
+                            {
+                                let get_opacity = &get_opacity;
+                                s.spawn(move |_|
+                                {
+                                    apply_info!(info, get_opacity);
+                                })
+                            }
+                        })
                     }
                 }
             }
@@ -1725,7 +1733,6 @@ impl Image<4>
                     
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        // FEARLESS CONCURRENCY
                         get_pool().install(||
                         {
                             rayon::scope(|s|
@@ -1736,17 +1743,24 @@ impl Image<4>
                                     s.spawn(move |_|
                                     {
                                         apply_info!(info, get_opacity);
-                                    });
+                                    })
                                 }
-                            });
-                        });
+                            })
+                        })
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
-                        for info in infos
+                        rayon::scope(|s|
                         {
-                            apply_info!(info, get_opacity);
-                        }
+                            for info in infos
+                            {
+                                let get_opacity = &get_opacity;
+                                s.spawn(move |_|
+                                {
+                                    apply_info!(info, get_opacity);
+                                })
+                            }
+                        })
                     }
                 }
             }
@@ -1776,6 +1790,7 @@ impl Image<4>
         self.blend_rect_from([[0.0, 0.0], [self.width as f32, self.height as f32]], top, mask, mask_info, top_opacity, 1.0, false, top_offset, blend_mode)
     }
     
+    #[inline(never)]
     pub (crate) fn analyze_edit(old_data : &Image<4>, new_data : &Image<4>, uuid : u128, rect : Option<[[f32; 2]; 2]>) -> UndoEvent
     {
         let mut min_x = 0;
@@ -2008,56 +2023,33 @@ impl<const N : usize> Image<N>
                             ret
                         }
                     };
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        // FEARLESS CONCURRENCY
-                        std::thread::scope(|s|
-                        {
-                            for info in infos
-                            {
-                                let func = &func;
-                                s.spawn(move ||
-                                {
-                                    let bottom = info.0;
-                                    let offset = info.1;
-                                    let min_y = 0;
-                                    let max_y = bottom.len()/self_width;
-                                    for y in min_y..max_y
-                                    {
-                                        let self_index_y_part = y*self_width;
-                                        for x in min_x..max_x
-                                        {
-                                            let bottom_index = self_index_y_part + x;
-                                            let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                            bottom_pixel = func(x, y + offset, bottom_pixel);
-                                            bottom[bottom_index] = $bottom_write_f(bottom_pixel);
-                                        }
-                                    }
-                                });
-                            }
-                        });
-                    }
-                    #[cfg(target_arch = "wasm32")]
+                    
+                    // FEARLESS CONCURRENCY
+                    rayon::scope(|s|
                     {
                         for info in infos
                         {
-                            let bottom = info.0;
-                            let offset = info.1;
-                            let min_y = 0;
-                            let max_y = bottom.len()/self_width;
-                            for y in min_y..max_y
+                            let func = &func;
+                            s.spawn(move |_|
                             {
-                                let self_index_y_part = y*self_width;
-                                for x in min_x..max_x
+                                let bottom = info.0;
+                                let offset = info.1;
+                                let min_y = 0;
+                                let max_y = bottom.len()/self_width;
+                                for y in min_y..max_y
                                 {
-                                    let bottom_index = self_index_y_part + x;
-                                    let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
-                                    bottom_pixel = func(x, y + offset, bottom_pixel);
-                                    bottom[bottom_index] = $bottom_write_f(bottom_pixel);
+                                    let self_index_y_part = y*self_width;
+                                    for x in min_x..max_x
+                                    {
+                                        let bottom_index = self_index_y_part + x;
+                                        let mut bottom_pixel = $bottom_read_f(bottom[bottom_index]);
+                                        bottom_pixel = func(x, y + offset, bottom_pixel);
+                                        bottom[bottom_index] = $bottom_write_f(bottom_pixel);
+                                    }
                                 }
-                            }
+                            });
                         }
-                    }
+                    });
                 }
             }
         }
