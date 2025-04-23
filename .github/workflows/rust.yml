@@ -2,12 +2,6 @@ on: [push, pull_request]
 
 name: CI
 
-env:
-  # This is required to enable the web_sys clipboard API which egui_web uses
-  # https://rustwasm.github.io/wasm-bindgen/api/web_sys/struct.Clipboard.html
-  # https://rustwasm.github.io/docs/wasm-bindgen/web-sys/unstable-apis.html
-  RUSTFLAGS: --cfg=web_sys_unstable_apis
-
 jobs:
   check:
     name: Check
@@ -52,9 +46,5 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Download Trunk binary
         run: wget -qO- https://github.com/trunk-rs/trunk/releases/download/v0.21.12/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
-      - name: Fix RUSTFLAGS
-        run: echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--max-memory=4294967296" >> $GITHUB_ENV
-      - name: Test RUSTFLAGS
-        run: echo $RUSTFLAGS
       - name: Build
         run: ./trunk build --release --filehash false
