@@ -1440,20 +1440,32 @@ impl eframe::App for Warpainter
                     {
                         map.insert_temp(egui::Id::new("New File Height/Width"), (width, height))
                     });
-                    ui.allocate_ui_with_layout([150.0, 0.0].into(), egui::Layout::right_to_left(egui::Align::BOTTOM), |ui|
+                    ui.allocate_ui_with_layout([190.0, 0.0].into(), egui::Layout::right_to_left(egui::Align::BOTTOM), |ui|
                     {
                         if ui.button("Cancel").clicked()
                         {
                             new_dialog_opened = false;
                         }
-                        if ui.button("OK").clicked()
+                        if width as usize * height as usize > 140000000
                         {
-                            // TODO: reset view transform and zoom out to display entire canvas
-                            let img = Image::<4>::blank_white_transparent(width, height);
-                            self.load_from_img(img);
-                            new_dialog_opened = false;
+                            ui.add_enabled(false, egui::Button::new("OK"));
+                        }
+                        else
+                        {
+                            if ui.button("OK").clicked()
+                            {
+                                // TODO: reset view transform and zoom out to display entire canvas
+                                let img = Image::<4>::blank_white_transparent(width, height);
+                                self.load_from_img(img);
+                                new_dialog_opened = false;
+                            }
                         }
                     });
+                    if width as usize * height as usize > 140000000
+                    {
+                        ui.label("Maximum supported resolution is 140 megapixels.");
+                        ui.label("Reduce your canvas size.");
+                    }
                 });
                 if !still_open
                 {
