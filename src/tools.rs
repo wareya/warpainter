@@ -505,6 +505,8 @@ impl Tool for Pencil
             {
                 *n = new_input.canvas_mouse_coord;
             }
+            
+            app.debug(format!("input event starting at {:?}", new_input.canvas_mouse_coord));
         }
         
         self.cursor_log.push(new_input.canvas_mouse_coord);
