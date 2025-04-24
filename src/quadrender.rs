@@ -1,5 +1,5 @@
 use eframe::egui_glow::glow;
-use glow::HasContext;
+use glow::{HasContext, PixelUnpackData};
 use crate::warimage::*;
 
 pub (crate) struct ShaderQuad
@@ -11,6 +11,7 @@ pub (crate) struct ShaderQuad
     uvs : Vec<f32>,
     need_to_delete : bool,
     texture_handle : [Option<glow::Texture>; 8],
+    texture_sizes : [[i32; 2]; 8],
 }
 
 const VERT_SHADER : &str = "
@@ -42,7 +43,7 @@ const FRAG_SHADER : &str = "
     }
 ";
 
-fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>)
+pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>)
 {
     unsafe
     {
@@ -70,6 +71,39 @@ fn upload_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<
             input_type,
             glow::PixelUnpackData::Slice(Some(bytes))
         );
+        gl.generate_mipmap(glow::TEXTURE_2D);
+    }
+}
+
+pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>, rect : [[f32; 2]; 2])
+{
+    unsafe
+    {
+        gl.bind_texture(glow::TEXTURE_2D, Some(handle));
+        
+        let bytes = texture.bytes();
+        
+        let internal_type = if texture.is_float() { glow::RGBA16F } else { glow::RGBA8 } as i32;
+        let input_type = if texture.is_float() { glow::FLOAT } else { glow::UNSIGNED_BYTE };
+        
+        gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+        
+        gl.pixel_store_i32(glow::UNPACK_ROW_LENGTH, texture.width as i32);
+
+        gl.tex_sub_image_2d(
+            glow::TEXTURE_2D,
+            0,
+            rect[0][0] as i32,
+            rect[0][1] as i32,
+            (rect[1][0] - rect[0][0]) as i32,
+            (rect[1][1] - rect[0][1]) as i32,
+            glow::RGBA,
+            input_type,
+            PixelUnpackData::Slice(Some(&bytes[(rect[0][1] as u32 * texture.width as u32 + rect[0][0] as u32) as usize * 4..])),
+        );
+
+        gl.pixel_store_i32(glow::UNPACK_ROW_LENGTH, 0);
+        
         gl.generate_mipmap(glow::TEXTURE_2D);
     }
 }
@@ -208,7 +242,21 @@ impl ShaderQuad
                 1.0, 1.0
             );
 
-            Some(ShaderQuad { program, vertex_array, vertex_buffer, vertices, uvs, need_to_delete : true, texture_handle : [None; 8] } )
+            Some(ShaderQuad { program, vertex_array, vertex_buffer, vertices, uvs, need_to_delete : true, texture_handle : [None; 8], texture_sizes : [[0, 0]; 8] } )
+        }
+    }
+    pub (crate) fn get_texture_size(&mut self, which : usize) -> [i32; 2]
+    {
+        let which = which.clamp(0, 7);
+        self.texture_sizes[which]
+    }
+    pub (crate) fn use_texture(&mut self, gl : &glow::Context, which : usize) -> Option<glow::Texture>
+    {
+        unsafe
+        {
+            let which = which.clamp(0, 7);
+            gl.active_texture(glow::TEXTURE0 + which as u32);
+            self.texture_handle[which]
         }
     }
     pub (crate) fn add_texture(&mut self, gl : &glow::Context, texture : &Image<4>, which : usize)
@@ -224,6 +272,7 @@ impl ShaderQuad
             }
             let handle = self.texture_handle[which].unwrap();
             upload_texture(gl, handle, texture);
+            self.texture_sizes[which] = [texture.width as i32, texture.height as i32];
             eframe::egui_glow::check_for_gl_error!(gl, "after texture upload");
         }
     }

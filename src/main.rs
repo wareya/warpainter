@@ -202,6 +202,8 @@ struct Warpainter
     selection_poly : Vec<Vec<[f32; 2]>>,
     
     // unsaved
+    #[serde(skip)]
+    cache_rect : [[f32; 2]; 2],
     
     #[serde(skip)]
     redo_buffer : Vec<Vec<u8>>,
@@ -321,6 +323,8 @@ impl Default for Warpainter
             
             selection_mask : None,
             selection_poly : Vec::new(),
+            
+            cache_rect : [[0.0, 0.0], [0.0, 0.0]],
             
             did_event_setup : false,
             
@@ -835,8 +839,10 @@ impl Warpainter
     #[inline(never)]
     fn commit_edit(&mut self)
     {
+        self.cache_rect_full();
+        
         self.edit_progress += 1;
-        self.debug("Committing edit");
+        self.debug(format!("Committing edit {}", self.edit_progress));
         if let Some(mut image) = self.get_temp_edit_image()
         {
             if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -880,6 +886,7 @@ impl Warpainter
     {
         if self.editing_image.is_some()
         {
+            self.cache_rect_full();
             println!("Cancelling edit");
             self.edit_progress += 1;
             if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -893,6 +900,7 @@ impl Warpainter
     }
     fn log_layer_info_change(&mut self)
     {
+        self.cache_rect_full();
         println!("Layer info change");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -908,6 +916,25 @@ impl Warpainter
                 new : new_info,
             });
             self.undo_buffer.push(event.compress());
+        }
+    }
+    fn cache_rect_reset(&mut self)
+    {
+        self.cache_rect = [[1.0, 1.0], [1.0, 1.0]];
+    }
+    fn cache_rect_full(&mut self)
+    {
+        self.cache_rect = [[0.0, 0.0], [self.canvas_width as f32, self.canvas_height as f32]];
+    }
+    fn cache_rect_merge(&mut self, r : [[f32; 2]; 2])
+    {
+        if self.cache_rect[0][0] != self.cache_rect[1][0] || self.cache_rect[0][1] != self.cache_rect[1][1]
+        {
+            self.cache_rect = rect_enclose_rect(self.cache_rect, r);
+        }
+        else
+        {
+            self.cache_rect = r;
         }
     }
     fn perform_undo(&mut self)
@@ -932,7 +959,9 @@ impl Warpainter
                         }
                         let r = event.rect;
                         println!("{:?}", r);
-                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        let r = [[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]];
+                        layer.dirtify_rect(r);
+                        self.cache_rect_merge(r);
                         //layer.dirtify_all();
                     }
                 }
@@ -942,6 +971,7 @@ impl Warpainter
                     {
                         layer.set_info(&event.old);
                         layer.dirtify_all();
+                        self.cache_rect_full();
                         println!("info undo done");
                     }
                 }
@@ -979,7 +1009,9 @@ impl Warpainter
                         }
                         let r = event.rect;
                         println!("{:?}", r);
-                        layer.dirtify_rect([[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]]);
+                        let r = [[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]];
+                        layer.dirtify_rect(r);
+                        self.cache_rect_merge(r);
                         //layer.dirtify_all();
                     }
                 }
@@ -989,6 +1021,7 @@ impl Warpainter
                     {
                         layer.set_info(&event.new);
                         layer.dirtify_all();
+                        self.cache_rect_full();
                         println!("info redo done");
                     }
                 }
@@ -1007,6 +1040,7 @@ impl Warpainter
     
     fn full_rerender(&mut self)
     {
+        self.cache_rect_full();
         println!("Full Rerender");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -1016,6 +1050,7 @@ impl Warpainter
     }
     fn full_rerender_with(&mut self, id : u128)
     {
+        self.cache_rect_full();
         println!("Full Rerender of Layer {}", id);
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(id)
@@ -1025,6 +1060,7 @@ impl Warpainter
     }
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
+        self.cache_rect_merge(rect);
         //println!("Dirtify Rect");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -1475,6 +1511,11 @@ static mut GL : Option<Arc<glow::Context>> = None;
 
 use egui::{Margin, Frame};
 
+use std::sync::LazyLock;
+use std::ops::DerefMut;
+
+pub (crate) static CLEAR_CACHE_RECT : LazyLock<Arc<std::sync::Mutex<bool>>> = std::sync::LazyLock::new(|| Arc::new(std::sync::Mutex::new(false)));
+
 impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
@@ -1483,6 +1524,12 @@ impl eframe::App for Warpainter
         self.load_icons(ctx);
         self.load_font(ctx);
         self.load_shaders(frame);
+        
+        if let x = CLEAR_CACHE_RECT.lock().unwrap().deref_mut()
+        {
+            self.cache_rect_reset();
+            *x = false;
+        }
         
         unsafe
         {
@@ -2667,7 +2714,7 @@ impl eframe::App for Warpainter
             }
         }
         // DON'T USE; BUGGY / REENTRANT / CAUSES CRASH (in egui/eframe 0.19.0 at least)
-        //ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
     fn on_exit(&mut self, gl : Option<&glow::Context>)
     {

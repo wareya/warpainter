@@ -3,6 +3,7 @@ use alloc::sync::Arc;
 
 use eframe::egui;
 use eframe::egui_glow;
+use crate::quadrender;
 use crate::transform::*;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -212,13 +213,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     use std::ops::DerefMut;
     let mut tex_new = false;
     #[allow(irrefutable_let_patterns)] // bugged warning. the let binding holds the lock guard
+    let newprog = app.edit_progress;
     if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
     {
-        if *x != app.edit_progress
+        if *x != newprog
         {
             //println!("reflattening (edit progress)");
             app.flatten();
-            *x = app.edit_progress;
             tex_new = true;
         }
     }
@@ -230,6 +231,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         texture = app.flatten_use();
         tex_new = true;
     }
+    
+    let mut update_rect = None;
+    if tex_new
+    {
+        update_rect = Some(app.cache_rect);
+    }
+    
     let texture = texture.unwrap();
     
     /*
@@ -291,15 +299,67 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     ];
     let loops = app.get_selection_loop_data();
     let canvas_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
-    let tref = texture as *const crate::Image<4> as usize;
+    
+    let info2 : Arc<Mutex<Option<[[f32; 2]; 2]>>> = Arc::new(Mutex::new(None));
+    let info = Arc::clone(&info2);
+    
+    let mut shader = canvas_shader.lock();
+    
+    let gl = unsafe { &* &raw const crate::GL }.as_ref().unwrap();
+    
+    let gl = &*gl;
+    
+    if tex_new
+    {
+        if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
+        {
+            if *x != newprog
+            {
+                *x = newprog;
+            }
+        }
+        unsafe
+        {
+            let t = &texture;
+            if let (Some(handle), Some(mut rect)) = (shader.use_texture(gl, 0), update_rect)
+            {
+                rect[0][0] = rect[0][0].max(0.0);
+                rect[0][1] = rect[0][1].max(0.0);
+                rect[1][0] = rect[1][0].min(t.width as f32);
+                rect[1][1] = rect[1][1].min(t.height as f32);
+                
+                let s = shader.get_texture_size(0);
+                
+                if (rect[1][0] - rect[0][0] != t.width as f32 || rect[1][1] - rect[0][1] != t.height as f32)
+                    && s == [t.width as i32, t.height as i32]
+                {
+                    if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
+                    {
+                        *info.lock().unwrap() = Some(rect);
+                        quadrender::update_texture(gl, handle, t, rect);
+                        
+                        if let x = crate::CLEAR_CACHE_RECT.lock().unwrap().deref_mut()
+                        {
+                            *x = true;
+                        }
+                    }
+                }
+                else
+                {
+                    shader.add_texture(gl, t, 0);
+                }
+            }
+            else
+            {
+                shader.add_texture(gl, t, 0);
+            }
+        }
+    }
+    drop(shader);
+    
     let cb = egui_glow::CallbackFn::new(move |_info, glow_painter|
     {
         let mut shader = canvas_shader.lock();
-        // FIXME evil unsafe
-        if tex_new
-        {
-            unsafe { shader.add_texture(glow_painter.gl(), &*(tref as *const crate::Image<4>), 0); }
-        }
         
         shader.add_data(glow_painter.gl(), &loops, 1);
         
@@ -308,8 +368,6 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     });
     let callback = egui::PaintCallback { rect : response.rect, callback : Arc::new(cb) };
     painter.add(callback);
-    
-    //// !!!! WARNING FIXME TODO: evil vile code (end)
     
     if inputstate.mouse_in_canvas_area
     {
