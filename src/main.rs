@@ -16,6 +16,7 @@ use serde::{Serialize, Deserialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 mod wpsd;
+mod rle16;
 mod wpsd_raw;
 mod warimage;
 mod transform;
@@ -32,6 +33,7 @@ mod spline;
 mod wabl;
 mod hwaccel;
 
+use rle16::*;
 use wpsd::*;
 use warimage::*;
 use transform::*;
@@ -81,15 +83,19 @@ enum UndoEvent
     LayerPaint(LayerPaint),
 }
 
+
+use std::io::{self, Read, Write};
+
 impl UndoEvent
 {
     fn compress(&self) -> Vec<u8>
     {
         let mut compressed : Vec<u8> = Vec::new();
-        
         {
-            struct Asdf<'a> { s : std::io::BufWriter<snap::write::FrameEncoder<&'a mut Vec<u8>>> }
-            let mut asdf = Asdf { s : std::io::BufWriter::new(snap::write::FrameEncoder::new(&mut compressed)) };
+            struct Asdf<'a> { s : std::io::BufWriter<rle16::Compressor<&'a mut Vec<u8>>> }
+            let mut asdf = Asdf { s : std::io::BufWriter::new(rle16::Compressor::new(&mut compressed)) };
+            //struct Asdf<'a> { s : std::io::BufWriter<snap::write::FrameEncoder<&'a mut Vec<u8>>> }
+            //let mut asdf = Asdf { s : std::io::BufWriter::new(snap::write::FrameEncoder::new(&mut compressed)) };
             impl<'a> bincode::enc::write::Writer for Asdf<'a>
             {
                 fn write(&mut self, bytes : &[u8]) -> Result<(), bincode::error::EncodeError>
@@ -106,19 +112,19 @@ impl UndoEvent
     
     fn decompress(data : &[u8]) -> Self
     {
+        struct Asdf<'a> { s : std::io::BufReader<rle16::Decompressor<std::io::Cursor<&'a [u8]>>> }
+        let asdf = Asdf { s : std::io::BufReader::new(rle16::Decompressor::new(std::io::Cursor::new(data)) )};
+        //struct Asdf<'a> { s : std::io::BufReader<snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>>> }
+        //let asdf = Asdf { s : std::io::BufReader::new(snap::read::FrameDecoder::new(std::io::Cursor::new(data)) )};
+        impl<'a> bincode::de::read::Reader for Asdf<'a>
         {
-            struct Asdf<'a> { s : std::io::BufReader<snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>>> }
-            let asdf = Asdf { s : std::io::BufReader::new(snap::read::FrameDecoder::new(std::io::Cursor::new(data)) )};
-            impl<'a> bincode::de::read::Reader for Asdf<'a>
+            fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
             {
-                fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
-                {
-                    self.s.read_exact(bytes).unwrap();
-                    Ok(())
-                }
+                self.s.read_exact(bytes).unwrap();
+                Ok(())
             }
-            bincode::decode_from_reader(asdf, bincode::config::standard()).unwrap()
         }
+        bincode::decode_from_reader(asdf, bincode::config::standard()).unwrap()
     }
 }
 
@@ -860,7 +866,9 @@ impl Warpainter
         self.edit_progress += 1;
         if let Some(event) = self.undo_buffer.pop()
         {
+            let start = web_time::Instant::now();
             let event = UndoEvent::decompress(&event);
+            println!("Edit decoding time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
             match event
             {
                 UndoEvent::LayerPaint(ref event) =>
@@ -904,7 +912,9 @@ impl Warpainter
         self.edit_progress += 1;
         if let Some(event) = self.redo_buffer.pop()
         {
+            let start = web_time::Instant::now();
             let event = UndoEvent::decompress(&event);
+            println!("Edit decoding time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
             match event
             {
                 UndoEvent::LayerPaint(ref event) =>
