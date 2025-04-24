@@ -210,20 +210,25 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     static LAST_PROGRESS : LazyLock<Arc<Mutex<u128>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(!0u128)));
     
     use std::ops::DerefMut;
-    #[allow(irrefutable_let_patterns)]
+    let mut tex_new = false;
+    #[allow(irrefutable_let_patterns)] // bugged warning. the let binding holds the lock guard
     if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
     {
         if *x != app.edit_progress
         {
+            //println!("reflattening (edit progress)");
             app.flatten();
             *x = app.edit_progress;
+            tex_new = true;
         }
     }
     let mut texture = app.flatten_use();
     if texture.is_none()
     {
+        //println!("reflattening");
         app.flatten();
         texture = app.flatten_use();
+        tex_new = true;
     }
     let texture = texture.unwrap();
     
@@ -291,8 +296,10 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     {
         let mut shader = canvas_shader.lock();
         // FIXME evil unsafe
-        unsafe { shader.add_texture(glow_painter.gl(), &*(tref as *const crate::Image<4>), 0); }
-        //shader.add_texture(glow_painter.gl(), texture, 0);
+        if tex_new
+        {
+            unsafe { shader.add_texture(glow_painter.gl(), &*(tref as *const crate::Image<4>), 0); }
+        }
         
         shader.add_data(glow_painter.gl(), &loops, 1);
         

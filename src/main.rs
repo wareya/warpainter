@@ -878,17 +878,22 @@ impl Warpainter
     }
     fn cancel_edit(&mut self)
     {
-        self.edit_progress += 1;
-        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        if self.editing_image.is_some()
         {
-            layer.dirtify_edited();
+            println!("Cancelling edit");
+            self.edit_progress += 1;
+            if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+            {
+                layer.dirtify_edited();
+            }
+            self.editing_image = None;
+            self.edit_is_direct = false;
+            self.edit_ignores_selection = false;
         }
-        self.editing_image = None;
-        self.edit_is_direct = false;
-        self.edit_ignores_selection = false;
     }
     fn log_layer_info_change(&mut self)
     {
+        println!("Layer info change");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
@@ -907,6 +912,7 @@ impl Warpainter
     }
     fn perform_undo(&mut self)
     {
+        println!("Undo");
         self.edit_progress += 1;
         if let Some(event) = self.undo_buffer.pop()
         {
@@ -953,6 +959,7 @@ impl Warpainter
     }
     fn perform_redo(&mut self)
     {
+        println!("Redo");
         self.edit_progress += 1;
         if let Some(event) = self.redo_buffer.pop()
         {
@@ -1000,6 +1007,7 @@ impl Warpainter
     
     fn full_rerender(&mut self)
     {
+        println!("Full Rerender");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
@@ -1008,6 +1016,7 @@ impl Warpainter
     }
     fn full_rerender_with(&mut self, id : u128)
     {
+        println!("Full Rerender of Layer {}", id);
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(id)
         {
@@ -1016,6 +1025,7 @@ impl Warpainter
     }
     fn mark_current_layer_dirty(&mut self, rect : [[f32; 2]; 2])
     {
+        //println!("Dirtify Rect");
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
