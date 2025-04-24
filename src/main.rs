@@ -1232,34 +1232,6 @@ impl Warpainter
         zipref.start_file("mergedimage.png", zip_options).unwrap();
         zipref.write(&bytes).unwrap();
         
-        fn premultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
-        {
-            for p in img.pixels_mut()
-            {
-                let [r, g, b, a] = p.0;
-                let af = a as f32 / 255.0;
-                p.0 = [(r as f32 * af) as u8, (g as f32 * af) as u8, (b as f32 * af) as u8, a];
-            }
-        }
-        
-        fn unpremultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
-        {
-            for p in img.pixels_mut()
-            {
-                let [r, g, b, a] = p.0;
-                if a != 0
-                {
-                    let af = 255.0 / a as f32;
-                    p.0 = [
-                        (r as f32 * af).clamp(0.0, 255.0) as u8,
-                        (g as f32 * af).clamp(0.0, 255.0) as u8,
-                        (b as f32 * af).clamp(0.0, 255.0) as u8,
-                        a,
-                    ];
-                }
-            }
-        }
-        
         if img.width() > 256 || img.height() > 256
         {
             let mut w = img.width() as f64;
@@ -1267,9 +1239,9 @@ impl Warpainter
             let n = 256.0 / w.max(h);
             w = (w*n).floor();
             h = (h*n).floor();
-            premultiply(&mut img);
+            warimage::premultiply(&mut img);
             img = image::imageops::resize(&img, w as u32, h as u32, image::imageops::FilterType::Gaussian);
-            unpremultiply(&mut img);
+            warimage::unpremultiply(&mut img);
         }
         
         let bytes = save_image_to_vec(&img);

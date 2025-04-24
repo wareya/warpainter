@@ -26,7 +26,6 @@ pub (crate) fn set_pixel<T : Copy>(data : &mut [T], index : usize, pixel : [T; 4
     data[index+3] = pixel[3];
 }
 */
-
 fn flatten<T : Copy, const N : usize>(a : &[[T; N]]) -> Vec<T>
 {
     let mut ret = Vec::with_capacity(N*a.len());
@@ -177,6 +176,34 @@ pub (crate) struct Image<const N : usize>
     pub (crate) width : usize,
     pub (crate) height : usize,
     pub (crate) data : ImageData<N>,
+}
+
+pub (crate) fn premultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
+{
+    for p in img.pixels_mut()
+    {
+        let [r, g, b, a] = p.0;
+        let af = a as f32 / 255.0;
+        p.0 = [(r as f32 * af) as u8, (g as f32 * af) as u8, (b as f32 * af) as u8, a];
+    }
+}
+
+pub (crate) fn unpremultiply(img : &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>)
+{
+    for p in img.pixels_mut()
+    {
+        let [r, g, b, a] = p.0;
+        if a != 0
+        {
+            let af = 255.0 / a as f32;
+            p.0 = [
+                (r as f32 * af).clamp(0.0, 255.0) as u8,
+                (g as f32 * af).clamp(0.0, 255.0) as u8,
+                (b as f32 * af).clamp(0.0, 255.0) as u8,
+                a,
+            ];
+        }
+    }
 }
 
 impl<const N : usize> Image<N>
