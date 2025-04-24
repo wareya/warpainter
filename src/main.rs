@@ -839,7 +839,7 @@ impl Warpainter
     #[inline(never)]
     fn commit_edit(&mut self)
     {
-        self.cache_rect_full();
+        //self.cache_rect_full();
         
         self.edit_progress += 1;
         self.debug(format!("Committing edit {}", self.edit_progress));
@@ -873,10 +873,10 @@ impl Warpainter
                 }
             }
         }
-        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
-        {
-            layer.dirtify_edited();
-        }
+        //if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        //{
+            //layer.dirtify_edited();
+        //}
         
         self.editing_image = None;
         self.edit_is_direct = false;

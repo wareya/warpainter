@@ -299,9 +299,6 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     let loops = app.get_selection_loop_data();
     let canvas_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     
-    let info2 : Arc<Mutex<Option<[[f32; 2]; 2]>>> = Arc::new(Mutex::new(None));
-    let info = Arc::clone(&info2);
-    
     let mut shader = canvas_shader.lock();
     
     let gl = unsafe { &* &raw const crate::GL }.as_ref().unwrap();
@@ -333,21 +330,24 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
             {
                 if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
                 {
-                    *info.lock().unwrap() = Some(rect);
-                    quadrender::update_texture(gl, handle, t, rect);
+                    println!("partial upload {:?}", rect);
                     
-                    app.cache_rect_reset();
+                    quadrender::update_texture(gl, handle, t, rect);
                 }
             }
             else
             {
+                println!("full upload A...");
                 shader.add_texture(gl, t, 0);
             }
         }
         else
         {
+            println!("full upload B...");
             shader.add_texture(gl, t, 0);
         }
+        
+        app.cache_rect_reset();
     }
     drop(shader);
     
