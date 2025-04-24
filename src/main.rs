@@ -83,28 +83,70 @@ enum UndoEvent
     LayerPaint(LayerPaint),
 }
 
-
-use std::io::{self, Read, Write};
-
 impl UndoEvent
 {
     fn compress(&self) -> Vec<u8>
     {
-        let mut compressed : Vec<u8> = Vec::new();
+        /*
+        match self
         {
-            struct Asdf<'a> { s : std::io::BufWriter<rle16::Compressor<&'a mut Vec<u8>>> }
-            let mut asdf = Asdf { s : std::io::BufWriter::new(rle16::Compressor::new(&mut compressed)) };
-            //struct Asdf<'a> { s : std::io::BufWriter<snap::write::FrameEncoder<&'a mut Vec<u8>>> }
-            //let mut asdf = Asdf { s : std::io::BufWriter::new(snap::write::FrameEncoder::new(&mut compressed)) };
-            impl<'a> bincode::enc::write::Writer for Asdf<'a>
+            //UndoEvent::Null => UndoEvent::Null,
+            //UndoEvent::LayerInfoChange(x) => UndoEvent::LayerInfoChange(x),
+            //UndoEvent::LayerMove(x) => UndoEvent::LayerMove(x),
+            //UndoEvent::LayerPaintCompressed(x) => UndoEvent::LayerPaintCompressed(x),
+            UndoEvent::LayerPaint(x) =>
             {
-                fn write(&mut self, bytes : &[u8]) -> Result<(), bincode::error::EncodeError>
+                if let ImageData::<4>::Int(x) = &x.old.data
                 {
-                    self.s.write(bytes).unwrap();
-                    Ok(())
+                    let mut compressed : Vec<u8> = Vec::new();
+                    {
+                        let mut bw = std::io::BufWriter::new(rle16::Compressor::new(&mut compressed));
+                        let s = unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len() * 4) };
+                        bw.write_all(&s).unwrap();
+                    }
+                    println!("{}", compressed.len());
+                }
+                if let ImageData::<4>::Int(x) = &x.new.data
+                {
+                    let mut compressed : Vec<u8> = Vec::new();
+                    {
+                        let mut bw = std::io::BufWriter::new(rle16::Compressor::new(&mut compressed));
+                        let s = unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len() * 4) };
+                        bw.write_all(&s).unwrap();
+                    }
+                    println!("{}", compressed.len());
+                }
+                if let ImageData::<1>::Int(x) = &x.mask.data
+                {
+                    let mut compressed : Vec<u8> = Vec::new();
+                    {
+                        let mut bw = std::io::BufWriter::new(rle16::Compressor::new(&mut compressed));
+                        let s = unsafe { std::slice::from_raw_parts(x.as_ptr() as *const u8, x.len()) };
+                        bw.write_all(&s).unwrap();
+                    }
+                    println!("{}", compressed.len());
                 }
             }
-            bincode::encode_into_writer(self, &mut asdf, bincode::config::standard()).unwrap();
+            _ => {}
+        }*/
+        
+        let mut compressed : Vec<u8> = Vec::new();
+        {
+            //struct Asdf<'a> { s : std::io::BufWriter<rle16::Compressor<&'a mut Vec<u8>>> }
+            let mut asdf = std::io::BufWriter::new(rle16::Compressor::new(&mut compressed));
+            //let mut asdf = Asdf { s : std::io::BufWriter::new(rle16::Compressor::new(&mut compressed)) };
+            //struct Asdf<'a> { s : std::io::BufWriter<snap::write::FrameEncoder<&'a mut Vec<u8>>> }
+            //let mut asdf = Asdf { s : std::io::BufWriter::new(snap::write::FrameEncoder::new(&mut compressed)) };
+            //impl<'a> bincode::enc::write::Writer for Asdf<'a>
+            //{
+            //    fn write(&mut self, bytes : &[u8]) -> Result<(), bincode::error::EncodeError>
+            //    {
+            //        self.s.write(bytes).unwrap();
+            //        Ok(())
+            //    }
+            //}
+            //bincode::encode_into_writer(self, &mut asdf, bincode::config::standard()).unwrap();
+            cbor4ii::serde::to_writer(&mut asdf, self).unwrap();
         }
 
         compressed
@@ -112,19 +154,21 @@ impl UndoEvent
     
     fn decompress(data : &[u8]) -> Self
     {
-        struct Asdf<'a> { s : std::io::BufReader<rle16::Decompressor<std::io::Cursor<&'a [u8]>>> }
-        let asdf = Asdf { s : std::io::BufReader::new(rle16::Decompressor::new(std::io::Cursor::new(data)) )};
+        //struct Asdf<'a> { s : std::io::BufReader<rle16::Decompressor<std::io::Cursor<&'a [u8]>>> }
+        let asdf = std::io::BufReader::new(rle16::Decompressor::new(std::io::Cursor::new(data)));
+        //let asdf = Asdf { s : std::io::BufReader::new(rle16::Decompressor::new(std::io::Cursor::new(data)) )};
         //struct Asdf<'a> { s : std::io::BufReader<snap::read::FrameDecoder<std::io::Cursor<&'a [u8]>>> }
         //let asdf = Asdf { s : std::io::BufReader::new(snap::read::FrameDecoder::new(std::io::Cursor::new(data)) )};
-        impl<'a> bincode::de::read::Reader for Asdf<'a>
-        {
-            fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
-            {
-                self.s.read_exact(bytes).unwrap();
-                Ok(())
-            }
-        }
-        bincode::decode_from_reader(asdf, bincode::config::standard()).unwrap()
+        //impl<'a> bincode::de::read::Reader for Asdf<'a>
+        //{
+        //    fn read(&mut self, bytes : &mut [u8]) -> Result<(), bincode::error::DecodeError>
+        //    {
+        //        self.s.read_exact(bytes).unwrap();
+        //        Ok(())
+        //    }
+        //}
+        cbor4ii::serde::from_reader(asdf).unwrap()
+        //bincode::decode_from_reader(asdf, bincode::config::standard()).unwrap()
     }
 }
 
