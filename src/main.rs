@@ -1511,11 +1511,6 @@ static mut GL : Option<Arc<glow::Context>> = None;
 
 use egui::{Margin, Frame};
 
-use std::sync::LazyLock;
-use std::ops::DerefMut;
-
-pub (crate) static CLEAR_CACHE_RECT : LazyLock<Arc<std::sync::Mutex<bool>>> = std::sync::LazyLock::new(|| Arc::new(std::sync::Mutex::new(false)));
-
 impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
@@ -1524,12 +1519,6 @@ impl eframe::App for Warpainter
         self.load_icons(ctx);
         self.load_font(ctx);
         self.load_shaders(frame);
-        
-        if let x = CLEAR_CACHE_RECT.lock().unwrap().deref_mut()
-        {
-            self.cache_rect_reset();
-            *x = false;
-        }
         
         unsafe
         {

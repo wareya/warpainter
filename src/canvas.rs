@@ -212,8 +212,8 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     use std::ops::DerefMut;
     let mut tex_new = false;
-    #[allow(irrefutable_let_patterns)] // bugged warning. the let binding holds the lock guard
     let newprog = app.edit_progress;
+    #[allow(irrefutable_let_patterns)] // bugged warning. the let binding holds the lock guard
     if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
     {
         if *x != newprog
@@ -287,7 +287,6 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         vert[1] *= 2.0/response.rect.height();
     }
     
-    //// !!!! WARNING FIXME TODO: evil vile code
     let uniforms = [
         ("width", response.rect.width()),
         ("height", response.rect.height()),
@@ -311,6 +310,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     if tex_new
     {
+        #[allow(irrefutable_let_patterns)] // bugged. the binding holds a lock guard
         if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
         {
             if *x != newprog
@@ -318,41 +318,35 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
                 *x = newprog;
             }
         }
-        unsafe
+        let t = &texture;
+        if let (Some(handle), Some(mut rect)) = (shader.use_texture(gl, 0), update_rect)
         {
-            let t = &texture;
-            if let (Some(handle), Some(mut rect)) = (shader.use_texture(gl, 0), update_rect)
+            rect[0][0] = rect[0][0].max(0.0);
+            rect[0][1] = rect[0][1].max(0.0);
+            rect[1][0] = rect[1][0].min(t.width as f32);
+            rect[1][1] = rect[1][1].min(t.height as f32);
+            
+            let s = shader.get_texture_size(0);
+            
+            if (rect[1][0] - rect[0][0] != t.width as f32 || rect[1][1] - rect[0][1] != t.height as f32)
+                && s == [t.width as i32, t.height as i32]
             {
-                rect[0][0] = rect[0][0].max(0.0);
-                rect[0][1] = rect[0][1].max(0.0);
-                rect[1][0] = rect[1][0].min(t.width as f32);
-                rect[1][1] = rect[1][1].min(t.height as f32);
-                
-                let s = shader.get_texture_size(0);
-                
-                if (rect[1][0] - rect[0][0] != t.width as f32 || rect[1][1] - rect[0][1] != t.height as f32)
-                    && s == [t.width as i32, t.height as i32]
+                if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
                 {
-                    if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
-                    {
-                        *info.lock().unwrap() = Some(rect);
-                        quadrender::update_texture(gl, handle, t, rect);
-                        
-                        if let x = crate::CLEAR_CACHE_RECT.lock().unwrap().deref_mut()
-                        {
-                            *x = true;
-                        }
-                    }
-                }
-                else
-                {
-                    shader.add_texture(gl, t, 0);
+                    *info.lock().unwrap() = Some(rect);
+                    quadrender::update_texture(gl, handle, t, rect);
+                    
+                    app.cache_rect_reset();
                 }
             }
             else
             {
                 shader.add_texture(gl, t, 0);
             }
+        }
+        else
+        {
+            shader.add_texture(gl, t, 0);
         }
     }
     drop(shader);
