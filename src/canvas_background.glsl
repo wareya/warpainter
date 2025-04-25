@@ -132,7 +132,9 @@ void main()
     float x = (vertex.x-0.5) * width;
     float y = (vertex.y-0.5) * height;
     
-    vec2 dx = dFdx(vec2(x, y));
+    vec2 texsize = vec2(textureSize(user_texture_0, 0));
+    
+    vec2 dx = dFdx(uv * texsize);
     bool rotated = abs(dx.x) > 0.00001 && abs(dx.y) > 0.00001;
     
     // render checkerboard background for canvas
@@ -145,7 +147,6 @@ void main()
     
     // render canvas image
     
-    vec2 texsize = vec2(textureSize(user_texture_0, 0));
     vec2 uvbig = uv * texsize;
     float mip = miplevel(uvbig);
     vec4 tex_color = textureLod(user_texture_0, uv + 0.5/texsize, mip);
@@ -169,7 +170,7 @@ void main()
         if (tex_color.a != 0.0)
             tex_color.rgb *= (1.0 / tex_color.a);
     }
-    else if (zoom_level > 1.001 || (zoom_level < 1.15 && rotated))
+    else if (zoom_level > 1.001 || (zoom_level < 1.5 && rotated))
     {
         // aa'd box filter
         // FIXME: work out the proper version of this
