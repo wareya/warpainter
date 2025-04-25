@@ -129,13 +129,11 @@ float chebyshev(vec2 v)
 
 void main()
 {
-    vec2 dx = dFdx(uv);
-    vec2 dy = dFdy(uv);
-    
-    bool rotated = abs(dx.x) > 0.0001 && abs(dx.y) > 0.0001;
-    
     float x = (vertex.x-0.5) * width;
     float y = (vertex.y-0.5) * height;
+    
+    vec2 dx = dFdx(vec2(x, y));
+    bool rotated = abs(dx.x) > 0.00001 && abs(dx.y) > 0.00001;
     
     // render checkerboard background for canvas
     
