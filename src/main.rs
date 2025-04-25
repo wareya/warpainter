@@ -1002,6 +1002,7 @@ impl Warpainter
     }
     fn cache_rect_merge(&mut self, r : [[f32; 2]; 2])
     {
+        //self.cache_rect = [[0.0, 0.0], [self.canvas_width as f32, self.canvas_height as f32]];
         let r = rect_grow(r, 1.0);
         if self.cache_rect[0][0] != self.cache_rect[1][0] || self.cache_rect[0][1] != self.cache_rect[1][1]
         {

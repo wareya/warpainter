@@ -248,8 +248,12 @@ pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, textu
     }
 }
 
-pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>, rect : [[f32; 2]; 2])
+pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, texture : &Image<4>, mut rect : [[f32; 2]; 2])
 {
+    rect[0][0] = rect[0][0].round();
+    rect[0][1] = rect[0][1].round();
+    rect[1][0] = rect[1][0].round();
+    rect[1][1] = rect[1][1].round();
     unsafe
     {
         gl.bind_texture(glow::TEXTURE_2D, Some(handle));
