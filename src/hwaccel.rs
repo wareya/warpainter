@@ -103,75 +103,77 @@ fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8]) -
     }
 }
 
-struct OpenGLContextState
+pub struct OpenGLContextState
 {
-    //program: Option<u32>,
-    fbo: Option<Framebuffer>,
-    //buffers: HashMap<u32, u32>,
+    program : Option<u32>,
+    buffers : HashMap<u32, u32>,
 }
 
 impl OpenGLContextState
 {
-    fn new() -> Self
+    pub fn new() -> Self
     {
         OpenGLContextState
         {
-            //program: None,
-            fbo: None,
-            //buffers: HashMap::new(),
+            program : None,
+            buffers : HashMap::new(),
         }
     }
 
-    fn save_state(&mut self, gl: &Context)
+    pub fn save_state(&mut self, gl : &Context)
     {
-        //self.program = Some(unsafe { gl.get_parameter_i32(PROGRAM) as u32 });
-        
-        #[cfg(not(target_arch = "wasm32"))]
+        unsafe
         {
-            self.fbo = unsafe { gl.get_parameter_framebuffer(FRAMEBUFFER_BINDING) };
+            self.program = Some(gl.get_parameter_i32(PROGRAM) as u32);
+            
+            let buffer_targets = vec!(
+                ARRAY_BUFFER,
+            );
+            
+            for &target in &buffer_targets
+            {
+                let buffer_id = gl.get_parameter_i32(target);
+                self.buffers.insert(target, buffer_id as u32);
+            }
         }
-        
-        //let buffer_targets = vec![
-        //    ARRAY_BUFFER,
-        //    ELEMENT_ARRAY_BUFFER,
-        //    COPY_READ_BUFFER,
-        //    COPY_WRITE_BUFFER,
-        //];
-        //
-        //for &target in &buffer_targets {
-        //    let buffer_id = unsafe { gl.get_parameter_i32(target) };
-        //    self.buffers.insert(target, buffer_id as u32);
-        //}
     }
     #[cfg(target_arch = "wasm32")]
-    fn load_state(&self, gl: &Context)
+    pub fn load_state(&self, gl : &Context)
     {
-        //if let Some(program_id) = self.program
-        //{
-        //    unsafe { gl.use_program(Some(WebProgramKey::from(KeyData.program_id))) };
-        //}
-        
-        unsafe { gl.bind_framebuffer(FRAMEBUFFER, None) };
-        
-        //for (&target, &id) in &self.buffers
-        //{
-        //    unsafe { gl.bind_buffer(target, Some(WebBufferKey::from(KeyData.id))) };
-        //}
+        unsafe
+        {
+            if let Some(program_id) = self.program
+            {
+                gl.use_program(Some(WebProgramKey::from(KeyData.program_id)));
+            }
+            
+            gl.bind_framebuffer(FRAMEBUFFER, None);
+            
+            for (&target, &id) in &self.buffers
+            {
+                gl.bind_buffer(target, Some(WebBufferKey::from(KeyData.id)));
+            }
+        }
     }
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_state(&self, gl: &Context)
+    pub fn load_state(&self, gl: &Context)
     {
-        //if let Some(program_id) = self.program
-        //{
-        //    unsafe { gl.use_program(NonZeroU32::new(program_id).map(|x| NativeProgram(x))) };
-        //}
-        
-        unsafe { gl.bind_framebuffer(FRAMEBUFFER, None) };
-        
-        //for (&target, &id) in &self.buffers
-        //{
-        //    unsafe { gl.bind_buffer(target, NonZeroU32::new(id).map(|x| NativeBuffer(x))) };
-        //}
+        unsafe
+        {
+            use std::num::NonZeroU32;
+
+            if let Some(program_id) = self.program
+            {
+                gl.use_program(NonZeroU32::new(program_id).map(|x| NativeProgram(x)));
+            }
+            
+            gl.bind_framebuffer(FRAMEBUFFER, None);
+            
+            for (&target, &id) in &self.buffers
+            {
+                gl.bind_buffer(target, NonZeroU32::new(id).map(|x| NativeBuffer(x)));
+            }
+        }
     }
 }
 

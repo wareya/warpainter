@@ -737,13 +737,15 @@ impl Warpainter
                         
                         if inplace
                         {
-                            ei.blend_from(image, None, None, 1.0, [0, 0], "Copy");
+                            ei.copy_from(image);
+                            //*ei = image.clone();
                         }
                         else
                         {
-                            ei.clear();
+                            //ei.clear();
                         }
-                        ed.blend_from(image, None, None, 1.0, [0, 0], "Copy");
+                        ed.copy_from(image);
+                        //*ed = image.clone();
                     }
                     else
                     {

@@ -1187,7 +1187,8 @@ pub (crate) fn find_post_func(blend_mode : &str) -> IntPostFn
 #[inline]
 pub (crate) fn to_float(x : u8) -> f32
 {
-    (x as f32)/255.0
+    //(x as f32)/255.0
+    (x as f32)*(1.0/255.0)
 }
 #[inline]
 pub (crate) fn to_int(x : f32) -> u8

@@ -169,7 +169,7 @@ void main()
         if (tex_color.a != 0.0)
             tex_color.rgb *= (1.0 / tex_color.a);
     }
-    else if (zoom_level > 1.001 || (zoom_level < 1.2 && rotated))
+    else if (zoom_level > 1.001 || (zoom_level < 1.15 && rotated))
     {
         // aa'd box filter
         // FIXME: work out the proper version of this
