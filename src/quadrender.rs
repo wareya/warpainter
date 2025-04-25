@@ -59,21 +59,30 @@ const MIP_FRAG_SHADER : &str = "
     uniform float w;
     uniform float h;
     
+    uniform float copy;
+    
     void main()
     {
         vec2 uv2 = vec2(uv.x, 1.0 - uv.y);
-        vec2 pxs = 0.5 / vec2(prev_w, prev_h);
-        vec4 a = texture(user_texture_0, uv2 + vec2(+pxs.x, +pxs.y), miplevel - 1.0);
-        vec4 b = texture(user_texture_0, uv2 + vec2(+pxs.x, -pxs.y), miplevel - 1.0);
-        vec4 c = texture(user_texture_0, uv2 + vec2(-pxs.x, +pxs.y), miplevel - 1.0);
-        vec4 d = texture(user_texture_0, uv2 + vec2(-pxs.x, -pxs.y), miplevel - 1.0);
-        a.rgb *= a.a;
-        b.rgb *= b.a;
-        c.rgb *= c.a;
-        d.rgb *= d.a;
-        vec4 r = (a+b+c+d) * 0.25;
-        r.rgb /= (r.a + 0.00001);
-        out_color = r;
+        if (copy == 1.0)
+        {
+            out_color = texture(user_texture_0, uv2, miplevel);
+        }
+        else
+        {
+            vec2 pxs = 0.5 / vec2(prev_w, prev_h);
+            vec4 a = texture(user_texture_0, uv2 + vec2(+pxs.x, +pxs.y), miplevel - 1.0);
+            vec4 b = texture(user_texture_0, uv2 + vec2(+pxs.x, -pxs.y), miplevel - 1.0);
+            vec4 c = texture(user_texture_0, uv2 + vec2(-pxs.x, +pxs.y), miplevel - 1.0);
+            vec4 d = texture(user_texture_0, uv2 + vec2(-pxs.x, -pxs.y), miplevel - 1.0);
+            a.rgb *= a.a;
+            b.rgb *= b.a;
+            c.rgb *= c.a;
+            d.rgb *= d.a;
+            vec4 r = (a+b+c+d) * 0.25;
+            r.rgb /= (r.a + 0.00001);
+            out_color = r;
+        }
     }
 ";
 
@@ -88,16 +97,32 @@ fn get_mipshader(gl : &glow::Context) -> &'static Mutex<ShaderQuad>
 
 pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : usize, height : usize)
 {
+    if width == 1 && height == 1 { return; }
     unsafe
     {
         gl.bind_texture(glow::TEXTURE_2D, Some(handle));
-        
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+        
+        let nu = gl.create_texture().unwrap();
+        gl.bind_texture(glow::TEXTURE_2D, Some(nu));
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+        gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA8 as i32, width as i32, height as i32, 0, glow::RGBA, UNSIGNED_BYTE, PixelUnpackData::Slice(None));
+        
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, 0);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, 0);
         
         let mut state = hwaccel::OpenGLContextState::new();
         state.save_state(gl);
         // rerender mipmaps
+        
+        let mut _shader = get_mipshader(gl).lock().unwrap();
+        let shader = &mut *_shader;
+        
+        gl.use_program(Some(shader.program));
+        shader.texture_handle[0] = Some(handle);
+        gl.viewport(0, 0, width as i32, height as i32);
         
         let (mut w, mut h) = (width, height);
         let mut i = 1;
@@ -106,29 +131,24 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
         w = (w/2).max(1);
         h = (h/2).max(1);
         
-        let mut _shader = get_mipshader(gl).lock().unwrap();
-        let shader = &mut *_shader;
-        
         loop
         {
-            gl.use_program(Some(shader.program));
             shader.texture_handle[0] = Some(handle);
             gl.viewport(0, 0, w as i32, h as i32);
             
-            gl.bind_texture(glow::TEXTURE_2D, Some(handle));
+            gl.bind_texture(glow::TEXTURE_2D, Some(nu));
             gl.tex_image_2d(glow::TEXTURE_2D, i as i32, glow::RGBA8 as i32, w as i32, h as i32, 0, glow::RGBA, UNSIGNED_BYTE, PixelUnpackData::Slice(None));
-            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, i - 1);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, i);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, i);
             
             let framebuffer = gl.create_framebuffer().unwrap();
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
             
-            // Attach texture at the desired mip level
             gl.framebuffer_texture_2d(
                 glow::FRAMEBUFFER,
                 glow::COLOR_ATTACHMENT0,
                 glow::TEXTURE_2D,
-                Some(handle),
+                Some(nu),
                 i,
             );
             if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
@@ -138,12 +158,33 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
             
             gl.clear_color(0.0, 0.0, 0.0, 0.0);
             gl.clear(glow::COLOR_BUFFER_BIT);
-            shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32)]);
+            shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32), ("copy", 0.0)]);
+            
+            gl.bind_texture(glow::TEXTURE_2D, Some(handle));
+            gl.tex_image_2d(glow::TEXTURE_2D, i as i32, glow::RGBA8 as i32, w as i32, h as i32, 0, glow::RGBA, UNSIGNED_BYTE, PixelUnpackData::Slice(None));
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, i);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, i);
+            
+            gl.framebuffer_texture_2d(
+                glow::FRAMEBUFFER,
+                glow::COLOR_ATTACHMENT0,
+                glow::TEXTURE_2D,
+                Some(handle),
+                i,
+            );
+            
+            shader.texture_handle[0] = Some(nu);
+            
+            gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32), ("copy", 1.0)]);
             
             i += 1;
         
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             gl.delete_framebuffer(framebuffer);
+            
+            shader.texture_handle[0] = None;
             
             if w == 1 && h == 1
             {
@@ -158,12 +199,15 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
         }
         
         let maxlv = (width.max(height) as f32).log2().floor() as i32;
+        gl.bind_texture(glow::TEXTURE_2D, Some(handle));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, 0);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, maxlv);
         
         state.load_state(gl);
         
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR_MIPMAP_LINEAR as i32);
+        
+        gl.delete_texture(nu);
     }
 }
 
