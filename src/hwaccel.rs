@@ -105,8 +105,8 @@ fn upload_texture_r8(gl : &Context, width : i32, height : i32, pixels : &[u8]) -
 
 pub struct OpenGLContextState
 {
-    program : Option<u32>,
-    buffers : HashMap<u32, u32>,
+    program : Option<glow::Program>,
+    buffers : HashMap<u32, Option<glow::Buffer>>,
 }
 
 impl OpenGLContextState
@@ -124,7 +124,7 @@ impl OpenGLContextState
     {
         unsafe
         {
-            self.program = Some(gl.get_parameter_i32(PROGRAM) as u32);
+            //self.program = gl.get_parameter_program(CURRENT_PROGRAM);
             
             let buffer_targets = vec!(
                 ARRAY_BUFFER,
@@ -132,46 +132,24 @@ impl OpenGLContextState
             
             for &target in &buffer_targets
             {
-                let buffer_id = gl.get_parameter_i32(target);
-                self.buffers.insert(target, buffer_id as u32);
+                //let buffer = gl.get_parameter_buffer(target);
+                //self.buffers.insert(target, buffer);
             }
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    pub fn load_state(&self, gl : &Context)
-    {
-        unsafe
-        {
-            if let Some(program_id) = self.program
-            {
-                gl.use_program(Some(WebProgramKey::from(KeyData.program_id)));
-            }
-            
-            gl.bind_framebuffer(FRAMEBUFFER, None);
-            
-            for (&target, &id) in &self.buffers
-            {
-                gl.bind_buffer(target, Some(WebBufferKey::from(KeyData.id)));
-            }
-        }
-    }
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_state(&self, gl: &Context)
     {
         unsafe
         {
-            use std::num::NonZeroU32;
-
-            if let Some(program_id) = self.program
-            {
-                gl.use_program(NonZeroU32::new(program_id).map(|x| NativeProgram(x)));
-            }
+            //gl.use_program(self.program);
+            gl.use_program(None);
             
             gl.bind_framebuffer(FRAMEBUFFER, None);
             
-            for (&target, &id) in &self.buffers
+            for (&target, &buf) in &self.buffers
             {
-                gl.bind_buffer(target, NonZeroU32::new(id).map(|x| NativeBuffer(x)));
+                //gl.bind_buffer(target, buf);
+                gl.bind_buffer(target, None);
             }
         }
     }

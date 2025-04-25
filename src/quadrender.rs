@@ -1,5 +1,5 @@
 use eframe::egui_glow::glow;
-use glow::{HasContext, PixelUnpackData};
+use glow::{HasContext, PixelUnpackData, RGBA8, UNSIGNED_BYTE};
 use crate::hwaccel;
 use crate::{px_lerp_biased_float, px_lerp_float, px_to_int, warimage::*};
 
@@ -98,80 +98,79 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
         let mut state = hwaccel::OpenGLContextState::new();
         state.save_state(gl);
         // rerender mipmaps
+        
+        let (mut w, mut h) = (width, height);
+        let mut i = 1;
+        let mut prev_w = w;
+        let mut prev_h = h;
+        w = (w/2).max(1);
+        h = (h/2).max(1);
+        
+        let mut _shader = get_mipshader(gl).lock().unwrap();
+        let shader = &mut *_shader;
+        
+        loop
         {
-            let (mut w, mut h) = (width, height);
-            let mut i = 1;
-            let mut prev_w = w;
-            let mut prev_h = h;
-            w = (w/2).max(1);
-            h = (h/2).max(1);
+            gl.use_program(Some(shader.program));
+            gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            shader.texture_handle[0] = Some(handle);
+            gl.viewport(0, 0, w as i32, h as i32);
             
-            let mut _shader = get_mipshader(gl).lock().unwrap();
-            let shader = &mut *_shader;
+            gl.bind_texture(glow::TEXTURE_2D, Some(handle));
+            gl.tex_image_2d(glow::TEXTURE_2D, i as i32, glow::RGBA8 as i32, w as i32, h as i32, 0, glow::RGBA, UNSIGNED_BYTE, PixelUnpackData::Slice(None));
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, i - 1);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, i);
             
             let framebuffer = gl.create_framebuffer().unwrap();
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
             
-            loop
+            // Attach texture at the desired mip level
+            gl.framebuffer_texture_2d(
+                glow::FRAMEBUFFER,
+                glow::COLOR_ATTACHMENT0,
+                glow::TEXTURE_2D,
+                Some(handle),
+                i,
+            );
+            if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
             {
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, i - 1);
-                gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, i - 1);
-                
-                gl.viewport(0, 0, w as i32, h as i32);
-                // Attach texture at the desired mip level
-                gl.framebuffer_texture_2d(
-                    glow::FRAMEBUFFER,
-                    glow::COLOR_ATTACHMENT0,
-                    glow::TEXTURE_2D,
-                    Some(handle),
-                    i,
-                );
-                
-                if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE
-                {
-                    panic!("Framebuffer is not complete!");
-                }
-                
-                gl.use_program(Some(shader.program));
-                shader.texture_handle[0] = Some(handle);
-                
-                gl.clear_color(0.0, 0.0, 0.0, 0.0);
-                gl.clear(glow::COLOR_BUFFER_BIT);
-                
-                shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32)]);
-                
-                /*
-                program : glow::Program,
-                vertex_array : glow::VertexArray,
-                vertex_buffer : glow::Buffer,
-                vertices : Vec<f32>,
-                uvs : Vec<f32>,
-                need_to_delete : bool,
-                texture_handle : [Option<glow::Texture>; 8],
-                texture_sizes : [[i32; 2]; 8],
-                */
-                
-                i += 1;
-                
-                if w == 1 && h == 1
-                {
-                    break;
-                }
-                
-                prev_w = w;
-                prev_h = h;
-                
-                h = (h/2).max(1);
-                w = (w/2).max(1);
+                panic!("Framebuffer is not complete! {:?}", gl.check_framebuffer_status(glow::FRAMEBUFFER));
             }
             
+            shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32)]);
+            
+            /*
+            program : glow::Program,
+            vertex_array : glow::VertexArray,
+            vertex_buffer : glow::Buffer,
+            vertices : Vec<f32>,
+            uvs : Vec<f32>,
+            need_to_delete : bool,
+            texture_handle : [Option<glow::Texture>; 8],
+            texture_sizes : [[i32; 2]; 8],
+            */
+            
+            i += 1;
+        
             gl.bind_framebuffer(glow::FRAMEBUFFER, None);
             gl.delete_framebuffer(framebuffer);
             
-            let maxlv = (width.max(height) as f32).log2().floor() as i32;
-            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, 0);
-            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, maxlv);
+            if w == 1 && h == 1
+            {
+                break;
+            }
+            
+            prev_w = w;
+            prev_h = h;
+            
+            h = (h/2).max(1);
+            w = (w/2).max(1);
         }
+        
+        let maxlv = (width.max(height) as f32).log2().floor() as i32;
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_BASE_LEVEL, 0);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAX_LEVEL, maxlv);
         
         state.load_state(gl);
         
@@ -211,7 +210,7 @@ pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
-        gl.generate_mipmap(glow::TEXTURE_2D);
+        //gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
         println!("--ASDFASDFASDF {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
     }
@@ -248,7 +247,7 @@ pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
-        gl.generate_mipmap(glow::TEXTURE_2D);
+        //gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
         
         println!("--ASDFASDFASDF (rebuild) {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
