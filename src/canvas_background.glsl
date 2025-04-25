@@ -117,9 +117,8 @@ float miplevel(vec2 uv)
 {
     vec2 dx = dFdx(uv);
     vec2 dy = dFdy(uv);
+    
     float n = log2(max(dot(dx, dx), dot(dy, dy)));
-    if (abs(dx.x) > 0.0001 && abs(dx.y) > 0.0001)
-        n += 0.01;
     return max(0.0, n) * 0.5;
 }
 
@@ -130,13 +129,18 @@ float chebyshev(vec2 v)
 
 void main()
 {
+    vec2 dx = dFdx(uv);
+    vec2 dy = dFdy(uv);
+    
+    bool rotated = abs(dx.x) > 0.0001 && abs(dx.y) > 0.0001;
+    
     float x = (vertex.x-0.5) * width;
     float y = (vertex.y-0.5) * height;
     
     // render checkerboard background for canvas
     
-    float x_checker = floor((x - minima_x) / 8.0);
-    float y_checker = floor((y - minima_y) / 8.0);
+    float x_checker = floor(round(x - minima_x + 0.25) / 8.0);
+    float y_checker = floor(round(y - minima_y + 0.25) / 8.0);
     float checker = mod(x_checker + y_checker, 2.0);
     
     vec3 color = mix(vec3(0.8), vec3(1.0), checker);
@@ -146,8 +150,8 @@ void main()
     vec2 texsize = vec2(textureSize(user_texture_0, 0));
     vec2 uvbig = uv * texsize;
     float mip = miplevel(uvbig);
-    vec4 tex_color = textureLod(user_texture_0, uv, mip);
-    if (mip > 0.0)
+    vec4 tex_color = textureLod(user_texture_0, uv + 0.5/texsize, mip);
+    if (mip > 0.005)
     {
         tex_color *= 0.0;
         //mip = max(0.0, mip - 1.0);
@@ -167,7 +171,7 @@ void main()
         if (tex_color.a != 0.0)
             tex_color.rgb *= (1.0 / tex_color.a);
     }
-    else if (zoom_level > 1.001)
+    else if (zoom_level > 1.001 || (zoom_level < 1.2 && rotated))
     {
         // aa'd box filter
         // FIXME: work out the proper version of this

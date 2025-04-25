@@ -247,7 +247,8 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     let mut update_rect = None;
     if tex_new
     {
-        update_rect = Some(app.cache_rect);
+        let r = app.cache_rect;
+        update_rect = Some(r);
     }
     
     let texture = texture.unwrap();
@@ -290,6 +291,14 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         {
             vert[0] = vert[0].round();
             vert[1] = vert[1].round();
+            if (response.rect.width().round() as isize & 1) == 1
+            {
+                vert[0] += 0.5;
+            }
+            if (response.rect.height().round() as isize & 1) == 1
+            {
+                vert[1] += 0.5;
+            }
         }
         
         vert[0] *= 2.0/response.rect.width();

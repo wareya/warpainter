@@ -2115,23 +2115,11 @@ impl<const N : usize> Image<N>
     }
     pub (crate) fn clear_with_color_float(&mut self, color : [f32; N])
     {
-        for y in 0..self.height as isize
-        {
-            for x in 0..self.width as isize
-            {
-                self.set_pixel_float_wrapped(x, y, color);
-            }
-        }
+        self.clear_rect_with_color_float([[0.0, 0.0], [self.width as f32, self.height as f32]], color)
     }
     pub (crate) fn clear_with_color(&mut self, color : [u8; N])
     {
-        for y in 0..self.height as isize
-        {
-            for x in 0..self.width as isize
-            {
-                self.set_pixel_wrapped(x, y, color);
-            }
-        }
+        self.clear_rect_with_color_float([[0.0, 0.0], [self.width as f32, self.height as f32]], px_to_float(color))
     }
     pub (crate) fn clear(&mut self)
     {
