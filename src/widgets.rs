@@ -69,7 +69,7 @@ pub (crate) fn color_picker(ui: &mut egui::Ui, app : &mut crate::Warpainter, sma
     let mut h = app.main_color_hsv[0];
     let mut s = app.main_color_hsv[1];
     let mut v = app.main_color_hsv[2];
-    let a = app.main_color_hsv[3];
+    let a = app.main_color_rgb[3];
     
     let least_vec2 = [least as f32, least as f32].into();
     let response = ui.allocate_response(least_vec2, egui::Sense::click_and_drag());

@@ -355,6 +355,43 @@ fn draw_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_sh
 {
     draw_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock)
 }
+fn blend_brush_at_float(image : &mut Image<4>, at : [f32; 2], color : [f32; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String)
+{
+    let func = find_blend_func_float(&mode);
+    let x = at[0].floor() as isize;
+    let y = at[1].floor() as isize;
+    for uy in 0..brush_shape.height as isize
+    {
+        for ux in 0..brush_shape.width as isize
+        {
+            let mut c = brush_shape.get_pixel_float(ux, uy);
+            if c[3] > 0.0
+            {
+                let mut under_c = image.get_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize);
+                if !erase
+                {
+                    c[0] *= color[0];
+                    c[1] *= color[1];
+                    c[2] *= color[2];
+                    under_c = func(c, under_c, color[3], 1.0, false);
+                    if alpha_lock
+                    {
+                        under_c[3] = under_c[3].min(c[3]);
+                    }
+                }
+                else
+                {
+                    under_c[3] = lerp(under_c[3], 0.0, c[3] * color[3]);
+                }
+                image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, under_c);
+            }
+        }
+    }
+}
+fn blend_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String)
+{
+    blend_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock, mode)
+}
 
 fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
 {
@@ -366,7 +403,7 @@ fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
     rect
 }
 
-fn generate_brush(size : f32) -> Image<4>
+fn generate_brush(size : f32, no_aa : bool) -> Image<4>
 {
     let img_size = size.ceil() as usize;
     let mut shape = Image::blank(img_size, img_size);
@@ -376,9 +413,19 @@ fn generate_brush(size : f32) -> Image<4>
         for ux in 0..img_size as isize
         {
             let x = ux as f32 - (img_size as f32)*0.5 + 0.5;
-            if y*y + x*x < size*size/4.0
+            if no_aa
             {
-                shape.set_pixel(ux, uy, [255, 255, 255, 255]);
+                if y*y + x*x < size*size/4.0
+                {
+                    shape.set_pixel(ux, uy, [255, 255, 255, 255]);
+                }
+            }
+            else
+            {
+                let mut f = (y*y + x*x).sqrt();
+                f -= size * 0.5 - 0.5;
+                f = 1.0 - f.clamp(0.0, 1.0);
+                shape.set_pixel(ux, uy, [255, 255, 255, (f * 255.99) as u8]);
             }
         }
     }
@@ -447,8 +494,11 @@ pub (crate) struct Pencil
     cursor_memory : [f32; 2],
     cursor_log : Vec<[f32; 2]>,
     smooth_mode : bool,
+    replace : bool,
     spline : u32,
     is_eraser : bool,
+    spacing : bool,
+    last_blot : [f32; 2],
 }
 
 impl Pencil
@@ -456,7 +506,7 @@ impl Pencil
     pub (crate) fn new() -> Self
     {
         let size = 1.0;
-        let brush_shape = generate_brush(size);
+        let brush_shape = generate_brush(size, true);
         let outline_data = brush_shape.analyze_outline();
         let direction_shapes = directionalize_brush(&brush_shape);
         Pencil {
@@ -468,8 +518,11 @@ impl Pencil
             cursor_memory : [0.0, 0.0],
             cursor_log : vec!([0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]),
             smooth_mode : false,
+            replace : true,
             spline : 1,
             is_eraser : false,
+            spacing : false,
+            last_blot : [0.0, 0.0],
         }
     }
     pub (crate) fn into_eraser(mut self) -> Self
@@ -479,7 +532,7 @@ impl Pencil
     }
     pub (crate) fn update_brush(&mut self)
     {
-        self.brush_shape = generate_brush(self.size);
+        self.brush_shape = generate_brush(self.size, self.replace);
         self.outline_data = self.brush_shape.analyze_outline();
         self.direction_shapes = directionalize_brush(&self.brush_shape);
     }
@@ -510,7 +563,7 @@ impl Tool for Pencil
         // press
         if new_input.held[0] && !self.prev_input.held[0]
         {
-            app.begin_edit(true, false);
+            app.begin_edit(self.replace || self.is_eraser || app.eraser_mode, false);
             self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
             
             for n in self.cursor_log.iter_mut()
@@ -649,13 +702,36 @@ impl Tool for Pencil
                     let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
                     if !self.prev_input.held[0]
                     {
-                        draw_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked);
+                        if !self.replace
+                        {
+                            blend_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string());
+                        }
+                        else
+                        {
+                            draw_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked);
+                        }
                         app.mark_current_layer_dirty(grow_box([coord, coord], size_vec));
+                        self.last_blot = coord2;
                     }
                     else if prev_coord[0] != coord[0] || prev_coord[1] != coord[1]
                     {
-                        draw_brush_line_no_start_float(image, prev_coord2, coord2, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
-                        app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
+                        if !self.replace
+                        {
+                            let mut d = vec_sub(&coord2, &self.last_blot);
+                            while vec_len(&d) >= self.size * 0.25
+                            {
+                                let next = vec_add(&self.last_blot, &vec_mul_scalar(&vec_normalize(&d), self.size * 0.25));
+                                blend_brush_at_float(image, next, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string());
+                                self.last_blot = next;
+                                d = vec_sub(&coord2, &self.last_blot);
+                            }
+                            app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
+                        }
+                        else
+                        {
+                            draw_brush_line_no_start_float(image, prev_coord2, coord2, color, &self.direction_shapes, offset_vec, eraser, alpha_locked);
+                            app.mark_current_layer_dirty(grow_box([prev_coord, coord], size_vec));
+                        }
                     }
                 }
                 
@@ -721,6 +797,13 @@ impl Tool for Pencil
         
         ui.checkbox(&mut self.smooth_mode, "Smooth Diagonals");
         
+        let old_replace = self.replace;
+        ui.checkbox(&mut self.replace, "No Blending");
+        if self.replace != old_replace
+        {
+            self.update_brush();
+        }
+        
         ui.label("Spline Smoothing");
         ui.label("(for low FPS devices)");
         let mut spline = self.spline as f32;
@@ -746,7 +829,7 @@ impl Line
     pub (crate) fn new() -> Self
     {
         let size = 1.0;
-        let brush_shape = generate_brush(size);
+        let brush_shape = generate_brush(size, true);
         let outline_data = brush_shape.analyze_outline();
         let direction_shapes = directionalize_brush(&brush_shape);
         Line {
@@ -766,7 +849,7 @@ impl Line
     }
     pub (crate) fn update_brush(&mut self)
     {
-        self.brush_shape = generate_brush(self.size);
+        self.brush_shape = generate_brush(self.size, true);
         self.outline_data = self.brush_shape.analyze_outline();
         self.direction_shapes = directionalize_brush(&self.brush_shape);
     }
