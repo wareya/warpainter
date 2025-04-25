@@ -112,8 +112,6 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
         loop
         {
             gl.use_program(Some(shader.program));
-            gl.clear_color(0.0, 0.0, 0.0, 0.0);
-            gl.clear(glow::COLOR_BUFFER_BIT);
             shader.texture_handle[0] = Some(handle);
             gl.viewport(0, 0, w as i32, h as i32);
             
@@ -138,18 +136,9 @@ pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : 
                 panic!("Framebuffer is not complete! {:?}", gl.check_framebuffer_status(glow::FRAMEBUFFER));
             }
             
+            gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
             shader.render(gl, &[("miplevel", i as f32), ("prev_w", prev_w as f32), ("prev_h", prev_h as f32), ("w", w as f32), ("h", h as f32)]);
-            
-            /*
-            program : glow::Program,
-            vertex_array : glow::VertexArray,
-            vertex_buffer : glow::Buffer,
-            vertices : Vec<f32>,
-            uvs : Vec<f32>,
-            need_to_delete : bool,
-            texture_handle : [Option<glow::Texture>; 8],
-            texture_sizes : [[i32; 2]; 8],
-            */
             
             i += 1;
         
@@ -210,7 +199,6 @@ pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
-        //gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
         println!("--ASDFASDFASDF {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
     }
@@ -247,7 +235,6 @@ pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
-        //gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
         
         println!("--ASDFASDFASDF (rebuild) {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
