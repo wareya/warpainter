@@ -359,12 +359,14 @@ fn blend_brush_at_float(image : &mut Image<4>, at : [f32; 2], color : [f32; 4], 
 {
     let func = find_blend_func_float(&mode);
     let x = at[0].floor() as isize;
+    let xoffs = at[0] - x as f32;
     let y = at[1].floor() as isize;
-    for uy in 0..brush_shape.height as isize
+    let yoffs = at[1] - y as f32;
+    for uy in 0..brush_shape.height as isize+1
     {
-        for ux in 0..brush_shape.width as isize
+        for ux in 0..brush_shape.width as isize+1
         {
-            let mut c = brush_shape.get_pixel_float(ux, uy);
+            let mut c = brush_shape.get_pixel_float_lerped(ux as f32 + xoffs - 1.0, uy as f32 + yoffs - 1.0);
             if c[3] > 0.0
             {
                 let mut under_c = image.get_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize);
@@ -564,7 +566,11 @@ impl Tool for Pencil
         if new_input.held[0] && !self.prev_input.held[0]
         {
             app.begin_edit(self.replace || self.is_eraser || app.eraser_mode, false);
-            self.cursor_memory = vec_floor(&new_input.canvas_mouse_coord);
+            self.cursor_memory = new_input.canvas_mouse_coord;
+            if self.replace
+            {
+                self.cursor_memory = vec_floor(&self.cursor_memory);
+            }
             
             for n in self.cursor_log.iter_mut()
             {
@@ -657,8 +663,8 @@ impl Tool for Pencil
             if new_input.held[0] || self.prev_input.held[0]
             {
                 let do_smooth = self.smooth_mode;
-                let prev_coord = if self.smooth_mode { self.cursor_memory } else { vec_floor(&prev_in) };
-                let mut coord = vec_floor(&new_in);
+                let prev_coord = if self.smooth_mode { self.cursor_memory } else { if self.replace { vec_floor(&prev_in) } else { vec_sub(&prev_in, &[0.5, 0.5]) } };
+                let mut coord = if self.replace { vec_floor(&new_in) } else { vec_sub(&new_in, &[0.5, 0.5]) };
                 
                 // broken lint
                 #[allow(clippy::suspicious_else_formatting)]
@@ -698,7 +704,7 @@ impl Tool for Pencil
                 let alpha_locked = app.current_layer_is_alpha_locked();
                 if let Some(image) = app.get_editing_image()
                 {
-                    let size_vec = [self.brush_shape.width as f32, self.brush_shape.height as f32];
+                    let size_vec = [self.brush_shape.width as f32 + 1.0, self.brush_shape.height as f32 + 1.0];
                     let offset_vec = [(self.brush_shape.width/2) as isize, (self.brush_shape.height/2) as isize];
                     if !self.prev_input.held[0]
                     {

@@ -18,10 +18,10 @@ pub (crate) fn alpha_combine(a : f32, b : f32) -> f32
 }
 
 #[inline]
-pub (crate) fn px_lerp_float(a : [f32; 4], b : [f32; 4], amount : f32) -> [f32; 4]
+pub (crate) fn px_lerp_float<const N : usize>(a : [f32; N], b : [f32; N], amount : f32) -> [f32; N]
 {
-    let mut r = [0.0; 4];
-    for i in 0..4
+    let mut r = [0.0; N];
+    for i in 0..N
     {
         r[i] = lerp(b[i], a[i], amount);
     }

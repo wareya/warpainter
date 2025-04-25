@@ -67,6 +67,8 @@ impl CanvasInputState
             
             self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
             self.zoom = mt.zoom_delta;
+            
+            
         }
         
         if !response.is_pointer_button_down_on() && !response.drag_stopped()
@@ -109,6 +111,8 @@ impl CanvasInputState
 
 pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is_global : bool) -> (egui::Response, CanvasInputState)
 {
+    let realstart = web_time::Instant::now();
+    
     let input = ui.input(|input| input.clone());
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
     let painter = ui.painter_at(response.rect);
@@ -204,11 +208,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     // render canvas
     
-    //let start = std::time::SystemTime::now();
+    let start = web_time::Instant::now();
     
     use std::sync::Mutex;
     use std::sync::LazyLock;
     static LAST_PROGRESS : LazyLock<Arc<Mutex<u128>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(!0u128)));
+    
+    let start = web_time::Instant::now();
     
     use std::ops::DerefMut;
     let mut tex_new = false;
@@ -229,7 +235,13 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         //println!("reflattening");
         app.flatten();
         texture = app.flatten_use();
+        assert!(texture.is_some());
         tex_new = true;
+    }
+    
+    if start.elapsed().as_secs_f64() > 0.001
+    {
+        //println!("flatten time: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
     }
     
     let mut update_rect = None;
@@ -240,14 +252,11 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     let texture = texture.unwrap();
     
-    /*
-    let elapsed = start.elapsed();
-    let elapsed = match elapsed { Ok(x) => x.as_secs_f64(), Err(x) => x.duration().as_secs_f64() };
-    if elapsed > 0.1
+    let elapsed = start.elapsed().as_secs_f64();
+    if elapsed > 0.01
     {
-        println!("time to flatten: {}", elapsed);
+        //println!("time to flatten: {}ms", elapsed * 1000.0);
     }
-    */
     
     let (w, h) = (texture.width as f32, texture.height as f32);
     
@@ -296,7 +305,9 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         ("minima_y", minima_y),
         ("zoom_level", xform.get_scale()),
     ];
+    
     let loops = app.get_selection_loop_data();
+    
     let canvas_shader = Arc::clone(app.shaders.get("canvasbackground").unwrap());
     
     let mut shader = canvas_shader.lock();
@@ -307,6 +318,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     if tex_new
     {
+        let start = web_time::Instant::now();
         #[allow(irrefutable_let_patterns)] // bugged. the binding holds a lock guard
         if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
         {
@@ -330,8 +342,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
             {
                 if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
                 {
-                    println!("partial upload {:?}", rect);
-                    
+                    //println!("partial upload {:?}", rect);
                     quadrender::update_texture(gl, handle, t, rect);
                 }
             }
@@ -348,6 +359,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         }
         
         app.cache_rect_reset();
+        //println!("canvas upload time: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
     }
     drop(shader);
     
@@ -374,6 +386,11 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         }
     }
     
+    let realtime = realstart.elapsed().as_secs_f32();
+    if realtime > 0.001
+    {
+        //println!("canvas update time: {:.3}ms", realtime * 1000.0);
+    }
     /*
     let grid_size = 16.0;
     

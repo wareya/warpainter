@@ -564,6 +564,8 @@ impl Layer
     }
     pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>) -> &'a Image<4>
     {
+        let start = web_time::Instant::now();
+
         if self.adjustment.is_some()
         {
             if self.flattened_data.is_none()
@@ -587,13 +589,14 @@ impl Layer
         else
         {
             //println!("group is dirty, reflattening ({:?})", dirty_rect);
+            
             let mut new_dirty_rect;
             
             #[allow(clippy::unnecessary_unwrap)] // broken lint
             if self.flattened_data.is_none() || dirty_rect.is_none()
             {
-                //println!("asdf");
                 new_dirty_rect = [[0.0, 0.0], [canvas_width as f32, canvas_height as f32]];
+                //println!("new buffer...");
                 self.flattened_data = Some(Image::blank(canvas_width, canvas_height));
             }
             else
@@ -845,6 +848,7 @@ impl Layer
                 }
                 first = false;
             }
+            //println!("--ASDFASDFASDF {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
             self.flattened_dirty_rect = None;
             return self.flattened_data.as_ref().unwrap();
         }

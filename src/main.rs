@@ -223,6 +223,8 @@ struct Warpainter
     #[serde(skip)]
     editing_image : Option<Image<4>>,
     #[serde(skip)]
+    editing_image_display : Option<Image<4>>,
+    #[serde(skip)]
     editing_offset : [f32; 2],
     
     #[serde(skip)]
@@ -295,6 +297,7 @@ impl Default for Warpainter
             edit_is_direct : false,
             edit_ignores_selection : false,
             editing_image : None,
+            editing_image_display : None,
             editing_offset : [0.0, 0.0],
             
             //image_preview : None,
@@ -718,10 +721,12 @@ impl Warpainter
                     if inplace
                     {
                         self.editing_image = Some(image.clone());
+                        self.editing_image_display = Some(image.clone());
                     }
                     else
                     {
                         self.editing_image = Some(image.blank_with_same_size());
+                        self.editing_image_display = Some(image.blank_with_same_size());
                     }
                     self.editing_offset = [layer.offset[0] as f32, layer.offset[1] as f32];
                 }
@@ -776,10 +781,10 @@ impl Warpainter
     }
     fn flatten(&mut self) -> &Image<4>
     {
-        if let Some(override_image) = self.get_temp_edit_image()
+        if self.get_temp_edit_image()
         {
             // FIXME convey whether the edit is a direct edit
-            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&override_image))
+            self.layers.flatten_as_root(self.canvas_width, self.canvas_height, Some(self.current_layer), Some(&self.editing_image_display.as_ref().unwrap()))
         }
         else
         {
@@ -790,7 +795,7 @@ impl Warpainter
     {
         self.layers.flatten_get_cached()
     }
-    fn get_temp_edit_image(&self) -> Option<Image<4>> // only used in flattening
+    fn get_temp_edit_image(&mut self) -> bool // only used in flattening
     {
         if let Some(edit_image) = &self.editing_image
         {
@@ -800,40 +805,57 @@ impl Warpainter
                 {
                     if let Some(current_image) = &layer.data
                     {
+                        //let rect = layer.edited_dirty_rect.unwrap_or([[0.0, 0.0], [0.0, 0.0]]);
+                        let rect = self.cache_rect;
+                        let rect = rect_translate(rect, vec_neg(&layer.offset));
                         if self.edit_is_direct
                         {
                             if let Some(selection_mask) = &self.selection_mask
                             {
                                 if !self.edit_ignores_selection
                                 {
-                                    let mut under = current_image.clone();
-                                    under.blend_from(edit_image, Some(selection_mask), None, 1.0, [0, 0], "Interpolate");
-                                    return Some(under);
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, None, None, 1.0, 1.0, false, [0, 0], "Copy");
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, Some(selection_mask), None, 1.0, 1.0, false, [0, 0], "Clamp Erase");
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, current_image, Some(selection_mask), None, 1.0, 1.0, false, [0, 0], "Weld");
+                                }
+                                else
+                                {
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, None, None, 1.0, 1.0, false, [0, 0], "Copy");
                                 }
                             }
-                            return Some(edit_image.clone());
+                            else
+                            {
+                                self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, None, None, 1.0, 1.0, false, [0, 0], "Copy");
+                            }
+                            return true;
                         }
                         else
                         {
-                            let mut drawn = current_image.clone(); // FIXME performance drain, find a way to use a dirty rect here
-                            drawn.blend_from(edit_image, None, None, 1.0, [0, 0], "Normal"); // FIXME use drawing opacity / brush alpha
+                            self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, current_image, None, None, 1.0, 1.0, false, [0, 0], "Copy");
                             
                             if let Some(selection_mask) = &self.selection_mask
                             {
                                 if !self.edit_ignores_selection
                                 {
-                                    let mut under = current_image.clone();
-                                    under.blend_from(&drawn, Some(selection_mask), None, 1.0, [0, 0], "Interpolate");
-                                    return Some(under);
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, Some(selection_mask), None, 1.0, 1.0, false, [0, 0], "Normal");
+                                }
+                                else
+                                {
+                                    self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, None, None, 1.0, 1.0, false, [0, 0], "Normal");
                                 }
                             }
-                            return Some(drawn);
+                            else
+                            {
+                                self.editing_image_display.as_mut().unwrap().blend_rect_from(rect, edit_image, None, None, 1.0, 1.0, false, [0, 0], "Normal");
+                            }
+                            
+                            return true;
                         }
                     }
                 }
             }
         }
-        None
+        false
     }
     
     #[inline(never)]
@@ -843,15 +865,16 @@ impl Warpainter
         
         self.edit_progress += 1;
         self.debug(format!("Committing edit {}", self.edit_progress));
-        if let Some(mut image) = self.get_temp_edit_image()
+        if self.get_temp_edit_image()
         {
+            let image = self.editing_image_display.as_mut().unwrap();
             if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
             {
                 if !layer.locked
                 {
                     if let Some(current_image) = &mut layer.data
                     {
-                        std::mem::swap(&mut image, &mut *current_image);
+                        std::mem::swap(image, &mut *current_image);
                         
                         self.redo_buffer = Vec::new();
                         let mut rect : Option<[[f32; 2]; 2]> = layer.edited_dirty_rect;
@@ -864,11 +887,11 @@ impl Warpainter
                         //println!("B? {:?}", rect);
                         let start = web_time::Instant::now();
                         let event = Image::<4>::analyze_edit(&image, current_image, self.current_layer, rect);
-                        println!("Edit analysis time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
+                        println!("Edit analysis time: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
                         //println!("{}", event.len());
                         let start = web_time::Instant::now();
                         self.undo_buffer.push(event.compress());
-                        println!("Edit encoding time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
+                        println!("Edit encoding time: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
                     }
                 }
             }
@@ -879,6 +902,7 @@ impl Warpainter
         //}
         
         self.editing_image = None;
+        self.editing_image_display = None;
         self.edit_is_direct = false;
         self.edit_ignores_selection = false;
     }
@@ -894,6 +918,7 @@ impl Warpainter
                 layer.dirtify_edited();
             }
             self.editing_image = None;
+            self.editing_image_display = None;
             self.edit_is_direct = false;
             self.edit_ignores_selection = false;
         }
@@ -2138,6 +2163,19 @@ impl eframe::App for Warpainter
                             let id = layer.uuid;
                             self.full_rerender_with(id);
                             self.log_layer_info_change();
+                        }
+                    }
+                    
+                    if add_button!(ui, "funny alpha", "Funny Alpha Flag", funny_flag).clicked()
+                    {
+                        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+                        {
+                            if let Some(data) = &layer.data
+                            {
+                                let start = web_time::Instant::now();
+                                let _n = data.opaque_bounds();
+                                println!("outline calc time: {:.3}ms", start.elapsed().as_secs_f64() * 1000.0);
+                            }
                         }
                     }
                 });

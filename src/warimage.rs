@@ -349,6 +349,26 @@ impl<const N : usize> Image<N>
         }
         self.get_pixel_float_wrapped(x, y)
     }
+    #[inline]
+    pub (crate) fn get_pixel_float_lerped(&self, x : f32, y : f32) -> [f32; N]
+    {
+        let x0 = (x.floor()) as isize;
+        let x1 = (x0 + 1) as isize;
+        let xi = x - x0 as f32;
+        let y0 = (y.floor()) as isize;
+        let y1 = (y0 + 1) as isize;
+        let yi = y - y0 as f32;
+        
+        let a0 = self.get_pixel_float(x0, y0);
+        let a1 = self.get_pixel_float(x1, y0);
+        let b0 = self.get_pixel_float(x0, y1);
+        let b1 = self.get_pixel_float(x1, y1);
+        
+        let c0 = px_lerp_float(a0, a1, xi);
+        let c1 = px_lerp_float(b0, b1, xi);
+        
+        px_lerp_float(c0, c1, yi)
+    }
 }
 
 fn nop<T>(t : T) -> T
@@ -1586,7 +1606,7 @@ impl Image<4>
                                 );
                                 
                                 let elapsed = start.elapsed().as_secs_f32();
-                                println!("HW Blended in {:.6} seconds", elapsed);
+                                println!("HW Blended in {:.6}ms", elapsed * 1000.0);
                                 
                                 if let Err(err) = &n
                                 {
@@ -1755,7 +1775,7 @@ impl Image<4>
         }
         
         let elapsed = start.elapsed().as_secs_f32();
-        println!("SW blended in {:.6} seconds", elapsed);
+        println!("SW blended in {:.6}ms", elapsed * 1000.0);
     }
     pub (crate) fn blend_from(&mut self, top : &Image<4>, mask : Option<&Image<1>>, mask_info : Option<&MaskInfo>, top_opacity : f32, top_offset : [isize; 2], blend_mode : &str)
     {
@@ -2118,10 +2138,8 @@ impl<const N : usize> Image<N>
         self.clear_with_color_float([0.0; N]);
     }
     
-    pub (crate) fn analyze_outline(&self) -> Vec<Vec<[f32; 2]>>
+    pub (crate) fn opaque_bounds(&self) -> (usize, usize, usize, usize)
     {
-        // find bounds of opaque section
-        
         let mut min_x = self.width;
         let mut max_x = 0;
         let mut min_y = self.height;
@@ -2144,13 +2162,20 @@ impl<const N : usize> Image<N>
                 }
             }
         } }
-        do_loop!(true , 0..self.height            , 0..self.width, &mut min_y, usize::min);
-        do_loop!(true , (min_y..self.height).rev(), 0..self.width, &mut max_y, usize::max);
-        do_loop!(false, 0..self.width             , min_y..=max_y, &mut min_x, usize::min);
-        do_loop!(false, (min_x..self.width).rev() , min_y..=max_y, &mut max_x, usize::max);
+        do_loop!(true , (0..self.height).rev(), 0..self.width, &mut max_y, usize::max);
+        do_loop!(true , min_y..self.height    , 0..self.width, &mut min_y, usize::min);
+        do_loop!(false, (0..self.width).rev() , min_y..=max_y, &mut max_x, usize::max);
+        do_loop!(false, min_x..self.width     , min_y..=max_y, &mut min_x, usize::min);
         
         max_x += 1;
         max_y += 1;
+        
+        (min_x, min_y, max_x, max_y)
+    }
+    pub (crate) fn analyze_outline(&self) -> Vec<Vec<[f32; 2]>>
+    {
+        // find bounds of opaque section
+        let (min_x, min_y, max_x, max_y) = self.opaque_bounds();
         
         let w = max_x - min_x;
         let h = max_y - min_y;
