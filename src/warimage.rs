@@ -780,8 +780,8 @@ impl Image<4>
                 Box::new(move |_c : [f32; 4], x : usize, y : usize, _img : Option<&Self>| -> [f32; 4]
                 {
                     //let img = img.unwrap();
-                    let x = x as isize;
-                    let y = y as isize;
+                    let _x = x as isize;
+                    let _y = y as isize;
                     //let c = img.get_pixel_float(x, y);
                     //[r, g, b, c[3]]
                     [r, g, b, 1.0]
@@ -805,7 +805,7 @@ impl Image<4>
                 
                 //let wdp = wd/(wd+hd);
                 //let wdp = wd/wd.max(hd);
-                let wdp = 1.0;
+                let _wdp = 1.0;
                 
                 Box::new(move |_c : [f32; 4], x : usize, y : usize, img : Option<&Self>| -> [f32; 4]
                 {
@@ -891,17 +891,17 @@ impl Image<4>
                 
                 let w = x1 - x0;
                 let h = y1 - y0;
-                let wr = 1.0 / w;
-                let hr = 1.0 / h;
+                let _wr = 1.0 / w;
+                let _hr = 1.0 / h;
                 let wh = w * 0.5;
                 let hh = h * 0.5;
                 
                 let n = (a/h).abs().max((b/w).abs());
-                let asdf = 1.0 / w.min(h);
+                let _asdf = 1.0 / w.min(h);
                 
                 let wd = (w * a + h * b).abs();
                 let hd = (h * a - h * b).abs();
-                let asdf2 = 1.0 / wd.min(hd);
+                let _asdf2 = 1.0 / wd.min(hd);
                 
                 let s = fx.1["scale"][0].f() / 100.0;
                 
@@ -909,7 +909,7 @@ impl Image<4>
                 
                 //let wdp = wd/(wd+hd);
                 //let wdp = wd/wd.max(hd);
-                let wdp = 1.0;
+                let _wdp = 1.0;
                 
                 Box::new(move |_c : [f32; 4], x : usize, y : usize, _img : Option<&Self>| -> [f32; 4]
                 {
@@ -1880,7 +1880,7 @@ impl Image<4>
     pub (crate) fn apply_edit(&mut self, event : &LayerPaint, is_undo : bool)
     {
         let rect = event.rect;
-        let w = rect[1][0] - rect[0][0];
+        let _w = rect[1][0] - rect[0][0];
         
         let source = if is_undo { &event.old } else { &event.new };
         

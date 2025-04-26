@@ -4,6 +4,20 @@ version = "0.1.0"
 license = "Apache-2.0 WITH LLVM-exception"
 edition = "2021"
 
+[lib]
+crate-type=["lib", "cdylib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "bin"
+path = "src/main.rs"
+
+[package.metadata.android.sdk]
+debuggable = true
+min_sdk_version = 35
+target_sdk_version = 35
+max_sdk_version = 99
+
 [profile.release]
 debug = true
 incremental = true
@@ -34,7 +48,6 @@ base64 = "0.21.0"
 ouroboros = "0.15.6"
 getrandom = { version = "0.2.11", features = ["js"] }
 rand = "0.8.0"
-poll-promise = { version = "0.3.0", features = ["web"] }
 rayon = "1.10.0"
 libflate = "2.1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -49,26 +62,6 @@ xot = "0.31.2"
 png = "0.17.16"
 glow = "0.16.0"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-glutin = { version = "0.32" }
-winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
-
-[target.'cfg(target_os = "android")'.dependencies]
-ndk-sys = "0.4.1"
-
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "accesskit", "web_screen_reader"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-eframe = { version = "0.31.1", default-features = false, features = ["x11", "wayland", "default_fonts", "glow", "accesskit", "web_screen_reader"] }
-
-[dependencies.rfd]
-version = "0.15"
-default-features = false
-features = [
-    "async-std", "xdg-portal",
-]
-
 [dependencies.uuid]
 version = "=1.1.2"
 features = [
@@ -77,8 +70,37 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+glutin = { version = "0.32" }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-sys = "0.6.0"
+android-activity = "0.6.0"
+jni = { git = "https://github.com/jni-rs/jni-rs", rev = "40d5ec1a36dbe63dfbfb99d47a7f3364f3674b3c" }
+eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "android-native-activity"] }
+egui-winit = { version = "0.31.1" }
+poll-promise = { version = "0.3.0" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.31.1", default-features = false, features = ["x11", "wayland", "default_fonts", "glow", "accesskit"] }
+poll-promise = { version = "0.3.0", features = ["web"] }
+
+[target.'cfg(all(not(target_os = "linux"), not(target_os = "android")))'.dependencies]
+eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "accesskit", "web_screen_reader"] }
+poll-promise = { version = "0.3.0", features = ["web"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies.rfd]
+version = "0.15"
+default-features = false
+features = [
+    "async-std", "xdg-portal",
+]
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 arboard = "3.4.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 atomicwrites = "0.4.4"
 lz4 = "1.28.1"
 

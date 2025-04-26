@@ -13,8 +13,8 @@ pub (crate) fn blend_with_fx(
     child_fx : Vec<(String, HashMap<String, Vec<FxData>>)>,
     opacity : f32,
     fill_opacity : f32,
-    child_clipped : bool,
-    child_funny_flag : bool,
+    _child_clipped : bool, // FIXME
+    _child_funny_flag : bool, // FIXME
     mode : String,
 )
 {

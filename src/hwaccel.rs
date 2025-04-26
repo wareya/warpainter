@@ -120,9 +120,9 @@ impl OpenGLContextState
         }
     }
 
-    pub fn save_state(&mut self, gl : &Context)
+    pub fn save_state(&mut self, _gl : &Context)
     {
-        unsafe
+        //unsafe
         {
             //self.program = gl.get_parameter_program(CURRENT_PROGRAM);
             
@@ -130,7 +130,7 @@ impl OpenGLContextState
                 ARRAY_BUFFER,
             );
             
-            for &target in &buffer_targets
+            for &_target in &buffer_targets
             {
                 //let buffer = gl.get_parameter_buffer(target);
                 //self.buffers.insert(target, buffer);
@@ -146,7 +146,7 @@ impl OpenGLContextState
             
             gl.bind_framebuffer(FRAMEBUFFER, None);
             
-            for (&target, &buf) in &self.buffers
+            for (&target, &_buf) in &self.buffers
             {
                 //gl.bind_buffer(target, buf);
                 gl.bind_buffer(target, None);
@@ -227,13 +227,13 @@ pub (crate) fn hw_blend(gl : &Context, mut rect : [[i32; 2]; 2], f : Option<Stri
         else
         {
             let prefix = {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             {
-                "#version 330\n".to_string()
+                "#version 330\n//from hwaccel\n".to_string()
             }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(not(all(not(target_os = "android"), not(target_arch = "wasm32"))))]
             {
-                "#version 300 es\nprecision highp float;".to_string()
+                "#version 300 es\nprecision highp float;\n//from hwaccel\n".to_string()
             }};
             
             let shvert = gl.create_shader(VERTEX_SHADER);

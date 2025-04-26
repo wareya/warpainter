@@ -564,7 +564,7 @@ impl Layer
     }
     pub(crate) fn flatten_as_root<'a>(&'a mut self, canvas_width : usize, canvas_height : usize, override_uuid : Option<u128>, override_data : Option<&Image<4>>) -> &'a Image<4>
     {
-        let start = web_time::Instant::now();
+        let _start = web_time::Instant::now();
 
         if self.adjustment.is_some()
         {

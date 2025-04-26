@@ -2,6 +2,8 @@
 filehash = false
 
 [serve]
+addresses = ["192.168.50.14"]
 headers = { "Cross-Origin-Embedder-Policy" = "require-corp", "Cross-Origin-Opener-Policy" = "same-origin" }
 port = 8080
-
+tls_key_path = "key.pem"
+tls_cert_path = "cert.pem"

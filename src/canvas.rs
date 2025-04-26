@@ -208,7 +208,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     // render canvas
     
-    let start = web_time::Instant::now();
+    let _start = web_time::Instant::now();
     
     use std::sync::Mutex;
     use std::sync::LazyLock;
@@ -327,7 +327,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     if tex_new
     {
-        let start = web_time::Instant::now();
+        let _start = web_time::Instant::now();
         #[allow(irrefutable_let_patterns)] // bugged. the binding holds a lock guard
         if let x = LAST_PROGRESS.lock().unwrap().deref_mut()
         {

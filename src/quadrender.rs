@@ -1,7 +1,7 @@
 use eframe::egui_glow::glow;
-use glow::{HasContext, PixelUnpackData, RGBA8, UNSIGNED_BYTE};
+use glow::{HasContext, PixelUnpackData, UNSIGNED_BYTE};
 use crate::hwaccel;
-use crate::{px_lerp_biased_float, px_lerp_float, px_to_int, warimage::*};
+use crate::warimage::*;
 
 pub (crate) struct ShaderQuad
 {
@@ -95,11 +95,16 @@ fn get_mipshader(gl : &glow::Context) -> &'static Mutex<ShaderQuad>
     //MIPSHADER.get_or_init(|| Mutex::new(ShaderQuad::new(gl, None::<&str>).unwrap()))
 }
 
-pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, width : usize, height : usize)
+pub (crate) fn fix_mipmaps(gl : &glow::Context, handle : glow::Texture, mut width : usize, mut height : usize)
 {
     if width == 1 && height == 1 { return; }
+    
     unsafe
     {
+        let max_texture_size = gl.get_parameter_i32(glow::MAX_TEXTURE_SIZE) as usize;
+        width = width.min(max_texture_size);
+        height = height.min(max_texture_size);
+        
         gl.bind_texture(glow::TEXTURE_2D, Some(handle));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
@@ -260,7 +265,7 @@ pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let bytes = texture.bytes();
         
-        let internal_type = if texture.is_float() { glow::RGBA16F } else { glow::RGBA8 } as i32;
+        //let internal_type = if texture.is_float() { glow::RGBA16F } else { glow::RGBA8 } as i32;
         let input_type = if texture.is_float() { glow::FLOAT } else { glow::UNSIGNED_BYTE };
         
         gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
@@ -344,14 +349,14 @@ impl ShaderQuad
             let mut vertex_shader = VERT_SHADER.to_string();
             let mut fragment_shader = shader.map(|x| x.to_string()).unwrap_or_else(|| FRAG_SHADER.to_string());
             
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             {
-                vertex_shader   = "#version 330".to_string() + &vertex_shader;
-                fragment_shader = "#version 330".to_string() + &fragment_shader;
+                vertex_shader   = "#version 330\n//from quadrender\n".to_string() + &vertex_shader;
+                fragment_shader = "#version 330\n//from quadrender\n".to_string() + &fragment_shader;
             }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(not(all(not(target_os = "android"), not(target_arch = "wasm32"))))]
             {
-                let prefix = "#version 300 es\nprecision highp float;".to_string();
+                let prefix = "#version 300 es\nprecision highp float;\n//from quadrender\n".to_string();
                 vertex_shader   = prefix.clone() + &vertex_shader;
                 fragment_shader = prefix.clone() + &fragment_shader;
                 
