@@ -3779,6 +3779,7 @@ dependencies = [
  "jni 0.21.1 (git+https://github.com/jni-rs/jni-rs?rev=40d5ec1a36dbe63dfbfb99d47a7f3364f3674b3c)",
  "js-sys",
  "lazy_static",
+ "libc",
  "libflate",
  "lz4",
  "lz4_flex",

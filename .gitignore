@@ -3,3 +3,6 @@
 ignore.*
 dist/
 *.pem
+.trash/*
+android/*/
+src/data/classes.dex

@@ -1,4 +1,4 @@
 fn main()
 {
-	warpainter::do_main()
+	libwarpainter::do_main()
 }

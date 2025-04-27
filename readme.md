@@ -113,3 +113,17 @@ similar exceptions.
 Unless you explicitly state otherwise, any contribution intentionally
 submitted for inclusion in the work by you shall be licensed as above,
 without any additional terms or conditions.
+
+## Android thing
+
+Explanation: TBD
+
+```
+$ ls .trash # androidx libs
+activity-classes.jar
+annotation-1.0.2.jar
+core-classes.jar
+lifecycle-common-2.6.2.jar
+lifecycle-viewmodel-classes.jar
+savedstate-classes.jar
+```

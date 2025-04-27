@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sharedUserId="moe.wareya"
+    android:versionCode="16777472"
+    android:versionName="0.1.0"
+    android:compileSdkVersion="35"
+    android:compileSdkVersionCodename="15"
+    package="moe.wareya.warpainter"
+    platformBuildVersionCode="35"
+    platformBuildVersionName="15">
+
+    <uses-sdk
+        android:minSdkVersion="35"
+        android:targetSdkVersion="35"
+        android:maxSdkVersion="36" />
+
+    <application
+        android:label="libwarpainter"
+        android:hasCode="false"
+        android:debuggable="true">
+
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|locale|keyboard|mnc|mcc|density">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="libwarpainter" />
+
+            <intent-filter>
+
+                <action
+                    android:name="android.intent.action.MAIN" />
+
+                <category
+                    android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".FileOpenActivity"
+            android:parentActivityName="android.app.NativeActivity" 
+            android:exported="true"
+            >
+            
+            <intent-filter>
+                <action android:name="android.intent.action.OPEN_DOCUMENT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
