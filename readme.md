@@ -120,10 +120,25 @@ Explanation: TBD
 
 ```
 $ ls .trash # androidx libs
-activity-classes.jar
+activity-1.10.1.jar
+activity-1.10.1-lint.jar
 annotation-1.0.2.jar
-core-classes.jar
+annotations-26.0.2.jar
+collection-1.5.0.jar
+collection-jvm-1.5.0.jar
+collection-ktx-1.5.0.jar
+core-1.16.0.jar
+core-common-2.2.0.jar
+core-runtime-2.2.0.jar
+kotlin-stdlib-2.1.20.jar
+kotlin-stdlib-jdk7-2.1.20.jar
+kotlin-stdlib-jdk8-2.1.20.jar
+kotlinx-coroutines-core-jvm-1.10.2.jar
 lifecycle-common-2.6.2.jar
-lifecycle-viewmodel-classes.jar
-savedstate-classes.jar
+lifecycle-livedata-core-2.8.7.jar
+lifecycle-runtime-android-2.8.7.jar
+lifecycle-viewmodel-android-2.8.7.jar
+lifecycle-viewmodel-savedstate-2.8.7.jar
+savedstate-1.2.1.jar
+
 ```
