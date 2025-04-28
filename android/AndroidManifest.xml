@@ -16,6 +16,7 @@
         android:maxSdkVersion="36" />
 
     <application
+        android:largeHeap="true"
         android:label="warpainter"
         android:hasCode="false"
         android:debuggable="true">
