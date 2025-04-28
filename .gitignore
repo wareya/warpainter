@@ -4,5 +4,7 @@ ignore.*
 dist/
 *.pem
 .trash/*
+.trash2/*
+.trash3/*
 android/*/
 src/data/classes.dex

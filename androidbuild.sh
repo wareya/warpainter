@@ -10,12 +10,16 @@ export ANDROID_HOME="C:/Users/wareya/AppData/Local/Android/Sdk/"
 #rustup target add aarch64-linux-android
 #cargo install cargo-ndk
 
+mkdir .trash2 || true
+mkdir .trash3 || true
+
 cargo ndk -t arm64-v8a -o android/lib/ build
 
-javac -classpath "$ANDROID_HOME/platforms/android-35/android.jar;.trash/*" src/FileOpenActivity.java -d .trash/
-java -cp ".trash/*;$ANDROID_HOME/build-tools/35.0.1/lib/d8.jar" com.android.tools.r8.D8 --output src/data/ .trash/FileOpenActivity*.class .trash/*.jar --no-desugaring --min-api 30
-touch -t 198001010000 src/data/classes.dex # deterministic
-jar cvf src/data2/fileopenactivity.jar -C src/data/ classes.dex
+javac -bootclasspath "$ANDROID_HOME/platforms/android-35/android.jar*" -classpath "$ANDROID_HOME/platforms/android-35/android.jar;.trash/*" src/FileOpenActivity.java -d .trash/ -target 1.8 -source 1.8
+#java -cp ".trash/*;$ANDROID_HOME/build-tools/35.0.1/lib/d8.jar" com.android.tools.r8.D8 --output .trash2/ .trash/FileOpenActivity*.class .trash/*.jar --no-desugaring --min-api 30
+java -cp ".trash/*;$ANDROID_HOME/build-tools/35.0.1/lib/d8.jar" com.android.tools.r8.D8 --output .trash2/ .trash/moe/wareya/warpainter/FileOpenActivity*.class .trash/*.jar --min-api 30
+touch -t 198001010000 .trash2/classes.dex # deterministic
+jar cvf .trash3/fileopenactivity.jar -C .trash2/ classes.dex
 
 # don't remember where i found this
 patch_zip_timestamps() {
@@ -38,10 +42,11 @@ patch_zip_timestamps() {
 }
 
 echo "deterministicifying jar..."
-patch_zip_timestamps src/data2/fileopenactivity.jar
+patch_zip_timestamps .trash3/fileopenactivity.jar
 echo "deterministicied"
 
-cp src/data2/* android/assets
+#cp .trash2/classes.dex android/
+cp .trash3/* android/assets/
 
 "$ANDROID_HOME/build-tools/35.0.1/aapt2" link -I "$ANDROID_HOME/platforms/android-35/android.jar" --manifest android/AndroidManifest.xml -o target/warpainter-unsigned.apk
 
@@ -58,5 +63,7 @@ java -jar "$ANDROID_HOME/build-tools/35.0.1/lib/apksigner.jar" sign --ks ~/.andr
 
 adb install target/warpainter-signed.apk
 
-adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen"
+#adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen"
+adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen|[ \t]E[ \t]"
+#adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat
 

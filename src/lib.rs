@@ -1602,6 +1602,8 @@ impl eframe::App for Warpainter
         self.load_font(ctx);
         self.load_shaders(frame);
         
+        //println!("app still running! time: {:?}", web_time::Instant::now());
+        
         unsafe
         {
             if (*&raw const GL).is_none()
@@ -1742,6 +1744,43 @@ This warning will only be shown once.", self.max_texture_size);
             self.open_dialog = "".to_string();
         }
         
+        #[cfg(target_os = "android")]
+        {
+            if let Some((bytes, path, ext)) = android_check_file(self)
+            {
+                self.cancel_edit();
+                
+                let pattern = b"WarpainterDocumentCBOR";
+                let force_wpp = std::iter::Iterator::any(&mut bytes.windows(pattern.len()).take(bytes.len().min(0x20) - pattern.len() + 1), |window| window == pattern);
+                
+                if ext == "psd" && !force_wpp
+                {
+                    let start = web_time::Instant::now();
+                    wpsd_open(self, &bytes);
+                    println!("PSD load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
+                }
+                else if ext == "wpp" || force_wpp
+                {
+                    self.cancel_edit();
+                    
+                    let start = web_time::Instant::now();
+                    
+                    let reader = std::io::BufReader::new(std::io::Cursor::new(bytes));
+                    let new : Warpainter = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string()).unwrap();
+                    self.load_from(new);
+                    
+                    println!("WPP load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
+                }
+                else
+                {
+                    use image::io::Reader as ImageReader;
+                    // FIXME handle error
+                    let img = ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().unwrap().decode().unwrap().to_rgba8();
+                    let img = Image::<4>::from_rgbaimage(&img);
+                    self.load_from_img(img);
+                }
+            }
+        }
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
         {
             egui::menu::bar(ui, |ui|
@@ -1792,6 +1831,13 @@ This warning will only be shown once.", self.max_texture_size);
                     } } }
                     
                     
+                    #[cfg(target_os = "android")]
+                    {
+                        if ui.button("Open...").clicked()
+                        {
+                            android_get_file();
+                        }
+                    }
                     #[cfg(not(target_os = "android"))]
                     {
                     
@@ -3050,6 +3096,9 @@ pub fn do_main()
 
 
 #[cfg(target_os = "android")]
+static mut DEX_CLASS_LOADER : Option<jni::sys::jobject> = None;
+
+#[cfg(target_os = "android")]
 static mut APP_CONTEXT : Option<egui_winit::winit::platform::android::activity::AndroidApp> = None;
 #[cfg(target_os = "android")]
 static mut INSET_TOP : f32 = 0.0;
@@ -3138,10 +3187,98 @@ fn get_insets(app : egui_winit::winit::platform::android::activity::AndroidApp) 
 }
 
 #[cfg(target_os = "android")]
+fn android_get_file()
+{
+    use jni::objects::JClass;
+    
+    let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
+    let loader = unsafe { DEX_CLASS_LOADER.as_ref().unwrap().clone() };
+    let loader = unsafe { JObject::from_raw(loader.cast()) };
+    
+    let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) }.unwrap();
+    let mut env = vm.attach_current_thread().unwrap();
+    let activity = app.activity_as_ptr();
+    let activity = unsafe { JObject::from_raw(activity.cast()) };
+    
+    let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
+    let asdf = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
+    let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
+    
+    let fileopenactivity_class = asdf_jc;
+    
+    println!("Strange!");
+    
+    let intent = env.new_object(
+        "android/content/Intent",
+        "(Landroid/content/Context;Ljava/lang/Class;)V",
+        &[(&activity).into(), (&fileopenactivity_class).into()],
+    ).unwrap();
+    
+    if env.exception_check().unwrap() { env.exception_describe().unwrap(); panic!(); }
+    
+    println!("Hmmmm.....!");
+    
+    println!("Maybe!!!!!!");
+    
+    let x = env.call_method(&activity, "startActivity", "(Landroid/content/Intent;)V", &[(&intent).into()]);
+    
+    if env.exception_check().unwrap()
+    {
+        //println!("{}", env.exception_describe().unwrap());
+        println!("exception description:");
+        env.exception_describe();
+        println!("(end)");
+        panic!();
+    }
+}
+#[cfg(target_os = "android")]
+fn android_check_file(app : &mut crate::Warpainter) -> Option<(Vec<u8>, String, String)>
+{
+    use jni::objects::JClass;
+    use jni::objects::JByteArray;
+    
+    let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
+    let loader = unsafe { DEX_CLASS_LOADER.as_ref().unwrap().clone() };
+    let loader = unsafe { JObject::from_raw(loader.cast()) };
+    
+    let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) }.unwrap();
+    let mut env = vm.attach_current_thread().unwrap();
+    let activity = app.activity_as_ptr();
+    let activity = unsafe { JObject::from_raw(activity.cast()) };
+    
+    let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
+    let asdf = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
+    let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
+    
+    let fileopenactivity_class = asdf_jc;
+    
+    let byte_array = env.get_static_field(&fileopenactivity_class, "fileBytes", "[B").unwrap().l().unwrap();
+    if !byte_array.as_raw().is_null()
+    {
+        let jb = unsafe { JByteArray::from_raw(byte_array.as_raw()) };
+        let length = env.get_array_length(&jb).unwrap();
+        
+        let byte_data = env.convert_byte_array(&jb).unwrap();
+        
+        let q = env.call_static_method(&fileopenactivity_class, "clearBytes", "()V", &[]).unwrap();
+        
+        let s1 = env.get_static_field(&fileopenactivity_class, "fileName", "Ljava/lang/String;").unwrap().l().unwrap();
+        let s2 = env.get_static_field(&fileopenactivity_class, "fileExtension", "Ljava/lang/String;").unwrap().l().unwrap();
+        
+        let fname : String = env.get_string((&s1).into()).unwrap().into();
+        let fext : String = env.get_string((&s2).into()).unwrap().into();
+        
+        return Some((byte_data, fname, fext));
+    }
+    None
+}
+
+#[cfg(target_os = "android")]
 #[no_mangle]
 fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp)
 {
     use jni::JNIEnv;
+    use jni::objects::JClass;
     
     std::env::set_var("RUST_BACKTRACE", "full");
     unsafe { APP_CONTEXT = Some(app.clone()) };
@@ -3157,69 +3294,59 @@ fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp
     let activity = app.activity_as_ptr();
     let activity = unsafe { JObject::from_raw(activity.cast()) };
     
+    // set up DEX binary and override the default classloader so that Intent launches can see it
+    
     println!("Hello, world!");
     
-    let asdf = load_dex_class(&mut env, "fileopenactivity.jar", "FileOpenActivity");
+    let dex_class_loader = make_dex_loader(&mut env, "fileopenactivity.jar");
+    let dex_class_loader = dex_class_loader.clone();
+    unsafe { DEX_CLASS_LOADER = Some(dex_class_loader); }
+    let dex_class_loader = unsafe { JObject::from_raw(dex_class_loader) };
+    
+    if env.exception_check().unwrap() { panic!(); }
+    
+    let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
+    let asdf = env.call_method(&dex_class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
     let asdf = asdf.clone();
     let asdf = unsafe { JObject::from_raw(asdf.cast()) };
+    let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
+    
+    if env.exception_check().unwrap() { panic!(); }
+    
     println!("loaded dex class: {:?}", &asdf);
+    
+    if env.exception_check().unwrap() { panic!(); }
     
     if env.exception_check().unwrap() { panic!(); }
     
     println!("Yay!");
     
-    let cls = env.get_object_class(&asdf).unwrap();
-    println!("A");
+    let cls = env.get_object_class(&asdf_jc).unwrap();
     let str_obj : JString = env.call_method(&asdf, "getName", "()Ljava/lang/String;", &[]).unwrap().l().unwrap().into();
-    println!("B");
     let string : String = env.get_string(&str_obj).unwrap().into();
-    println!("C");
     println!("Name of loaded class is: `{}`", string);
-    
-    use jni::objects::JClass;
-    let jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
-    
-    let q = env.call_static_method(&jc, "printDebugStatic", "()V", &[]);
-    
-    //let activity_class_name = env.new_string("FileOpenActivity").unwrap();
-    //let activity_class = env.find_class("FileOpenActivity");
-    //let activity_class = env.find_class("moe/wareya/warpainter/FileOpenActivity");
-    
-    //return;
     
     if env.exception_check().unwrap()
     {
-        //println!("{}", env.exception_describe().unwrap());
         println!("exception description:");
         env.exception_describe();
         println!("(end)");
-        return;
+        panic!();
+    }
+    
+    let q = env.call_static_method(&asdf_jc, "setAPKClassLoader", "(Ljava/lang/ClassLoader;Landroid/content/Context;)V", &[(&dex_class_loader).into(), (&activity).into()]);
+    
+    if env.exception_check().unwrap()
+    {
+        println!("exception description:");
+        env.exception_describe();
+        println!("(end)");
+        panic!();
     }
     
     let q = q.unwrap();
     
-    //if env.exception_check().unwrap() { panic!(); }
-    
-    //let next_activity_class = activity_class.unwrap();
-    let next_activity_class = jc;
-    
     println!("Strange!");
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    println!("Stranger!");
-    
-    let intent = env.new_object(
-        "android/content/Intent",
-        "(Landroid/content/Context;Ljava/lang/Class;)V",
-        &[(&activity).into(), (&next_activity_class).into()],
-    ).unwrap();
-    
-    if env.exception_check().unwrap() { env.exception_describe().unwrap(); panic!(); }
-    
-    env.call_method(activity, "startActivity", "(Landroid/content/Intent;)V", &[(&intent).into()]);
-    
-    if env.exception_check().unwrap() { env.exception_describe().unwrap(); panic!(); }
     
     eframe::run_native(
         "Warpainter",
@@ -3245,7 +3372,7 @@ use std::path::Path;
 use std::ptr::null_mut;
 
 #[cfg(target_os = "android")]
-fn load_dex_class<'a>(env: &'a mut JNIEnv, jar_asset_path: &str, class_name : &str) -> JObject<'a> {
+fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a> {
     if env.exception_check().unwrap() { panic!(); }
     
     let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
@@ -3353,20 +3480,11 @@ fn load_dex_class<'a>(env: &'a mut JNIEnv, jar_asset_path: &str, class_name : &s
             JValue::Object(&JObject::null())],
     ).unwrap();
     
-    if env.exception_check().unwrap() { panic!(); }
-    
-    // Load target class
-    let class_name_j = env.new_string(class_name).unwrap();
-    let loaded_class = env.call_method(
-        dex_class_loader,
-        "loadClass",
-        "(Ljava/lang/String;)Ljava/lang/Class;",
-        &[JValue::Object(&class_name_j.into())],
-    ).unwrap()
-    .l()
-    .unwrap();
+    let thread_class = env.find_class("java/lang/Thread").unwrap();
+    let current_thread : JObject = env.call_static_method(thread_class, "currentThread", "()Ljava/lang/Thread;", &[]).unwrap().l().unwrap();
+    env.call_method(current_thread, "setContextClassLoader", "(Ljava/lang/ClassLoader;)V", &[(&dex_class_loader).into()]).unwrap();
     
     if env.exception_check().unwrap() { panic!(); }
-
-    loaded_class
+    
+    dex_class_loader
 }
