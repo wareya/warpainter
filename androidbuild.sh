@@ -1,14 +1,38 @@
 #!sh
 
+################
+#
+#
+#
+# Install Android Studio and the 35 version of the SDK inside of it. Also install the NDK inside of it.
+# Then edit the ANDROID_HOME definition to point at your Android ADK folder.
+#
+# Then:
+# rustup target add aarch64-linux-android
+# cargo install cargo-ndk
+#
+# You also need to manually download the direct and transient dependencies of FileOpenActivity.java and put them in a folder called .trash/ -- next to src/
+# Without them, the javac and java steps will fail.
+# You need to manually extract and rename some of them from the relevant .aar files on Maven Repository.
+# The others originate as plain .jar files on Maven Repository.
+# See bottom for the list of .jar files that need to be located in .trash.
+# If you can't locate one on Maven Repository, it's inside of an aar file with the same name and named classes.jar.
+#
+#
+#
+################
+
+
 set -ex
 
-export ANDROID_HOME="C:/Users/wareya/AppData/Local/Android/Sdk/"
+export ANDROID_HOME="${USERPROFILE//\\//}/AppData/Local/Android/Sdk"
 
 #export ANDROID_NDK_HOME="C:/Users/wareya/AppData/Local/Android/Sdk/ndk/29.0.13113456/"
 #export SDK_VER="35.0.1"
 
 #rustup target add aarch64-linux-android
 #cargo install cargo-ndk
+
 
 mkdir .trash2 || true
 mkdir .trash3 || true
@@ -67,3 +91,25 @@ adb install target/warpainter-signed.apk
 adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen|[ \t]E[ \t]"
 #adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat
 
+
+#$ ls .trash # androidx libs
+#activity-1.10.1.jar
+#activity-1.10.1-lint.jar
+#annotation-1.0.2.jar
+#annotations-26.0.2.jar
+#collection-1.5.0.jar
+#collection-jvm-1.5.0.jar
+#collection-ktx-1.5.0.jar
+#core-1.16.0.jar
+#core-common-2.2.0.jar
+#core-runtime-2.2.0.jar
+#kotlin-stdlib-2.1.20.jar
+#kotlin-stdlib-jdk7-2.1.20.jar
+#kotlin-stdlib-jdk8-2.1.20.jar
+#kotlinx-coroutines-core-jvm-1.10.2.jar
+#lifecycle-common-2.6.2.jar
+#lifecycle-livedata-core-2.8.7.jar
+#lifecycle-runtime-android-2.8.7.jar
+#lifecycle-viewmodel-android-2.8.7.jar
+#lifecycle-viewmodel-savedstate-2.8.7.jar
+#savedstate-1.2.1.jar

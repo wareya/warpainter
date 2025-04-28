@@ -1118,6 +1118,8 @@ impl Tool for MoveTool
         if new_input.held[0] && !self.prev_input.held[0]
         {
             self.prev_input.canvas_mouse_coord = new_input.canvas_mouse_coord;
+            // TODO: open up some kind of "metadata edit" state in Warpainter, which can be cancelled and revert transient changes.
+            // Would also hook up to the undo/redo system.
         }
         // press or hold
         if new_input.held[0]
