@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Log;
+import android.view.Display;
 import android.webkit.MimeTypeMap;
 import java.io.File;
 import java.io.FileInputStream;
@@ -141,5 +142,5 @@ public class FileOpenActivity extends ComponentActivity {
         }
         return null;
     }
-
+    
 }

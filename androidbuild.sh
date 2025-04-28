@@ -88,7 +88,7 @@ java -jar "$ANDROID_HOME/build-tools/35.0.1/lib/apksigner.jar" sign --ks ~/.andr
 adb install target/warpainter-signed.apk
 
 #adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen"
-adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen|[ \t]E[ \t]"
+adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat | grep -iP "moe.wareya.warpainter| rust|[\w]System|FileOpen|[ \t]E[ \t]|NativeContext"
 #adb logcat -c && adb shell am start -n moe.wareya.warpainter/android.app.NativeActivity && adb logcat
 
 

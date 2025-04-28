@@ -222,7 +222,7 @@ pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, textu
     {
         gl.bind_texture(glow::TEXTURE_2D, Some(handle));
         
-        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
+        gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR_MIPMAP_LINEAR as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
@@ -356,7 +356,15 @@ impl ShaderQuad
             }
             #[cfg(not(all(not(target_os = "android"), not(target_arch = "wasm32"))))]
             {
-                let prefix = "#version 300 es\nprecision highp float;\n//from quadrender\n".to_string();
+                let prefix =
+"#version 300 es
+#if defined(GL_FRAGMENT_PRECISION_HIGH) && GL_FRAGMENT_PRECISION_HIGH == 1
+    precision highp float;
+#else
+    precision mediump float;
+#endif
+//from quadrender
+".to_string();
                 vertex_shader   = prefix.clone() + &vertex_shader;
                 fragment_shader = prefix.clone() + &fragment_shader;
                 

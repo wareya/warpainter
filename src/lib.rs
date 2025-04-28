@@ -3327,8 +3327,6 @@ fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp
     
     if env.exception_check().unwrap() { panic!(); }
     
-    if env.exception_check().unwrap() { panic!(); }
-    
     println!("Yay!");
     
     let cls = env.get_object_class(&asdf_jc).unwrap();

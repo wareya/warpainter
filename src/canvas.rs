@@ -33,7 +33,7 @@ fn to_array(v : egui::Pos2) -> [f32; 2]
 
 impl CanvasInputState
 {
-    fn update(&mut self, app : &crate::Warpainter, input : &egui::InputState, response : &egui::Response)
+    fn update(&mut self, app : &crate::Warpainter, input : &egui::InputState, response : &egui::Response, pxscale : f32)
     {
         self.time = input.time as f32;
         self.delta = input.unstable_dt;
@@ -59,11 +59,8 @@ impl CanvasInputState
             self.touch_scroll[0] = mt.translation_delta.x;
             self.touch_scroll[1] = mt.translation_delta.y;
             
-            //self.touch_center[0] = mt.center_pos.x;
-            //self.touch_center[1] = mt.center_pos.y;
-            // TODO: fix when next version of egui comes out
-            self.touch_center[0] = mt.start_pos.x;
-            self.touch_center[1] = mt.start_pos.y;
+            self.touch_center[0] = mt.center_pos.x;
+            self.touch_center[1] = mt.center_pos.y;
             
             self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
             self.zoom = mt.zoom_delta;
@@ -88,6 +85,7 @@ impl CanvasInputState
             let mut coord = self.window_mouse_coord;
             let mut xform = app.xform.clone();
             let center = response.rect.center();
+            xform.scale(pxscale);
             xform.translate([center.x, center.y]);
             xform = xform.inverse();
             
@@ -115,10 +113,17 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     let mut response = ui.allocate_response(ui.available_size(), egui::Sense::click_and_drag());
     let painter = ui.painter_at(response.rect);
     
+    let scale = 1.0/ui.pixels_per_point();
+    
+    response.rect.min.x = (response.rect.min.x/scale).round()*scale;
+    response.rect.min.y = (response.rect.min.y/scale).round()*scale;
+    response.rect.max.x = (response.rect.max.x/scale).round()*scale;
+    response.rect.max.y = (response.rect.max.y/scale).round()*scale;
+    
     // collect input
     
     let mut inputstate = CanvasInputState::default();
-    inputstate.update(app, &input, &response);
+    inputstate.update(app, &input, &response, scale);
     
     if !app.loaded_shaders
     {
@@ -161,12 +166,12 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     }
     if !matches!(inputstate.touch_scroll, [0.0, 0.0])
     {
-        app.xform.translate(inputstate.touch_scroll);
+        app.xform.translate(vec_mul_scalar(&inputstate.touch_scroll, 1.0/scale));
         view_moved = true;
     }
     if inputstate.touch_rotation != 0.0
     {
-        let offset = vec_sub(&inputstate.touch_center, &to_array(response.rect.center()));
+        let offset = vec_mul_scalar(&vec_sub(&inputstate.touch_center, &to_array(response.rect.center())), 1.0/scale);
         app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
         app.xform.rotate(inputstate.touch_rotation);
         app.xform.translate(offset);
@@ -175,7 +180,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     if inputstate.zoom != 1.0
     {
-        let offset = vec_sub(&inputstate.touch_center, &to_array(response.rect.center()));
+        let offset = vec_mul_scalar(&vec_sub(&inputstate.touch_center, &to_array(response.rect.center())), 1.0/scale);
         app.xform.translate(vec_sub(&[0.0, 0.0], &offset));
         app.zoom_unrounded((inputstate.zoom).log2());
         app.xform.translate(offset);
@@ -262,7 +267,9 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     
     let (w, h) = (texture.width as f32, texture.height as f32);
     
-    let xform = app.xform.clone();
+    let mut xform = app.xform.clone();
+    let logical_scale = xform.get_scale();
+    xform.scale(scale);
     
     let mut vertices = [
         [-w/2.0, -h/2.0],
@@ -280,6 +287,8 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
     let mut minima_x = 1000000.0f32;
     let mut minima_y = 1000000.0f32;
     
+    let rot = (xform.get_rotation() + (360.0 + 45.0)) % 90.0;
+    
     for vert in vertices.iter_mut()
     {
         *vert = &xform * &[vert[0], vert[1]];
@@ -287,24 +296,31 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         minima_x = minima_x.min(vert[0]);
         minima_y = minima_y.min(vert[1]);
         
-        let rot = (xform.get_rotation() + (360.0 + 45.0)) % 90.0;
-        if (xform.get_scale() - 1.0).abs() < 0.001 && (rot - 45.0).abs() < 0.001
+        //println!("{}", logical_scale);
+        if (logical_scale - 1.0).abs() < 0.001 && (rot - 45.0).abs() < 0.001
         {
-            vert[0] = vert[0].round();
-            vert[1] = vert[1].round();
-            if (response.rect.width().round() as isize & 1) == 1
+            vert[0] = (vert[0]/scale).round()*scale;
+            vert[1] = (vert[1]/scale).round()*scale;
+            if ((response.rect.width()/scale).round() as isize & 1) == 1
             {
-                vert[0] += 0.5;
+                vert[0] += 0.5*scale;
             }
-            if (response.rect.height().round() as isize & 1) == 1
+            if ((response.rect.height()/scale).round() as isize & 1) == 1
             {
-                vert[1] += 0.5;
+                vert[1] += 0.5*scale;
             }
         }
         
         vert[0] *= 2.0/response.rect.width();
         vert[1] *= 2.0/response.rect.height();
     }
+    
+    //let mut r = [[response.rect.min.x, response.rect.min.y], [response.rect.max.x, response.rect.max.y]];
+    //r[0][0] = r[0][0]/scale;
+    //r[0][1] = r[0][1]/scale;
+    //r[1][0] = r[1][0]/scale;
+    //r[1][1] = r[1][1]/scale;
+    //println!("{:?} {:?}", response.rect, r);
     
     let uniforms = [
         ("width", response.rect.width()),
@@ -313,7 +329,7 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         ("canvas_height", h),
         ("minima_x", minima_x),
         ("minima_y", minima_y),
-        ("zoom_level", xform.get_scale()),
+        ("zoom_level", logical_scale),
     ];
     
     let loops = app.get_selection_loop_data();
