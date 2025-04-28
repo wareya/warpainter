@@ -1658,6 +1658,14 @@ This warning will only be shown once.", self.max_texture_size);
             Some(())
         });
         
+        let mut multitouch_num = ctx.input(|x| x.multi_touch().map(|x| x.num_touches).unwrap_or(0));
+        multitouch_num = ctx.input(|x| x.pointer.button_down(egui::PointerButton::Primary).then_some(1).unwrap_or(0)).max(multitouch_num);
+        let multitouch = multitouch_num > 1;
+        if multitouch
+        {
+            self.cancel_edit();
+        }
+        
         #[cfg(target_os = "android")]
         {
             let app = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
@@ -2839,7 +2847,7 @@ This warning will only be shown once.", self.max_texture_size);
             ui.spacing_mut().window_margin = 0.0.into();
             ui.add(|ui : &mut egui::Ui|
             {
-                let (response, state) = canvas(ui, self, focus_is_global);
+                let (response, state) = canvas(ui, self, focus_is_global, multitouch);
                 input_state = Some(state);
                 response
             });

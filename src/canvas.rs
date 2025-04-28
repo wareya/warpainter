@@ -67,8 +67,6 @@ impl CanvasInputState
             
             self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
             self.zoom = mt.zoom_delta;
-            
-            
         }
         
         if !response.is_pointer_button_down_on() && !response.drag_stopped()
@@ -109,7 +107,7 @@ impl CanvasInputState
     }
 }
 
-pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is_global : bool) -> (egui::Response, CanvasInputState)
+pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is_global : bool, multitouch : bool) -> (egui::Response, CanvasInputState)
 {
     let realstart = web_time::Instant::now();
     
@@ -204,7 +202,10 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
         inputstate.held[1] = true;
     }
     
-    app.tool_think(&inputstate);
+    if !multitouch
+    {
+        app.tool_think(&inputstate);
+    }
     
     // render canvas
     

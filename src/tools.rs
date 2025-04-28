@@ -1115,8 +1115,12 @@ impl Tool for MoveTool
 {
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
-        // press or hold or release
-        if new_input.held[0] || self.prev_input.held[0]
+        if new_input.held[0] && !self.prev_input.held[0]
+        {
+            self.prev_input.canvas_mouse_coord = new_input.canvas_mouse_coord;
+        }
+        // press or hold
+        if new_input.held[0]
         {
             let prev_point = vec_floor(&self.prev_input.canvas_mouse_coord);
             let point = vec_floor(&new_input.canvas_mouse_coord);
