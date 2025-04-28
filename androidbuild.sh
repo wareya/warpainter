@@ -13,7 +13,7 @@ export ANDROID_HOME="C:/Users/wareya/AppData/Local/Android/Sdk/"
 mkdir .trash2 || true
 mkdir .trash3 || true
 
-cargo ndk -t arm64-v8a -o android/lib/ build
+cargo ndk -t arm64-v8a -o android/lib/ build --release
 
 javac -bootclasspath "$ANDROID_HOME/platforms/android-35/android.jar*" -classpath "$ANDROID_HOME/platforms/android-35/android.jar;.trash/*" src/FileOpenActivity.java -d .trash/ -target 1.8 -source 1.8
 #java -cp ".trash/*;$ANDROID_HOME/build-tools/35.0.1/lib/d8.jar" com.android.tools.r8.D8 --output .trash2/ .trash/FileOpenActivity*.class .trash/*.jar --no-desugaring --min-api 30

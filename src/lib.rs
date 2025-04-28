@@ -1779,6 +1779,8 @@ This warning will only be shown once.", self.max_texture_size);
                     let img = Image::<4>::from_rgbaimage(&img);
                     self.load_from_img(img);
                 }
+                
+                self.full_rerender();
             }
         }
         egui::TopBottomPanel::top("Menu Bar").show(ctx, |ui|
