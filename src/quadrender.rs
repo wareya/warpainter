@@ -259,11 +259,22 @@ pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, textu
     rect[0][1] = rect[0][1].round();
     rect[1][0] = rect[1][0].round();
     rect[1][1] = rect[1][1].round();
+    
+    if rect[0][0] >= rect[1][0] || rect[0][1] >= rect[1][1]
+    {
+        return;
+    }
+    
+    assert!(rect[1][0] <= texture.width as f32);
+    assert!(rect[1][1] <= texture.height as f32);
+    
     unsafe
     {
         gl.bind_texture(glow::TEXTURE_2D, Some(handle));
         
         let bytes = texture.bytes();
+        
+        //assert!(bytes.len() == texture.width * texture.height * 4);
         
         //let internal_type = if texture.is_float() { glow::RGBA16F } else { glow::RGBA8 } as i32;
         let input_type = if texture.is_float() { glow::FLOAT } else { glow::UNSIGNED_BYTE };

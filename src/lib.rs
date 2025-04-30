@@ -1046,6 +1046,7 @@ impl Warpainter
                         let r = event.rect;
                         println!("{:?}", r);
                         let r = [[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]];
+                        let r = rect_translate(r, layer.offset);
                         layer.dirtify_rect(r);
                         self.cache_rect_merge(r);
                         //layer.dirtify_all();
@@ -1096,6 +1097,7 @@ impl Warpainter
                         let r = event.rect;
                         println!("{:?}", r);
                         let r = [[r[0][0] as f32, r[0][1] as f32], [r[1][0] as f32, r[1][1] as f32]];
+                        let r = rect_translate(r, layer.offset);
                         layer.dirtify_rect(r);
                         self.cache_rect_merge(r);
                         //layer.dirtify_all();
@@ -2923,7 +2925,7 @@ This warning will only be shown once.", self.max_texture_size);
             }
         }
 
-        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
     fn on_exit(&mut self, gl : Option<&glow::Context>)
     {

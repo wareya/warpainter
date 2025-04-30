@@ -366,11 +366,8 @@ pub (crate) fn canvas(ui : &mut egui::Ui, app : &mut crate::Warpainter, focus_is
             if (rect[1][0] - rect[0][0] != t.width as f32 || rect[1][1] - rect[0][1] != t.height as f32)
                 && s == [t.width as i32, t.height as i32]
             {
-                if rect[1][0] - rect[0][0] > 0.0 && rect[1][1] - rect[0][1] > 0.0
-                {
-                    //println!("partial upload {:?}", rect);
-                    quadrender::update_texture(gl, handle, t, rect);
-                }
+                //println!("partial upload {:?}", rect);
+                quadrender::update_texture(gl, handle, t, rect);
             }
             else
             {
