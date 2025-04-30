@@ -151,7 +151,6 @@ void main()
     float mip = miplevel(uvbig);
     //vec4 tex_color = textureLod(user_texture_0, uv - 0.5/texsize, mip);
     vec4 tex_color = textureLod(user_texture_0, uv, mip);
-#if 0
     if (mip > 0.005)
     {
         tex_color *= 0.0;
@@ -224,7 +223,6 @@ void main()
                 tex_color.rgb /= tex_color.a;
         }
     }
-#endif
     
     out_color = vec4(color, 1.0);
     out_color = mix_normal(tex_color, out_color);

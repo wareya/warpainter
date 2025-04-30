@@ -1052,23 +1052,23 @@ dependencies = [
 [[package]]
 name = "ecolor"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "bytemuck",
- "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
 ]
 
 [[package]]
 name = "eframe"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "ahash",
  "bytemuck",
  "document-features",
- "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "egui-wgpu",
- "egui-winit 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "egui-winit 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "egui_glow",
  "glow",
  "glutin",
@@ -1111,13 +1111,13 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "accesskit",
  "ahash",
  "bitflags 2.9.0",
- "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
- "epaint 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
+ "epaint 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "log",
  "nohash-hasher",
  "profiling",
@@ -1127,13 +1127,13 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "ahash",
  "bytemuck",
  "document-features",
- "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
- "epaint 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
+ "epaint 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "log",
  "profiling",
  "thiserror 1.0.69",
@@ -1165,13 +1165,13 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "accesskit_winit",
  "ahash",
  "arboard",
  "bytemuck",
- "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "log",
  "profiling",
  "raw-window-handle",
@@ -1184,11 +1184,11 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "ahash",
  "bytemuck",
- "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "egui 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "glow",
  "log",
  "memoffset",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "emath"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "bytemuck",
 ]
@@ -1277,13 +1277,13 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 dependencies = [
  "ab_glyph",
  "ahash",
  "bytemuck",
- "ecolor 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
- "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a)",
+ "ecolor 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
+ "emath 0.31.1 (git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a)",
  "epaint_default_fonts",
  "log",
  "nohash-hasher",
@@ -1294,7 +1294,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.31.1"
-source = "git+https://github.com/wareya/egui.git?rev=6458d53af2c052a655faede0197261c3474dde2a#6458d53af2c052a655faede0197261c3474dde2a"
+source = "git+https://github.com/wareya/egui.git?rev=5ae7e10e92a67e083765793ebe692a20a3c1467a#5ae7e10e92a67e083765793ebe692a20a3c1467a"
 
 [[package]]
 name = "equivalent"

@@ -72,13 +72,18 @@ echo "deterministicied"
 #cp .trash2/classes.dex android/
 cp .trash3/* android/assets/
 
-"$ANDROID_HOME/build-tools/35.0.1/aapt2" link -I "$ANDROID_HOME/platforms/android-35/android.jar" --manifest android/AndroidManifest.xml -o target/warpainter-unsigned.apk
+rm -r android/res/compiled/ || true
+mkdir android/res/compiled/ || true
+
+"$ANDROID_HOME/build-tools/35.0.1/aapt2" compile --dir android/res -o android/res/compiled/
+
+"$ANDROID_HOME/build-tools/35.0.1/aapt2" link -I "$ANDROID_HOME/platforms/android-35/android.jar" --manifest android/AndroidManifest.xml -o target/warpainter-unsigned.apk -R android/res/compiled/*
 
 cd android
 zip -r ../target/warpainter-unsigned.apk . -x "AndroidManifest.xml"
 cd ..
 
-rm target/warpainter-aligned.apk
+rm target/warpainter-aligned.apk || true
 "$ANDROID_HOME/build-tools/35.0.1/zipalign" -v 4 target/warpainter-unsigned.apk target/warpainter-aligned.apk
 
 java -jar "$ANDROID_HOME/build-tools/35.0.1/lib/apksigner.jar" sign --ks ~/.android/debug.keystore \

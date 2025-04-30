@@ -17,9 +17,10 @@
 
     <application
         android:largeHeap="true"
-        android:label="warpainter"
+        android:label="Warpainter"
         android:hasCode="false"
-        android:debuggable="true">
+        android:debuggable="true"
+        android:icon="@mipmap/ic_launcher">
 
         <activity
             android:name="android.app.NativeActivity"

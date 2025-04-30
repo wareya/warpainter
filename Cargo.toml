@@ -91,7 +91,7 @@ android-activity = "0.6.0"
 jni = { git = "https://github.com/jni-rs/jni-rs", rev = "40d5ec1a36dbe63dfbfb99d47a7f3364f3674b3c" }
 
 #eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "android-native-activity"] }
-eframe = { git = "https://github.com/wareya/egui.git", rev = "6458d53af2c052a655faede0197261c3474dde2a", default-features = false, features = ["default_fonts", "glow", "android-native-activity"] }
+eframe = { git = "https://github.com/wareya/egui.git", rev="5ae7e10e92a67e083765793ebe692a20a3c1467a", default-features = false, features = ["default_fonts", "glow", "android-native-activity"] }
 
 egui-winit = { version = "0.31.1" }
 poll-promise = { version = "0.3.0" }
@@ -99,14 +99,14 @@ poll-promise = { version = "0.3.0" }
 [target.'cfg(target_os = "linux")'.dependencies]
 
 #eframe = { version = "0.31.1", default-features = false, features = ["x11", "wayland", "default_fonts", "glow", "accesskit"] }
-eframe = { git = "https://github.com/wareya/egui.git", rev = "6458d53af2c052a655faede0197261c3474dde2a", default-features = false, features = ["x11", "wayland", "default_fonts", "glow", "accesskit"] }
+eframe = { git = "https://github.com/wareya/egui.git", rev="5ae7e10e92a67e083765793ebe692a20a3c1467a", default-features = false, features = ["x11", "wayland", "default_fonts", "glow", "accesskit"] }
 
 poll-promise = { version = "0.3.0", features = ["web"] }
 
 [target.'cfg(all(not(target_os = "linux"), not(target_os = "android")))'.dependencies]
 
 #eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "accesskit", "web_screen_reader"] }
-eframe = { git = "https://github.com/wareya/egui.git", rev = "6458d53af2c052a655faede0197261c3474dde2a", default-features = false, features = ["default_fonts", "glow", "accesskit", "web_screen_reader"] }
+eframe = { git = "https://github.com/wareya/egui.git", rev="5ae7e10e92a67e083765793ebe692a20a3c1467a", default-features = false, features = ["default_fonts", "glow", "accesskit", "web_screen_reader"] }
 
 poll-promise = { version = "0.3.0", features = ["web"] }
 
