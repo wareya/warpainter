@@ -58,11 +58,11 @@ struct LayerInfoChange
 #[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerMove
 {
-    uuid : Vec<u128>,
-    old_parent : Vec<u128>,
-    new_parent : Vec<u128>,
-    old_position : Vec<usize>,
-    new_position : Vec<usize>,
+    uuid : u128,
+    old_parent : u128,
+    new_parent : u128,
+    old_position : usize,
+    new_position : usize,
 }
 #[derive(Clone, Debug, Default, Decode, Encode, Serialize, Deserialize)]
 struct LayerPaint
@@ -81,6 +81,7 @@ enum UndoEvent
     LayerInfoChange(LayerInfoChange),
     LayerMove(LayerMove),
     LayerPaint(LayerPaint),
+    Multi(Vec<UndoEvent>),
 }
 
 impl UndoEvent
@@ -1087,6 +1088,22 @@ impl Warpainter
                         println!("info undo done");
                     }
                 }
+                UndoEvent::LayerMove(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.new_parent)
+                    {
+                        let moved = layer.children.remove(event.new_position);
+                        if let Some(layer) = self.layers.find_layer_mut(event.old_parent)
+                        {
+                            layer.children.insert(event.old_position, moved);
+                            let moved = &mut layer.children[event.old_position];
+                            moved.dirtify_all();
+                        }
+                        
+                        self.cache_rect_full();
+                        println!("info undo done");
+                    }
+                }
                 _ =>
                 {
                     println!("not supported yet ({:?})", event);
@@ -1134,6 +1151,22 @@ impl Warpainter
                         layer.dirtify_all();
                         layer.set_info(&event.new);
                         layer.dirtify_all();
+                        self.cache_rect_full();
+                        println!("info redo done");
+                    }
+                }
+                UndoEvent::LayerMove(ref event) =>
+                {
+                    if let Some(layer) = self.layers.find_layer_mut(event.old_parent)
+                    {
+                        let moved = layer.children.remove(event.old_position);
+                        if let Some(layer) = self.layers.find_layer_mut(event.new_parent)
+                        {
+                            layer.children.insert(event.new_position, moved);
+                            let moved = &mut layer.children[event.new_position];
+                            moved.dirtify_all();
+                        }
+                        
                         self.cache_rect_full();
                         println!("info redo done");
                     }
@@ -2429,12 +2462,48 @@ This warning will only be shown once.", self.max_texture_size);
                     }
                     if add_button!(ui, "move layer up", "Move Layer Up", false).clicked()
                     {
+                        let parent = self.layers.find_layer_parent(self.current_layer).unwrap();
+                        let parent_id = parent.uuid;
+                        let pos = parent.children.iter().position(|x| { println!("{} {}", x.uuid, self.current_layer); x.uuid == self.current_layer }).unwrap();
+                        
                         self.layers.move_layer_up(self.current_layer);
+                        
+                        let new_parent = self.layers.find_layer_parent(self.current_layer).unwrap();
+                        let new_parent_id = new_parent.uuid;
+                        let new_pos = new_parent.children.iter().position(|x| { println!("{} {}", x.uuid, self.current_layer); x.uuid == self.current_layer }).unwrap();
+                        let event = UndoEvent::LayerMove(LayerMove {
+                            uuid : self.current_layer,
+                            old_parent : parent_id,
+                            new_parent : new_parent_id,
+                            old_position : pos,
+                            new_position : new_pos,
+                        });
+                        self.undo_buffer.push(event.compress());
+                        self.edit_progress += 1;
+                        
                         self.full_rerender();
                     }
                     if add_button!(ui, "move layer down", "Move Layer Down", false).clicked()
                     {
+                        let parent = self.layers.find_layer_parent(self.current_layer).unwrap();
+                        let parent_id = parent.uuid;
+                        let pos = parent.children.iter().position(|x| { println!("{} {}", x.uuid, self.current_layer); x.uuid == self.current_layer }).unwrap();
+                        
                         self.layers.move_layer_down(self.current_layer);
+                        
+                        let new_parent = self.layers.find_layer_parent(self.current_layer).unwrap();
+                        let new_parent_id = new_parent.uuid;
+                        let new_pos = new_parent.children.iter().position(|x| { println!("{} {}", x.uuid, self.current_layer); x.uuid == self.current_layer }).unwrap();
+                        let event = UndoEvent::LayerMove(LayerMove {
+                            uuid : self.current_layer,
+                            old_parent : parent_id,
+                            new_parent : new_parent_id,
+                            old_position : pos,
+                            new_position : new_pos,
+                        });
+                        self.undo_buffer.push(event.compress());
+                        self.edit_progress += 1;
+                        
                         self.full_rerender();
                     }
                     if add_button_disabled!(ui, "transfer down", "Transfer Down", false).clicked()

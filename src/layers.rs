@@ -414,12 +414,17 @@ impl Layer
         }
         else
         {
+            let is_some = self.children.iter().find(|x| x.uuid == uuid);
+            if is_some.is_some()
+            {
+                return Some(self);
+            }
             for child in self.children.iter()
             {
-                let is_some = child.find_layer(uuid).is_some();
-                if is_some
+                let is_some = child.find_layer_parent(uuid);
+                if is_some.is_some()
                 {
-                    return Some(self);
+                    return is_some;
                 }
             }
             None
@@ -433,12 +438,17 @@ impl Layer
         }
         else
         {
+            let is_some = self.children.iter_mut().find(|x| x.uuid == uuid);
+            if is_some.is_some()
+            {
+                return Some(self);
+            }
             for child in self.children.iter_mut()
             {
-                let is_some = child.find_layer_mut(uuid).is_some();
-                if is_some
+                let is_some = child.find_layer_parent_mut(uuid);
+                if is_some.is_some()
                 {
-                    return Some(self);
+                    return is_some;
                 }
             }
             None
