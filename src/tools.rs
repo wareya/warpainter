@@ -1118,8 +1118,7 @@ impl Tool for MoveTool
         if new_input.held[0] && !self.prev_input.held[0]
         {
             self.prev_input.canvas_mouse_coord = new_input.canvas_mouse_coord;
-            // TODO: open up some kind of "metadata edit" state in Warpainter, which can be cancelled and revert transient changes.
-            // Would also hook up to the undo/redo system.
+            app.begin_state_edit();
         }
         // press or hold
         if new_input.held[0]
@@ -1217,6 +1216,14 @@ impl Tool for MoveTool
                     app.mark_current_layer_dirty(grow_box([min, max], [1.0, 1.0]));
                 }
             }
+        }
+        if !new_input.held[0] && self.prev_input.held[0]
+        {
+            app.commit_edit();
+        }
+        if new_input.held[1] && !self.prev_input.held[1]
+        {
+            app.cancel_edit();
         }
         
         // TODO: mid-tool-use undo/redo state when releasing drag

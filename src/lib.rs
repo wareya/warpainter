@@ -221,6 +221,8 @@ struct Warpainter
     #[serde(skip)]
     edit_ignores_selection : bool,
     #[serde(skip)]
+    in_state_edit : bool,
+    #[serde(skip)]
     editing_image : Option<Image<4>>,
     #[serde(skip)]
     editing_image_stash : Option<Image<4>>,
@@ -347,6 +349,7 @@ impl Default for Warpainter
             open_dialog : "".to_string(),
             
             edit_progress : rand::thread_rng().gen(),
+            in_state_edit : false,
             
             file_open_promise : None,
             
@@ -378,6 +381,8 @@ impl Warpainter
         
         self.selection_mask = other.selection_mask;
         self.selection_poly = other.selection_poly;
+        
+        self.layers.visit_layers_mut(0, &mut |layer, _| { layer.commit_info(); Some(()) });
     }
     fn load_shaders(&mut self, frame : &mut eframe::Frame)
     {
@@ -720,13 +725,28 @@ impl Warpainter
 
 impl Warpainter
 {
-    fn begin_edit(&mut self, inplace : bool, ignore_selection : bool)
+    fn begin_state_edit(&mut self)
     {
+        assert!(!self.is_editing());
         self.edit_progress += 1;
         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
         {
             if !layer.locked
             {
+                layer.commit_info();
+                self.in_state_edit = true;
+            }
+        }
+    }
+    fn begin_edit(&mut self, inplace : bool, ignore_selection : bool)
+    {
+        assert!(!self.is_editing());
+        self.edit_progress += 1;
+        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        {
+            if !layer.locked
+            {
+                layer.commit_info();
                 //println!("start edit dirty rect {:?}", layer.edited_dirty_rect);
                 //println!("start edit flattening rect {:?}", layer.flattened_dirty_rect);
                 if let Some(image) = &layer.data
@@ -820,7 +840,7 @@ impl Warpainter
     }
     fn is_editing(&self) -> bool
     {
-        self.editing_image.is_some()
+        self.editing_image.is_some() || self.in_state_edit
     }
     fn flatten(&mut self) -> &Image<4>
     {
@@ -890,7 +910,11 @@ impl Warpainter
     #[inline(never)]
     fn commit_edit(&mut self)
     {
-        //self.cache_rect_full();
+        if self.in_state_edit
+        {
+            self.in_state_edit = false;
+            self.log_layer_info_change();
+        }
         
         self.edit_progress += 1;
         self.debug(format!("Committing edit {}", self.edit_progress));
@@ -950,8 +974,9 @@ impl Warpainter
         self.edit_ignores_selection = false;
     }
     fn cancel_edit(&mut self)
-
     {
+        self.in_state_edit = false;
+        
         if self.editing_image.is_some()
         {
             let mut edited_dirty_rect = [[0.0, 0.0], [0.0, 0.0]];
@@ -1049,13 +1074,13 @@ impl Warpainter
                         let r = rect_translate(r, layer.offset);
                         layer.dirtify_rect(r);
                         self.cache_rect_merge(r);
-                        //layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
                 {
                     if let Some(layer) = self.layers.find_layer_mut(event.uuid)
                     {
+                        layer.dirtify_all();
                         layer.set_info(&event.old);
                         layer.dirtify_all();
                         self.cache_rect_full();
@@ -1100,13 +1125,13 @@ impl Warpainter
                         let r = rect_translate(r, layer.offset);
                         layer.dirtify_rect(r);
                         self.cache_rect_merge(r);
-                        //layer.dirtify_all();
                     }
                 }
                 UndoEvent::LayerInfoChange(ref event) =>
                 {
                     if let Some(layer) = self.layers.find_layer_mut(event.uuid)
                     {
+                        layer.dirtify_all();
                         layer.set_info(&event.new);
                         layer.dirtify_all();
                         self.cache_rect_full();
@@ -1882,8 +1907,6 @@ This warning will only be shown once.", self.max_texture_size);
                                 }
                                 else if path.extension().unwrap().to_string_lossy() == "wpp"
                                 {
-                                    self.cancel_edit();
-                                    
                                     let start = web_time::Instant::now();
                                     
                                     fn load(path : &std::path::Path) -> Result<Warpainter, String>

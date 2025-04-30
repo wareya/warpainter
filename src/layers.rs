@@ -66,6 +66,8 @@ pub (crate) struct LayerInfo
     pub (crate) name : String,
     pub (crate) blend_mode : String,
     
+    pub (crate) offset : [f32; 2],
+    
     pub (crate) opacity : f32,
     pub (crate) fill_opacity : f32,
     pub (crate) visible : bool,
@@ -85,6 +87,8 @@ impl LayerInfo
         Self {
             name,
             blend_mode : "Normal".to_string(),
+            
+            offset : [0.0, 0.0],
             
             opacity : 1.0,
             fill_opacity : 1.0,
@@ -197,6 +201,7 @@ pub (crate) struct Layer
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
     
+    #[serde(skip)]
     pub (crate) old_info_for_undo : LayerInfo,
     
     pub (crate) adjustment : Option<Adjustment>,
@@ -219,6 +224,7 @@ impl Layer
             name : self.name.clone(),
             blend_mode : self.blend_mode.clone(),
             opacity : self.opacity,
+            offset : self.offset,
             fill_opacity : self.fill_opacity,
             visible : self.visible,
             funny_flag : self.funny_flag,
@@ -234,6 +240,7 @@ impl Layer
         self.name = info.name.clone();
         self.blend_mode = info.blend_mode.clone();
         self.opacity = info.opacity;
+        self.offset = info.offset;
         self.fill_opacity = info.fill_opacity;
         self.visible = info.visible;
         self.funny_flag = info.funny_flag;

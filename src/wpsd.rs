@@ -461,6 +461,8 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             //println!("layer {}: {} (of {:?})", i, layer.name, layer.parent_id());
             println!("layer {}: {}", i, layer.name);
             
+            layer.commit_info();
+            
             if layerdata.group_closer
             {
                 stack.push(layer);
