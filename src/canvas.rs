@@ -26,7 +26,7 @@ pub (crate) struct CanvasInputState
     pub (crate) cancel : bool,
 }
 
-fn to_array(v : egui::Pos2) -> [f32; 2]
+pub (crate) fn to_array(v : egui::Pos2) -> [f32; 2]
 {
     [v.x, v.y]
 }

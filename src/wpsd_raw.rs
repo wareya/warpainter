@@ -73,6 +73,7 @@ pub struct LayerInfo {
     //pub global_mask_opacity : u16,
     //pub global_mask_kind : u16,
     pub image_data_mask : Vec<u8>,
+    pub group_expanded : bool,
     pub group_opener : bool,
     pub group_closer : bool,
     pub funny_flag : bool,
@@ -474,6 +475,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
             mask_channel_count : aux_count,
             mask_info,
             image_data_mask,
+            group_expanded : false,
             group_opener : false,
             group_closer : false,
             funny_flag : false,
@@ -606,6 +608,7 @@ pub fn parse_layer_records(data : &[u8]) -> Vec<LayerInfo>
                 "lsct" =>
                 {
                     let kind = read_u32(&mut cursor) as u64;
+                    layer.group_expanded = kind == 1;
                     layer.group_opener = kind == 1 || kind == 2;
                     layer.group_closer = kind == 3;
                     if kind == 1 || kind == 2

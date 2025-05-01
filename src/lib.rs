@@ -268,6 +268,21 @@ struct Warpainter
     
     #[serde(skip)]
     auto_open : String,
+    
+    #[serde(skip)]
+    canvas_view_x : usize,
+    #[serde(skip)]
+    canvas_view_y : usize,
+    #[serde(skip)]
+    canvas_view_w : usize,
+    #[serde(skip)]
+    canvas_view_h : usize,
+    
+    #[serde(skip)]
+    queue_fit : bool,
+    
+    #[serde(skip)]
+    last_input : CanvasInputState,
 }
 
 fn default_tools() -> Vec<Box<dyn Tool>>
@@ -361,6 +376,15 @@ impl Default for Warpainter
             max_texture_size : 0,
             dummy_text : "".to_string(),
             auto_open : "".to_string(),
+            
+            canvas_view_x : 0,
+            canvas_view_y : 0,
+            canvas_view_w : 0,
+            canvas_view_h : 0,
+            
+            queue_fit : false,
+            
+            last_input : CanvasInputState::default(),
         }
     }
 }
@@ -389,6 +413,8 @@ impl Warpainter
         self.selection_poly = other.selection_poly;
         
         self.layers.visit_layers_mut(0, &mut |layer, _| { layer.commit_info(); Some(()) });
+        
+        self.queue_fit = true;
     }
     fn load_shaders(&mut self, frame : &mut eframe::Frame)
     {
@@ -495,6 +521,7 @@ impl Warpainter
             ("tool move cursor",           include_bytes!("icons/tool move cursor.png")          .to_vec()),
             
             ("icon group",                 include_bytes!("icons/icon group.png")                .to_vec()),
+            ("icon group closed",          include_bytes!("icons/icon group closed.png")         .to_vec()),
             
             ("undo",                       include_bytes!("icons/undo.png")                      .to_vec()),
             ("redo",                       include_bytes!("icons/redo.png")                      .to_vec()),
@@ -580,6 +607,8 @@ impl Warpainter
         
         self.layers.children = vec!(image_layer);
         self.current_layer = image_layer_uuid;
+        
+        self.queue_fit = true;
     }
 }
 
@@ -920,7 +949,7 @@ impl Warpainter
         if self.in_state_edit
         {
             self.in_state_edit = false;
-            self.log_layer_info_change();
+            self.log_layer_info_change(self.current_layer);
         }
         
         self.edit_progress += 1;
@@ -1014,20 +1043,22 @@ impl Warpainter
             self.edit_ignores_selection = false;
         }
     }
-    fn log_layer_info_change(&mut self)
+    fn log_layer_info_change(&mut self, uuid : u128)
     {
         self.cache_rect_full();
         println!("Layer info change");
         self.edit_progress += 1;
-        if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
+        if let Some(layer) = self.layers.find_layer_mut(uuid)
         {
             let old_info = layer.old_info_for_undo.clone();
             let new_info = layer.get_info();
             layer.commit_info();
+            println!("BEFORE: {:?}", old_info);
+            println!("AFTER: {:?}", new_info);
             
             self.redo_buffer = Vec::new();
             let event = UndoEvent::LayerInfoChange(LayerInfoChange {
-                uuid : self.current_layer,
+                uuid : uuid,
                 old : old_info,
                 new : new_info,
             });
@@ -1090,6 +1121,7 @@ impl Warpainter
                         layer.dirtify_all();
                         layer.set_info(&event.old);
                         layer.dirtify_all();
+                        layer.commit_info();
                         self.cache_rect_full();
                         println!("info undo done");
                     }
@@ -1157,6 +1189,7 @@ impl Warpainter
                         layer.dirtify_all();
                         layer.set_info(&event.new);
                         layer.dirtify_all();
+                        layer.commit_info();
                         self.cache_rect_full();
                         println!("info redo done");
                     }
@@ -1278,6 +1311,20 @@ impl Warpainter
     fn view_reset(&mut self)
     {
         self.xform = Transform::ident();
+    }
+    fn view_fit(&mut self)
+    {
+        self.xform = Transform::ident();
+        let hm = self.canvas_view_h as f32 / self.canvas_height as f32;
+        let wm = self.canvas_view_w as f32 / self.canvas_width as f32;
+        self.xform.scale(hm.min(wm));
+    }
+    fn view_fill(&mut self)
+    {
+        self.xform = Transform::ident();
+        let hm = self.canvas_view_h as f32 / self.canvas_height as f32;
+        let wm = self.canvas_view_w as f32 / self.canvas_width as f32;
+        self.xform.scale(hm.max(wm));
     }
     
     fn debug<T : ToString>(&mut self, text : T)
@@ -1663,16 +1710,6 @@ impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
-        if self.max_texture_size == 0
-        {
-            self.max_texture_size = -1;
-            egui::CentralPanel::default().show(ctx,
-                |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                    |ui| ui.label("Loading....") )
-            );
-            ctx.request_repaint_after(std::time::Duration::from_millis(0));
-            return;
-        }
         self.setup_canvas(ctx);
         if self.max_texture_size == -1
         {
@@ -1686,16 +1723,6 @@ impl eframe::App for Warpainter
         }
         self.load_icons(ctx);
         self.load_font(ctx);
-        if self.max_texture_size == -2
-        {
-            self.max_texture_size = -3;
-            egui::CentralPanel::default().show(ctx,
-                |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                    |ui| ui.label("Loading....") )
-            );
-            ctx.request_repaint_after(std::time::Duration::from_millis(0));
-            return;
-        }
         self.load_shaders(frame);
         
         //println!("app still running! time: {:?}", web_time::Instant::now());
@@ -2244,6 +2271,14 @@ This warning will only be shown once.", self.max_texture_size);
                     {
                         self.view_reset();
                     }
+                    if ui.button("Fit Screen").clicked()
+                    {
+                        self.view_fit();
+                    }
+                    if ui.button("Fill Screen").clicked()
+                    {
+                        self.view_fit();
+                    }
                 });
             });
         });
@@ -2403,21 +2438,21 @@ This warning will only be shown once.", self.max_texture_size);
                     
                     if old_blend_mode != layer.blend_mode
                     {
-                        self.log_layer_info_change();
+                        self.log_layer_info_change(self.current_layer);
                         rerender = true;
                     }
                     else if old_opacity != opacity && !slider_response.dragged()
                     {
-                        self.log_layer_info_change();
+                        self.log_layer_info_change(self.current_layer);
                     }
                     else if old_fill_opacity != fill_opacity && !slider_response2.dragged()
                     {
-                        self.log_layer_info_change();
+                        self.log_layer_info_change(self.current_layer);
                     }
                     else if slider_response.drag_stopped()
                     {
                         println!("making undo for opacity");
-                        self.log_layer_info_change();
+                        self.log_layer_info_change(self.current_layer);
                     }
                     
                     if old_opacity != opacity || old_fill_opacity != fill_opacity || rerender
@@ -2461,9 +2496,8 @@ This warning will only be shown once.", self.max_texture_size);
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.visible = !layer.visible;
-                            let id = layer.uuid;
-                            self.full_rerender_with(id);
-                            self.log_layer_info_change();
+                            self.full_rerender_with(self.current_layer);
+                            self.log_layer_info_change(self.current_layer);
                         }
                     }
                     if add_button!(ui, "clipping mask", "Toggle Clipping Mask", clipped).clicked()
@@ -2471,9 +2505,8 @@ This warning will only be shown once.", self.max_texture_size);
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.clipped = !layer.clipped;
-                            let id = layer.uuid;
-                            self.full_rerender_with(id);
-                            self.log_layer_info_change();
+                            self.full_rerender_with(self.current_layer);
+                            self.log_layer_info_change(self.current_layer);
                         }
                     }
                     if add_button!(ui, "lock", "Toggle Layer Lock", locked).clicked()
@@ -2481,7 +2514,7 @@ This warning will only be shown once.", self.max_texture_size);
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.locked = !layer.locked;
-                            self.log_layer_info_change();
+                            self.log_layer_info_change(self.current_layer);
                         }
                     }
                     if add_button!(ui, "lock alpha", "Toggle Alpha Lock", alpha_locked).clicked()
@@ -2489,7 +2522,7 @@ This warning will only be shown once.", self.max_texture_size);
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.alpha_locked = !layer.alpha_locked;
-                            self.log_layer_info_change();
+                            self.log_layer_info_change(self.current_layer);
                         }
                     }
                     
@@ -2498,12 +2531,12 @@ This warning will only be shown once.", self.max_texture_size);
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
                         {
                             layer.funny_flag = !layer.funny_flag;
-                            let id = layer.uuid;
-                            self.full_rerender_with(id);
-                            self.log_layer_info_change();
+                            self.full_rerender_with(self.current_layer);
+                            self.log_layer_info_change(self.current_layer);
                         }
                     }
                     
+                    /*
                     if add_button!(ui, "funny alpha", "Funny Alpha Flag", funny_flag).clicked()
                     {
                         if let Some(layer) = self.layers.find_layer_mut(self.current_layer)
@@ -2516,6 +2549,7 @@ This warning will only be shown once.", self.max_texture_size);
                             }
                         }
                     }
+                    */
                 });
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP).with_main_wrap(true), |ui|
                 {
@@ -2608,7 +2642,7 @@ This warning will only be shown once.", self.max_texture_size);
                     let mut layer_info = vec!();
                     for c in self.layers.children.iter_mut()
                     {
-                        c.visit_layers_mut(0, &mut |layer, depth|
+                        c.visit_layers_mut_b(0, &mut |layer, depth|
                         {
                             let thumb_img = if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail());
                             let mut th_outer = None;
@@ -2640,7 +2674,13 @@ This warning will only be shown once.", self.max_texture_size);
                                 layer.children.len(),
                                 layer.visible,
                                 th_outer,
+                                layer.closed,
                             ));
+                            
+                            if layer.closed
+                            {
+                                return None;
+                            }
                             Some(())
                         });
                     }
@@ -2663,7 +2703,7 @@ This warning will only be shown once.", self.max_texture_size);
                                 layer.visible = !layer.visible;
                                 let id = layer.uuid;
                                 self.full_rerender_with(id);
-                                self.log_layer_info_change();
+                                self.log_layer_info_change(id);
                             }
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
                             let mut name = info.0.clone();
@@ -2677,7 +2717,7 @@ This warning will only be shown once.", self.max_texture_size);
                                     //stroke = egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(64, 64, 192, 255));
                                     stroke = (2.0, ui.style().visuals.widgets.active.fg_stroke.color).into();
                                 }
-                                if Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::symmetric(4, 0))
+                                let r = Frame::group(ui.style()).corner_radius(1.0).inner_margin(Margin::symmetric(4, 0))
                                 .stroke(stroke)
                                 .show(ui, |ui|
                                 {
@@ -2690,12 +2730,6 @@ This warning will only be shown once.", self.max_texture_size);
                                         rect.min.x -= 4.0;
                                         rect.max.x = rect.min.x + 2.0;
                                         ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 127, 255, 255));
-                                    }
-                                    if info.5 > 0
-                                    {
-                                        clicked |= ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
-                                            self.icons.get("icon group").unwrap().0.id(), [14.0, 14.0]
-                                        )).sense(egui::Sense::click_and_drag())).clicked();
                                     }
                                     
                                     if info.3
@@ -2724,9 +2758,29 @@ This warning will only be shown once.", self.max_texture_size);
                                         painter.image(tx.id(), rect, [(0.0, 0.0).into(), (1.0, 1.0).into()].into(), egui::Color32::WHITE);
                                         clicked |= r.clicked();
                                     }
+                                    
+                                    if info.5 > 0
+                                    {
+                                        let text = if info.8 { "icon group closed" } else { "icon group" };
+                                        let r = ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
+                                            self.icons.get(text).unwrap().0.id(), [14.0, 14.0]
+                                        )).sense(egui::Sense::click_and_drag())).interact(egui::Sense::click_and_drag());
+                                        
+                                        let click = r.clicked();
+                                        
+                                        if click
+                                        {
+                                            self.layers.find_layer_mut(info.1).unwrap().closed = !self.layers.find_layer_mut(info.1).unwrap().closed;
+                                            self.log_layer_info_change(info.1);
+                                        }
+                                        
+                                        clicked |= click;
+                                    }
+                                    
                                     clicked |= ui.add(egui::Label::new(egui::RichText::new(&name).size(10.0)).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
                                     
-                                    let response = ui.response();
+                                    //let response = ui.response();
+                                    let response = ui.response().interact(egui::Sense::click_and_drag());
                                     clicked |= response.clicked();
                                     
                                     if clicked
@@ -2735,7 +2789,11 @@ This warning will only be shown once.", self.max_texture_size);
                                     }
                                     
                                     response
-                                }).response.interact(egui::Sense::click_and_drag()).clicked()
+                                //}).response.interact(egui::Sense::click_and_drag());
+                                //}).response.interact(egui::Sense::click()).clicked()
+                                }).response;
+                                //if r.clicked()
+                                if r.clicked()// || ui.interact(r.interact_rect, r.id, egui::Sense::click()).clicked()
                                 {
                                     self.current_layer = info.1;
                                 }
@@ -2882,21 +2940,6 @@ This warning will only be shown once.", self.max_texture_size);
             });
         }}}
         
-        egui::TopBottomPanel::bottom("DebugText").resizable(true).min_height(16.0).max_height(150.0).show(ctx, |ui|
-        {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(16.0).stick_to_bottom(true).show(ui, |ui|
-            {
-                if self.debug_text.len() > 500
-                {
-                    self.debug_text.drain(0..self.debug_text.len()-500);
-                }
-                let mut text = self.debug_text.join("\n");
-                let mut f = egui::FontId::default();
-                f.size = 7.0;
-                ui.add_enabled(false, egui::TextEdit::multiline(&mut text).font(f).desired_width(f32::INFINITY).desired_rows(1).min_size([16.0, 16.0].into()).hint_text("debug output"));
-            });
-        });
-        
         if !sidebars_on_bottom
         {
             egui::SidePanel::left("ToolSettings").show(ctx, toolsettings!());
@@ -3007,6 +3050,31 @@ This warning will only be shown once.", self.max_texture_size);
             });
         }
         
+        egui::TopBottomPanel::bottom("StatusBar").min_height(16.0).max_height(150.0).show(ctx, |ui|
+        {
+            let input = ui.input(|input| input.clone());
+            ui.label(format!("Canvas: {}x{} ~~~ Cursor: {},{} ~~~ Zoom: {}",
+                self.canvas_width, self.canvas_height,
+                self.last_input.canvas_mouse_coord[0].floor(),
+                self.last_input.canvas_mouse_coord[1].floor(),
+                self.xform.get_scale()));
+        });
+        
+        egui::TopBottomPanel::bottom("DebugText").resizable(true).min_height(16.0).max_height(150.0).show(ctx, |ui|
+        {
+            egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(16.0).stick_to_bottom(true).show(ui, |ui|
+            {
+                if self.debug_text.len() > 500
+                {
+                    self.debug_text.drain(0..self.debug_text.len()-500);
+                }
+                let mut text = self.debug_text.join("\n");
+                let mut f = egui::FontId::default();
+                f.size = 7.0;
+                ui.add_enabled(false, egui::TextEdit::multiline(&mut text).font(f).desired_width(f32::INFINITY).desired_rows(1).min_size([16.0, 16.0].into()).hint_text("debug output"));
+            });
+        });
+        
         let frame = egui::Frame {
             inner_margin: egui::Margin::same(0),
             //rounding: egui::Rounding::ZERO,
@@ -3022,10 +3090,23 @@ This warning will only be shown once.", self.max_texture_size);
             ui.add(|ui : &mut egui::Ui|
             {
                 let (response, state) = canvas(ui, self, focus_is_global, multitouch);
-                input_state = Some(state);
+                input_state = Some(state.clone());
+                self.last_input = state;
+                
+                self.canvas_view_x = response.rect.min.x as usize;
+                self.canvas_view_y = response.rect.min.y as usize;
+                self.canvas_view_w = response.rect.width() as usize;
+                self.canvas_view_h = response.rect.height() as usize;
+                
                 response
             });
         });
+        
+        if self.queue_fit
+        {
+            self.queue_fit = false;
+            self.view_fit();
+        }
         
         // set cursor (hardware on web, software on desktop)
         

@@ -121,6 +121,10 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
             layer.fill_opacity = layerdata.fill_opacity;
             //println!("!!!!{:?}", layer.offset);
             layer.blend_mode = get_blend_mode(&layerdata.blend_mode);
+            if layerdata.group_opener
+            {
+                layer.closed = !layerdata.group_expanded;
+            }
             
             if let Some((_, fx)) = layerdata.effects_desc
             {
@@ -483,6 +487,7 @@ pub (crate) fn wpsd_open(app : &mut Warpainter, bytes : &[u8])
     app.layers.children = vec!(stack.pop().unwrap());
     app.current_layer = app.layers.children[0].uuid;
     app.current_tool = 4;
+    app.queue_fit = true;
     //for (i, group) in psd.groups() {
     //    let name = group.name();
     //    println!("group {}: {}", i, name);

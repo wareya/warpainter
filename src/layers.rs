@@ -76,6 +76,7 @@ pub (crate) struct LayerInfo
     pub (crate) clipped : bool,
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
+    pub (crate) closed : bool,
     
     pub (crate) effects : HashMap<String, HashMap<String, Vec<FxData>>>,
 }
@@ -98,6 +99,7 @@ impl LayerInfo
             clipped : false,
             locked : false,
             alpha_locked : false,
+            closed : false,
             
             effects : HashMap::new(),
         }
@@ -200,6 +202,7 @@ pub (crate) struct Layer
     pub (crate) clipped : bool,
     pub (crate) locked : bool,
     pub (crate) alpha_locked : bool,
+    pub (crate) closed : bool,
     
     #[serde(skip)]
     pub (crate) old_info_for_undo : LayerInfo,
@@ -231,6 +234,7 @@ impl Layer
             clipped : self.clipped,
             locked : self.locked,
             alpha_locked : self.alpha_locked,
+            closed : self.closed,
             
             effects : self.effects.clone(),
         }
@@ -247,6 +251,7 @@ impl Layer
         self.clipped = info.clipped;
         self.locked = info.locked;
         self.alpha_locked = info.alpha_locked;
+        self.closed = info.closed;
         
         self.effects = info.effects.clone();
         
@@ -285,6 +290,7 @@ impl Layer
             clipped : false,
             locked : false,
             alpha_locked : false,
+            closed : false,
             
             effects : HashMap::new(),
             
@@ -328,6 +334,7 @@ impl Layer
             clipped : false,
             locked : false,
             alpha_locked : false,
+            closed : false,
             
             effects : HashMap::new(),
             
@@ -889,6 +896,15 @@ impl Layer
         for child in self.children.iter_mut()
         {
             child.visit_layers_mut(depth+1, f)?;
+        }
+        Some(())
+    }
+    pub(crate) fn visit_layers_mut_b(&mut self, depth : usize, f : &mut dyn FnMut(&mut Layer, usize) -> Option<()>) -> Option<()>
+    {
+        f(self, depth)?;
+        for child in self.children.iter_mut()
+        {
+            child.visit_layers_mut_b(depth+1, f);
         }
         Some(())
     }
