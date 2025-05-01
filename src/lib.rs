@@ -1,3 +1,4 @@
+#![allow(deprecated)] // FIXME: until the next egui version after 0.31.1 releases
 #![allow(dead_code)]
 
 extern crate alloc;
@@ -264,6 +265,9 @@ struct Warpainter
     #[serde(skip)]
     #[allow(unused)]
     dummy_text : String,
+    
+    #[serde(skip)]
+    auto_open : String,
 }
 
 fn default_tools() -> Vec<Box<dyn Tool>>
@@ -356,6 +360,7 @@ impl Default for Warpainter
             
             max_texture_size : 0,
             dummy_text : "".to_string(),
+            auto_open : "".to_string(),
         }
     }
 }
@@ -426,12 +431,6 @@ impl Warpainter
         {
             return;
         }
-        let mut theme = egui::Visuals::dark();
-        theme.panel_fill = theme.panel_fill.gamma_multiply(1.5);
-        theme.widgets.active.fg_stroke.color = theme.widgets.active.fg_stroke.color.gamma_multiply(1.25);
-        theme.widgets.inactive.fg_stroke.color = theme.widgets.inactive.fg_stroke.color.gamma_multiply(1.25);
-        theme.widgets.noninteractive.fg_stroke.color = theme.widgets.noninteractive.fg_stroke.color.gamma_multiply(1.35);
-        ctx.set_visuals(theme);
         self.loaded_fonts = true;
         
         const GZ_BYTES: &[u8] = include_bytes!("data/IBMPlexSansJP-Regular.ttf.gz");
@@ -515,12 +514,19 @@ impl Warpainter
             self.icons.insert(thing.0, (tex, img));
         }
     }
-    fn setup_canvas(&mut self)
+    fn setup_canvas(&mut self, ctx : &egui::Context)
     {
         if self.did_event_setup
         {
             return;
         }
+        
+        let mut theme = egui::Visuals::dark();
+        theme.panel_fill = theme.panel_fill.gamma_multiply(1.5);
+        theme.widgets.active.fg_stroke.color = theme.widgets.active.fg_stroke.color.gamma_multiply(1.25);
+        theme.widgets.inactive.fg_stroke.color = theme.widgets.inactive.fg_stroke.color.gamma_multiply(1.25);
+        theme.widgets.noninteractive.fg_stroke.color = theme.widgets.noninteractive.fg_stroke.color.gamma_multiply(1.35);
+        ctx.set_visuals(theme);
         
         self.tools = default_tools();
         
@@ -1657,9 +1663,39 @@ impl eframe::App for Warpainter
 {
     fn update(&mut self, ctx : &egui::Context, frame : &mut eframe::Frame)
     {
-        self.setup_canvas();
+        if self.max_texture_size == 0
+        {
+            self.max_texture_size = -1;
+            egui::CentralPanel::default().show(ctx,
+                |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                    |ui| ui.label("Loading....") )
+            );
+            ctx.request_repaint_after(std::time::Duration::from_millis(0));
+            return;
+        }
+        self.setup_canvas(ctx);
+        if self.max_texture_size == -1
+        {
+            self.max_texture_size = -2;
+            egui::CentralPanel::default().show(ctx,
+                |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                    |ui| ui.label("Loading....") )
+            );
+            ctx.request_repaint_after(std::time::Duration::from_millis(0));
+            return;
+        }
         self.load_icons(ctx);
         self.load_font(ctx);
+        if self.max_texture_size == -2
+        {
+            self.max_texture_size = -3;
+            egui::CentralPanel::default().show(ctx,
+                |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                    |ui| ui.label("Loading....") )
+            );
+            ctx.request_repaint_after(std::time::Duration::from_millis(0));
+            return;
+        }
         self.load_shaders(frame);
         
         //println!("app still running! time: {:?}", web_time::Instant::now());
@@ -1675,7 +1711,48 @@ impl eframe::App for Warpainter
                 });
                 let callback = egui::PaintCallback { rect : [[0.0, 0.0].into(), [100.0, 100.0].into()].into(), callback : Arc::new(cb) };
                 ctx.debug_painter().add(callback);
+                
+                egui::CentralPanel::default().show(ctx,
+                    |ui| ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                        |ui| ui.label("Loading....") )
+                );
+                
                 return;
+            }
+        }
+        
+        if self.auto_open != ""
+        {
+            let fname = self.auto_open.clone();
+            self.auto_open = "".to_string();
+            if fname.ends_with(".psd")
+            {
+                let bytes = std::fs::read(fname).unwrap();
+                wpsd_open(self, &bytes);
+            }
+            else if fname.ends_with(".wpp")
+            {
+                //let bytes = std::fs::read(&fname).unwrap();
+                let start = web_time::Instant::now();
+                
+                fn load(path : &String) -> Result<Warpainter, String>
+                {
+                    let file = std::fs::File::open(path).map_err(|x| x.to_string())?;
+                    let reader = std::io::BufReader::new(file);
+                    let data : Warpainter = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string())?;
+                    Ok(data)
+                }
+                
+                let new = load(&fname).unwrap();
+                self.load_from(new);
+                println!("WPP load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
+            }
+            else if fname != ""
+            {
+                // FIXME handle error
+                let img = image::io::Reader::open(fname).unwrap().decode().unwrap().to_rgba8();
+                let img = Image::<4>::from_rgbaimage(&img);
+                self.load_from_img(img);
             }
         }
         
@@ -1700,6 +1777,25 @@ The affected data may fail to render. If this limit is small, try using a differ
 This warning will only be shown once.", self.max_texture_size);
         };
         
+        let mut multitouch_num = ctx.input(|x| x.multi_touch().map(|x| x.num_touches).unwrap_or(0));
+        multitouch_num = ctx.input(|x| x.pointer.button_down(egui::PointerButton::Primary).then_some(1).unwrap_or(0)).max(multitouch_num);
+        let multitouch = multitouch_num > 1;
+        if multitouch
+        {
+            self.cancel_edit();
+        }
+        
+        #[cfg(target_os = "android")]
+        {
+            let app = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
+            
+            let (top, bottom) = get_insets(app);
+            egui::TopBottomPanel::top("top_reserved_area").exact_height(top / ctx.pixels_per_point()).show(ctx, |ui| { });
+            egui::TopBottomPanel::bottom("bottom_reserved_area").exact_height(bottom / ctx.pixels_per_point()).show(ctx, |ui| { });
+        }
+        
+        // visible UI code starts here
+        
         if self.canvas_width > self.max_texture_size as usize || self.canvas_height > self.max_texture_size as usize
         {
             show_modal_warning(ctx, sizewarn.clone());
@@ -1718,22 +1814,6 @@ This warning will only be shown once.", self.max_texture_size);
             Some(())
         });
         
-        let mut multitouch_num = ctx.input(|x| x.multi_touch().map(|x| x.num_touches).unwrap_or(0));
-        multitouch_num = ctx.input(|x| x.pointer.button_down(egui::PointerButton::Primary).then_some(1).unwrap_or(0)).max(multitouch_num);
-        let multitouch = multitouch_num > 1;
-        if multitouch
-        {
-            self.cancel_edit();
-        }
-        
-        #[cfg(target_os = "android")]
-        {
-            let app = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
-            
-            let (top, bottom) = get_insets(app);
-            egui::TopBottomPanel::top("top_reserved_area").exact_height(top / ctx.pixels_per_point()).show(ctx, |ui| { });
-            egui::TopBottomPanel::bottom("bottom_reserved_area").exact_height(bottom / ctx.pixels_per_point()).show(ctx, |ui| { });
-        }
         let mut focus_is_global = true;
         let mut new_dialog_opened = &self.open_dialog == "New Window";
         if new_dialog_opened
@@ -3053,35 +3133,7 @@ pub fn do_main()
     
     let fname = std::env::args().nth(1).unwrap_or_default();
     
-    if fname.ends_with(".psd")
-    {
-        let bytes = std::fs::read(fname).unwrap();
-        wpsd_open(&mut *wp, &bytes);
-    }
-    else if fname.ends_with(".wpp")
-    {
-        //let bytes = std::fs::read(&fname).unwrap();
-        let start = web_time::Instant::now();
-        
-        fn load(path : &String) -> Result<Warpainter, String>
-        {
-            let file = std::fs::File::open(path).map_err(|x| x.to_string())?;
-            let reader = std::io::BufReader::new(file);
-            let data : Warpainter = cbor4ii::serde::from_reader(reader).map_err(|x| x.to_string())?;
-            Ok(data)
-        }
-        
-        let new = load(&fname).unwrap();
-        wp.load_from(new);
-        println!("WPP load time: {:.3}", start.elapsed().as_secs_f64() * 1000.0);
-    }
-    else if fname != ""
-    {
-        // FIXME handle error
-        let img = image::io::Reader::open(fname).unwrap().decode().unwrap().to_rgba8();
-        let img = Image::<4>::from_rgbaimage(&img);
-        wp.load_from_img(img);
-    }
+    wp.auto_open = fname;
     
     eframe::run_native (
         "Warpainter",
@@ -3403,6 +3455,9 @@ fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp
     println!("Hello, world!");
     
     let dex_class_loader = make_dex_loader(&mut env, "fileopenactivity.jar");
+    
+    println!("Made DEX loader");
+    
     let dex_class_loader = dex_class_loader.clone();
     unsafe { DEX_CLASS_LOADER = Some(dex_class_loader); }
     let dex_class_loader = unsafe { JObject::from_raw(dex_class_loader) };
@@ -3450,6 +3505,8 @@ fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp
     
     println!("Strange!");
     
+    println!("------------ DEX stuff done");
+    
     eframe::run_native(
         "Warpainter",
         options,
@@ -3490,6 +3547,8 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
     let asset_manager_obj = asset_manager.l().unwrap();
     if env.exception_check().unwrap() { panic!(); }
     
+    println!("point A");
+    
     // Open the JAR file in assets
     let jar_path = env.new_string(jar_asset_path).unwrap();
     
@@ -3506,6 +3565,8 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
         let message = env.exception_describe();
         panic!("Exception occurred: {:?}", message);
     }
+    
+    println!("point B");
     
     let input_stream = input_stream.unwrap();
     
@@ -3525,25 +3586,29 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
         env.get_string(&JString::from(path_obj)).unwrap().into()
     }
     
+    println!("point C");
+    
     if env.exception_check().unwrap() { panic!(); }
     
     fn save_input_stream_to_file<'a>(env: &'a mut JNIEnv, input_stream_obj: JObject<'a>, temp_path: &Path) {
         let mut file = File::create(temp_path).unwrap();
-
+        
         loop {
-            // Call InputStream.read() which returns an int (byte value or -1 if EOF)
-            let byte: jni::sys::jint = env
-                .call_method(&input_stream_obj, "read", "()I", &[])
-                .unwrap()
-                .i()
-                .unwrap();
-
-            if byte == -1 {
-                break; // End of stream
+            let len = 4096;
+            let byte_array = env.new_byte_array(len as i32).unwrap();
+            let read_len : jni::sys::jint =
+                env.call_method(&input_stream_obj, "read", "([B)I", &[(&byte_array).into()])
+                .unwrap().i().unwrap();
+            
+            if read_len == -1
+            {
+                break;
             }
-
-            let b = byte as u8;
-            file.write_all(&[b]).unwrap();
+            
+            let buffer = env.convert_byte_array(byte_array).unwrap();
+            file.write_all(&buffer[0..read_len as usize]).unwrap();
+            
+            if env.exception_check().unwrap() { }
         }
     }
     if env.exception_check().unwrap() { panic!(); }
@@ -3551,6 +3616,7 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
     // Save the JAR file to a temporary location
     let temp_path = Path::new(&get_temp_file_path(env)).join("temp.jar");
     
+    println!("point D");
     unsafe {
         let s = std::ffi::CString::new(temp_path.to_string_lossy().as_bytes()).unwrap();
         let result = libc::remove(s.as_ptr());
@@ -3563,6 +3629,7 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
     save_input_stream_to_file(env, input_stream_obj, &temp_path);
     
     if env.exception_check().unwrap() { panic!(); }
+    println!("point E");
     
     unsafe {
         let s = std::ffi::CString::new(temp_path.to_string_lossy().as_bytes()).unwrap();
@@ -3581,6 +3648,7 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
             JValue::Object(&JObject::null()),
             JValue::Object(&JObject::null())],
     ).unwrap();
+    println!("point F");
     
     let thread_class = env.find_class("java/lang/Thread").unwrap();
     let current_thread : JObject = env.call_static_method(thread_class, "currentThread", "()Ljava/lang/Thread;", &[]).unwrap().l().unwrap();
@@ -3588,5 +3656,6 @@ fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a>
     
     if env.exception_check().unwrap() { panic!(); }
     
+    println!("point G");
     dex_class_loader
 }

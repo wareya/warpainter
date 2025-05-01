@@ -81,6 +81,7 @@ mkdir android/res/compiled/ || true
 
 cd android
 zip -r ../target/warpainter-unsigned.apk . -x "AndroidManifest.xml"
+zip -0 ../target/warpainter-unsigned.apk assets/fileopenactivity.jar # force jar to be stored as Store
 cd ..
 
 rm target/warpainter-aligned.apk || true
