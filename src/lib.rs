@@ -2277,7 +2277,7 @@ This warning will only be shown once.", self.max_texture_size);
                     }
                     if ui.button("Fill Screen").clicked()
                     {
-                        self.view_fit();
+                        self.view_fill();
                     }
                 });
             });
