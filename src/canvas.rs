@@ -24,6 +24,7 @@ pub (crate) struct CanvasInputState
     pub (crate) mouse_in_canvas : bool,
     pub (crate) mouse_in_canvas_area : bool,
     pub (crate) cancel : bool,
+    pub (crate) pos_is_real : bool,
 }
 
 pub (crate) fn to_array(v : egui::Pos2) -> [f32; 2]
@@ -39,6 +40,7 @@ impl CanvasInputState
         self.delta = input.unstable_dt;
         self.window_mouse_motion = to_array(input.pointer.delta().to_pos2());
         self.window_mouse_coord = to_array(input.pointer.interact_pos().unwrap_or_default());
+        self.pos_is_real = input.pointer.interact_pos().is_some();
         self.view_mouse_coord = vec_sub(&self.window_mouse_coord, &to_array(response.rect.min));
         self.mouse_scroll = input.raw_scroll_delta.y;
         

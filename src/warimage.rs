@@ -359,15 +359,27 @@ impl<const N : usize> Image<N>
         let y1 = (y0 + 1) as isize;
         let yi = y - y0 as f32;
         
-        let a0 = self.get_pixel_float(x0, y0);
-        let a1 = self.get_pixel_float(x1, y0);
-        let b0 = self.get_pixel_float(x0, y1);
-        let b1 = self.get_pixel_float(x1, y1);
+        let mut a0 = self.get_pixel_float(x0, y0);
+        let mut a1 = self.get_pixel_float(x1, y0);
+        let mut b0 = self.get_pixel_float(x0, y1);
+        let mut b1 = self.get_pixel_float(x1, y1);
+        
+        for i in 0..3
+        {
+            a0[i] *= a0[3];
+            a1[i] *= a1[3];
+            b0[i] *= b0[3];
+            b1[i] *= b1[3];
+        }
         
         let c0 = px_lerp_float(a0, a1, xi);
         let c1 = px_lerp_float(b0, b1, xi);
         
-        px_lerp_float(c0, c1, yi)
+        let mut r = px_lerp_float(c0, c1, yi);
+        r[0] /= r[3] + 0.000001;
+        r[1] /= r[3] + 0.000001;
+        r[2] /= r[3] + 0.000001;
+        r
     }
 }
 

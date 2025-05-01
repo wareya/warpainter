@@ -559,6 +559,8 @@ impl Warpainter
         
         self.did_event_setup = true;
         
+        self.queue_fit = true;
+        
         //self.zoom(2.0);
         
         #[cfg(target_arch = "wasm32")]
@@ -3052,12 +3054,11 @@ This warning will only be shown once.", self.max_texture_size);
         
         egui::TopBottomPanel::bottom("StatusBar").min_height(16.0).max_height(150.0).show(ctx, |ui|
         {
-            let input = ui.input(|input| input.clone());
-            ui.label(format!("Canvas: {}x{} ~~~ Cursor: {},{} ~~~ Zoom: {}",
+            ui.label(format!("Canvas: {}x{} ~ Cursor: {},{} ~ Zoom: {:.1}%",
                 self.canvas_width, self.canvas_height,
                 self.last_input.canvas_mouse_coord[0].floor(),
                 self.last_input.canvas_mouse_coord[1].floor(),
-                self.xform.get_scale()));
+                (self.xform.get_scale())*100.0));
         });
         
         egui::TopBottomPanel::bottom("DebugText").resizable(true).min_height(16.0).max_height(150.0).show(ctx, |ui|
@@ -3091,12 +3092,15 @@ This warning will only be shown once.", self.max_texture_size);
             {
                 let (response, state) = canvas(ui, self, focus_is_global, multitouch);
                 input_state = Some(state.clone());
-                self.last_input = state;
+                if state.pos_is_real
+                {
+                    self.last_input = state;
+                }
                 
                 self.canvas_view_x = response.rect.min.x as usize;
                 self.canvas_view_y = response.rect.min.y as usize;
-                self.canvas_view_w = response.rect.width() as usize;
-                self.canvas_view_h = response.rect.height() as usize;
+                self.canvas_view_w = (response.rect.width() * ui.pixels_per_point()) as usize;
+                self.canvas_view_h = (response.rect.height() * ui.pixels_per_point()) as usize;
                 
                 response
             });
