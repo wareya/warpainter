@@ -248,7 +248,9 @@ pub (crate) fn upload_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
+        gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
+        
         println!("--ASDFASDFASDF {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);
     }
 }
@@ -299,6 +301,7 @@ pub (crate) fn update_texture(gl : &glow::Context, handle : glow::Texture, textu
         
         let start = web_time::Instant::now();
         
+        gl.generate_mipmap(glow::TEXTURE_2D);
         fix_mipmaps(gl, handle, texture.width, texture.height);
         
         println!("--ASDFASDFASDF (rebuild) {:.6}ms", start.elapsed().as_secs_f64() * 1000.0);

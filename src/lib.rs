@@ -3288,7 +3288,7 @@ static mut WEB_PRESSURE : f32 = 0.0;
 #[wasm_bindgen]
 pub fn web_pressure_update(pressure : f32)
 {
-    web_sys::console::log_1(&format!("new pressure: {}", pressure).into());
+    //web_sys::console::log_1(&format!("new pressure: {}", pressure).into());
     unsafe { WEB_PRESSURE = pressure };
 }
 

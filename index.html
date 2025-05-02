@@ -138,12 +138,13 @@
     <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
     <script>
         // We disable caching during development so that we always view the latest version.
-        if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
+        if ('serviceWorker' in navigator && window.location.hash != "#dev") {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('sw.js');
             });
         }
     </script>
+    
     <script type="module">
     import { test } from "./warpainter.js";
     import { web_pressure_update } from "./warpainter.js";
