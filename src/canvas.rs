@@ -58,6 +58,7 @@ impl CanvasInputState
         self.touch_rotation = 0.0;
         self.zoom = 1.0;
         self.pressure = 1.0;
+        
         if let Some(mt) = input.multi_touch()
         {
             self.touch_scroll[0] = mt.translation_delta.x;
@@ -80,6 +81,22 @@ impl CanvasInputState
         if self.pressure != 1.0
         {
             println!("pressure: {}", self.pressure);
+        }
+        
+        for x in &input.raw.events
+        {
+            match x
+            {
+                #[allow(unused)]
+                egui::Event::Touch{device_id, id, phase, pos, force} =>
+                {
+                    if let Some(p) = force
+                    {
+                        self.pressure = *p;
+                    }
+                }
+                _ => {}
+            }
         }
         
         if !response.is_pointer_button_down_on() && !response.drag_stopped()
