@@ -21,6 +21,7 @@ pub (crate) struct CanvasInputState
     pub (crate) touch_rotation : f32,
     pub (crate) touch_scroll : [f32; 2],
     pub (crate) touch_center : [f32; 2],
+    pub (crate) pressure : f32,
     pub (crate) mouse_in_canvas : bool,
     pub (crate) mouse_in_canvas_area : bool,
     pub (crate) cancel : bool,
@@ -56,6 +57,7 @@ impl CanvasInputState
         self.touch_center = self.window_mouse_coord;
         self.touch_rotation = 0.0;
         self.zoom = 1.0;
+        self.pressure = 1.0;
         if let Some(mt) = input.multi_touch()
         {
             self.touch_scroll[0] = mt.translation_delta.x;
@@ -66,6 +68,18 @@ impl CanvasInputState
             
             self.touch_rotation = mt.rotation_delta * 180.0 / 3.1415926535;
             self.zoom = mt.zoom_delta;
+            
+            println!("mt force: {}", mt.force);
+            self.pressure = mt.force;
+        }
+        
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.pressure = unsafe { crate::WEB_PRESSURE };
+        }
+        if self.pressure != 1.0
+        {
+            println!("pressure: {}", self.pressure);
         }
         
         if !response.is_pointer_button_down_on() && !response.drag_stopped()

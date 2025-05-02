@@ -355,21 +355,34 @@ fn draw_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_sh
 {
     draw_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock)
 }
-fn blend_brush_at_float(image : &mut Image<4>, at : [f32; 2], color : [f32; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String)
+fn blend_brush_at_float(image : &mut Image<4>, center : [f32; 2], color : [f32; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String, brush_scale : f32)
 {
     let func = find_blend_func_float(&mode);
-    let x = at[0].floor() as isize;
-    let xoffs = at[0] - x as f32;
-    let y = at[1].floor() as isize;
-    let yoffs = at[1] - y as f32;
-    for uy in 0..brush_shape.height as isize+1
+    
+    let w = brush_shape.width as f32 * brush_scale;
+    let h = brush_shape.height as f32 * brush_scale;
+    
+    let realx = center[0] - (w - 1.0) * 0.5;
+    let realy = center[1] - (h - 1.0) * 0.5;
+    
+    let x = realx.floor() as isize;
+    let y = realy.floor() as isize;
+    
+    println!("{} {} {} {}", x, y, realx, realy);
+    
+    for uy in 0..=h.ceil() as isize+1
     {
-        for ux in 0..brush_shape.width as isize+1
+        let iy = y + uy;
+        let dy = (iy as f32 - realy) / brush_scale;
+        for ux in 0..=w.ceil() as isize+1
         {
-            let mut c = brush_shape.get_pixel_float_lerped(ux as f32 + xoffs - 1.0, uy as f32 + yoffs - 1.0);
+            let ix = x + ux;
+            let dx = (ix as f32 - realx) / brush_scale;
+            let mut c = brush_shape.get_pixel_float_lerped(dx as f32, dy as f32);
+            //let mut c = brush_shape.get_pixel_float_lerped(0.5, 0.5);
             if c[3] > 0.0
             {
-                let mut under_c = image.get_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize);
+                let mut under_c = image.get_pixel_float(ix, iy);
                 if !erase
                 {
                     c[0] *= color[0];
@@ -385,14 +398,14 @@ fn blend_brush_at_float(image : &mut Image<4>, at : [f32; 2], color : [f32; 4], 
                 {
                     under_c[3] = lerp(under_c[3], 0.0, c[3] * color[3]);
                 }
-                image.set_pixel_float(x + ux - (brush_shape.width/2) as isize, y + uy - (brush_shape.height/2) as isize, under_c);
+                image.set_pixel_float(ix, iy, under_c);
             }
         }
     }
 }
-fn blend_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String)
+fn blend_brush_at(image : &mut Image<4>, at : [f32; 2], color : [u8; 4], brush_shape : &Image<4>, erase : bool, alpha_lock : bool, mode : String, brush_scale : f32)
 {
-    blend_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock, mode)
+    blend_brush_at_float(image, at, px_to_float(color), brush_shape, erase, alpha_lock, mode, brush_scale)
 }
 
 fn grow_box(mut rect : [[f32; 2]; 2], grow_size : [f32; 2]) -> [[f32; 2]; 2]
@@ -545,8 +558,8 @@ impl Tool for Pencil
     fn think(&mut self, app : &mut crate::Warpainter, new_input : &CanvasInputState)
     {
         let mut new_input = new_input.clone();
-        let a = if self.brush_shape.width  & 1 == 0 { 0.5 } else { 0.0 };
-        let b = if self.brush_shape.height & 1 == 0 { 0.5 } else { 0.0 };
+        let a = if self.replace && self.brush_shape.width  & 1 == 0 { 0.5 } else { 0.0 };
+        let b = if self.replace && self.brush_shape.height & 1 == 0 { 0.5 } else { 0.0 };
         new_input.canvas_mouse_coord[0] += a;
         new_input.canvas_mouse_coord[1] += b;
         
@@ -710,7 +723,7 @@ impl Tool for Pencil
                     {
                         if !self.replace
                         {
-                            blend_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string());
+                            blend_brush_at_float(image, coord2, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string(), new_input.pressure);
                         }
                         else
                         {
@@ -724,10 +737,11 @@ impl Tool for Pencil
                         if !self.replace
                         {
                             let mut d = vec_sub(&coord2, &self.last_blot);
-                            while vec_len(&d) >= self.size * 0.25
+                            let inc = (self.size * 0.25 * new_input.pressure).max(0.25);
+                            while vec_len(&d) >= inc
                             {
-                                let next = vec_add(&self.last_blot, &vec_mul_scalar(&vec_normalize(&d), self.size * 0.25));
-                                blend_brush_at_float(image, next, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string());
+                                let next = vec_add(&self.last_blot, &vec_mul_scalar(&vec_normalize(&d), inc));
+                                blend_brush_at_float(image, next, color, &self.brush_shape, eraser, alpha_locked, "Normal".to_string(), new_input.pressure);
                                 self.last_blot = next;
                                 d = vec_sub(&coord2, &self.last_blot);
                             }

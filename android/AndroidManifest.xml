@@ -11,7 +11,7 @@
     platformBuildVersionName="15">
 
     <uses-sdk
-        android:minSdkVersion="35"
+        android:minSdkVersion="30"
         android:targetSdkVersion="35"
         android:maxSdkVersion="36" />
 

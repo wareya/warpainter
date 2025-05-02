@@ -2667,11 +2667,32 @@ This warning will only be shown once.", self.max_texture_size);
                                 }
                             }
                             
+                            let thumb_img = if layer.data.is_some() { &layer.data } else { &layer.flattened_data }.as_ref().map(|x| x.make_thumbnail());
+                            let mut th_mask_outer = None;
+                            if let Some(thumb_img) = thumb_img
+                            {
+                                use uuid::Uuid;
+                                if let Some(ref mut tn) = layer.mask_thumbnail
+                                {
+                                    let tex = tn.to_mut::<egui::TextureHandle>().unwrap();
+                                    th_mask_outer = Some(tex.clone());
+                                    tex.set(thumb_img.to_egui(), egui::TextureOptions::NEAREST);
+                                }
+                                else
+                                {
+                                    let ctx = ui.ctx();
+                                    let nd = thumb_img.to_egui();
+                                    let tex = ctx.load_texture(format!("{}", Uuid::new_v4().as_u128()), nd, egui::TextureOptions::NEAREST);
+                                    th_mask_outer = Some(tex.clone());
+                                    layer.mask_thumbnail = Some(Box::new(tex));
+                                }
+                            }
+                            
                             layer_info.push((
                                 layer.name.clone(),
                                 layer.uuid,
                                 depth,
-                                layer.mask.is_some(),
+                                th_mask_outer,
                                 layer.clipped,
                                 layer.children.len(),
                                 layer.visible,
@@ -2708,7 +2729,7 @@ This warning will only be shown once.", self.max_texture_size);
                                 self.log_layer_info_change(id);
                             }
                             ui.allocate_space([info.2 as f32 * 8.0, 0.0].into());
-                            let mut name = info.0.clone();
+                            let name = info.0;//.clone();
                             
                             let active = self.current_layer == info.1;
                             ui.allocate_ui([150.0, 28.0].into(), |ui|
@@ -2732,11 +2753,6 @@ This warning will only be shown once.", self.max_texture_size);
                                         rect.min.x -= 4.0;
                                         rect.max.x = rect.min.x + 2.0;
                                         ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(0, 127, 255, 255));
-                                    }
-                                    
-                                    if info.3
-                                    {
-                                        name += "[m]";
                                     }
                                     
                                     if let Some(tx) = info.7
@@ -2780,6 +2796,28 @@ This warning will only be shown once.", self.max_texture_size);
                                     }
                                     
                                     clicked |= ui.add(egui::Label::new(egui::RichText::new(&name).size(10.0)).selectable(false).sense(egui::Sense::click_and_drag())).clicked();
+                                    
+                                    if let Some(tx) = info.3
+                                    {
+                                        let (r, painter) = ui.allocate_painter((24.0, 24.0).into(), egui::Sense::click());
+                                        let mut rect = r.rect;
+                                        rect.max.x = rect.min.x + 6.0;
+                                        rect.max.y = rect.min.y + 6.0;
+                                        for y in 0..4
+                                        {
+                                            for x in 0..4
+                                            {
+                                                let c = ((x^y)&1) == 0;
+                                                let c = if c { egui::Color32::GRAY } else { egui::Color32::LIGHT_GRAY };
+                                                painter.rect_filled(rect.translate((x as f32 * 6.0, y as f32 * 6.0).into()), 0.0, c);
+                                            }
+                                        }
+                                        let mut rect = r.rect;
+                                        rect.max.x = rect.min.x + 24.0;
+                                        rect.max.y = rect.min.y + 24.0;
+                                        painter.image(tx.id(), rect, [(0.0, 0.0).into(), (1.0, 1.0).into()].into(), egui::Color32::WHITE);
+                                        clicked |= r.clicked();
+                                    }
                                     
                                     //let response = ui.response();
                                     let response = ui.response().interact(egui::Sense::click_and_drag());
@@ -3239,8 +3277,19 @@ extern "C" {
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub fn test(data : String, mime : String) {
+pub fn test(data : String, mime : String)
+{
     alert(&format!("attempted paste. data: {} mime: {}", data, mime));
+}
+
+#[cfg(target_arch = "wasm32")]
+static mut WEB_PRESSURE : f32 = 0.0;
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn web_pressure_update(pressure : f32)
+{
+    web_sys::console::log_1(&format!("new pressure: {}", pressure).into());
+    unsafe { WEB_PRESSURE = pressure };
 }
 
 // when compiling to web using trunk.
@@ -3338,13 +3387,8 @@ pub fn do_main()
 
 #[cfg(target_os = "android")]
 static mut DEX_CLASS_LOADER : Option<jni::sys::jobject> = None;
-
 #[cfg(target_os = "android")]
 static mut APP_CONTEXT : Option<egui_winit::winit::platform::android::activity::AndroidApp> = None;
-#[cfg(target_os = "android")]
-static mut INSET_TOP : f32 = 0.0;
-#[cfg(target_os = "android")]
-static mut INSET_BOTTOM : f32 = 0.0;
 
 #[cfg(target_os = "android")]
 pub fn show_soft_input(show_implicit : bool)

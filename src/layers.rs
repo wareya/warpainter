@@ -217,6 +217,8 @@ pub (crate) struct Layer
     pub (crate) _dummy_flattened_dirty_rect : Option<[[f32; 2]; 2]>,
     #[serde(skip)]
     pub (crate) thumbnail : Option<Box<dyn CloneAny>>,
+    #[serde(skip)]
+    pub (crate) mask_thumbnail : Option<Box<dyn CloneAny>>,
 }
 
 impl Layer
@@ -297,6 +299,7 @@ impl Layer
             _dummy_flattened_data : None,
             _dummy_flattened_dirty_rect : None,
             thumbnail : None,
+            mask_thumbnail : None,
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }
@@ -341,6 +344,7 @@ impl Layer
             _dummy_flattened_data : None,
             _dummy_flattened_dirty_rect : None,
             thumbnail : None,
+            mask_thumbnail : None,
             
             old_info_for_undo : LayerInfo::new(name.to_string()),
         }

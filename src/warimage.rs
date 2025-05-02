@@ -352,12 +352,12 @@ impl<const N : usize> Image<N>
     #[inline]
     pub (crate) fn get_pixel_float_lerped(&self, x : f32, y : f32) -> [f32; N]
     {
-        let x0 = (x.floor()) as isize;
+        let x0 = x.floor() as isize;
+        let xi = x - x.floor();
         let x1 = (x0 + 1) as isize;
-        let xi = x - x0 as f32;
-        let y0 = (y.floor()) as isize;
+        let y0 = y.floor() as isize;
+        let yi = y - y.floor();
         let y1 = (y0 + 1) as isize;
-        let yi = y - y0 as f32;
         
         let mut a0 = self.get_pixel_float(x0, y0);
         let mut a1 = self.get_pixel_float(x1, y0);
@@ -372,10 +372,10 @@ impl<const N : usize> Image<N>
             b1[i] *= b1[3];
         }
         
-        let c0 = px_lerp_float(a0, a1, xi);
-        let c1 = px_lerp_float(b0, b1, xi);
+        let c0 = px_lerp_float(a1, a0, xi);
+        let c1 = px_lerp_float(b1, b0, xi);
         
-        let mut r = px_lerp_float(c0, c1, yi);
+        let mut r = px_lerp_float(c1, c0, yi);
         r[0] /= r[3] + 0.000001;
         r[1] /= r[3] + 0.000001;
         r[2] /= r[3] + 0.000001;

@@ -146,6 +146,26 @@
     </script>
     <script type="module">
     import { test } from "./warpainter.js";
+    import { web_pressure_update } from "./warpainter.js";
+    
+    document.getElementById("the_canvas_id").addEventListener("pointerdown", (event) =>
+    {
+        if (event.pointerType != "mouse")
+            web_pressure_update(event.pressure);
+        else
+            web_pressure_update(1.0);
+    });
+    document.getElementById("the_canvas_id").addEventListener("pointermove", (event) =>
+    {
+        if (event.pointerType != "mouse")
+            web_pressure_update(event.pressure);
+        else
+            web_pressure_update(1.0);
+    });
+    document.getElementById("the_canvas_id").addEventListener("pointerup", (event) =>
+    {
+        web_pressure_update(1.0);
+    });
     
     document.onpaste = (e) =>
     {
