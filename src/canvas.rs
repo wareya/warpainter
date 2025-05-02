@@ -74,13 +74,13 @@ impl CanvasInputState
             self.pressure = mt.force;
         }
         
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.pressure = *app.shared.lock();
+        }
         #[cfg(target_arch = "wasm32")]
         {
             self.pressure = unsafe { crate::WEB_PRESSURE };
-        }
-        if self.pressure != 1.0
-        {
-            println!("pressure: {}", self.pressure);
         }
         
         for x in &input.raw.events

@@ -283,6 +283,9 @@ struct Warpainter
     
     #[serde(skip)]
     last_input : CanvasInputState,
+    
+    #[serde(skip)]
+    shared : Arc<Mutex<f32>>,
 }
 
 fn default_tools() -> Vec<Box<dyn Tool>>
@@ -385,6 +388,8 @@ impl Default for Warpainter
             queue_fit : false,
             
             last_input : CanvasInputState::default(),
+            
+            shared : Arc::new(Mutex::new(1.0)),
         }
     }
 }
@@ -3254,19 +3259,68 @@ pub fn do_main()
     
     let mut wp = Box::<Warpainter>::default();
     
+    let shared_state = Arc::clone(&wp.shared);
+    
     let fname = std::env::args().nth(1).unwrap_or_default();
     
     wp.auto_open = fname;
     
-    eframe::run_native (
+    struct Wrapper<'a> {
+        window : Option<winit::window::Window>,
+        e : eframe::EframeWinitApplication<'a>,
+        shared_state : Arc<Mutex<f32>>,
+    }
+
+    impl<'a> winit::application::ApplicationHandler<eframe::UserEvent> for Wrapper<'a>
+    {
+        fn resumed(&mut self, event_loop : &winit::event_loop::ActiveEventLoop)
+        {
+            self.e.resumed(event_loop);
+        }
+
+        fn window_event(
+            &mut self,
+            event_loop : &winit::event_loop::ActiveEventLoop,
+            id : winit::window::WindowId,
+            event : winit::event::WindowEvent)
+        {
+            match event
+            {
+                winit::event::WindowEvent::Touch(touch) =>
+                {
+                    // FIXME: track "are touches down" statefully
+                    let is_down = matches!(touch.phase, winit::event::TouchPhase::Started | winit::event::TouchPhase::Ended);
+                    *self.shared_state.lock() = touch.force.map(|x| x.normalized()).unwrap_or(if is_down { 1.0 } else { 0.0 }) as f32;
+                }
+                winit::event::WindowEvent::MouseInput{device_id : _, state, button : _} =>
+                {
+                    if state.is_pressed()
+                    {
+                        *self.shared_state.lock() = 1.0;
+                    }
+                }
+                _ => {}
+            }
+            self.e.window_event(event_loop, id, event);
+        }
+    }
+    
+    let eventloop = winit::event_loop::EventLoop::<eframe::UserEvent>::with_user_event().build().unwrap();
+    eventloop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+    
+    let e = eframe::create_native(
         "Warpainter",
         options,
         Box::new(|_ctx|
         {
-            //_ctx.egui_ctx.set_theme(egui::Theme::Dark);
             Ok(wp)
         }),
-    ).unwrap();
+        &eventloop,
+    );
+    
+    let mut w = Wrapper { window : None, e, shared_state };
+    
+    eventloop.run_app(&mut w).unwrap();
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -3282,8 +3336,8 @@ pub fn test(data : String, mime : String)
     alert(&format!("attempted paste. data: {} mime: {}", data, mime));
 }
 
-#[cfg(target_arch = "wasm32")]
-static mut WEB_PRESSURE : f32 = 0.0;
+static mut WEB_PRESSURE : f32 = 1.0;
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn web_pressure_update(pressure : f32)
