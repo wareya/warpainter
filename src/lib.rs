@@ -3284,6 +3284,7 @@ pub fn do_main()
             id : winit::window::WindowId,
             event : winit::event::WindowEvent)
         {
+            println!("{:?}", event);
             match event
             {
                 winit::event::WindowEvent::Touch(touch) =>

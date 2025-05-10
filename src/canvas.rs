@@ -90,6 +90,7 @@ impl CanvasInputState
                 #[allow(unused)]
                 egui::Event::Touch{device_id, id, phase, pos, force} =>
                 {
+                    println!("{:?}", force);
                     if let Some(p) = force
                     {
                         self.pressure = *p;

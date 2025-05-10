@@ -23,7 +23,7 @@ assets = "src/data2/"
 debuggable = true
 
 [package.metadata.android.sdk]
-min_sdk_version = 35
+min_sdk_version = 30
 target_sdk_version = 35
 max_sdk_version = 36
 
@@ -81,7 +81,7 @@ features = [
 ]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+winit = { version = "0.30.10", default-features = false, features = ["rwh_06"] }
 atomicwrites = "0.4.4"
 lz4 = "1.28.1"
 

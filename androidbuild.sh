@@ -27,7 +27,7 @@ set -ex
 
 export ANDROID_HOME="${USERPROFILE//\\//}/AppData/Local/Android/Sdk"
 
-#export ANDROID_NDK_HOME="C:/Users/wareya/AppData/Local/Android/Sdk/ndk/29.0.13113456/"
+#export ANDROID_NDK_HOME="${USERPROFILE//\\//}/AppData/Local/Android/Sdk/ndk/29.0.13113456/"
 #export SDK_VER="35.0.1"
 
 #rustup target add aarch64-linux-android
