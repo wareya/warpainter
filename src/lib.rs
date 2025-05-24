@@ -3441,8 +3441,6 @@ pub fn do_main()
 
 
 #[cfg(target_os = "android")]
-static mut DEX_CLASS_LOADER : Option<jni::sys::jobject> = None;
-#[cfg(target_os = "android")]
 static mut APP_CONTEXT : Option<egui_winit::winit::platform::android::activity::AndroidApp> = None;
 
 #[cfg(target_os = "android")]
@@ -3532,14 +3530,14 @@ fn android_get_file()
     use jni::objects::JClass;
     
     let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
-    let loader = unsafe { DEX_CLASS_LOADER.as_ref().unwrap().clone() };
-    let loader = unsafe { JObject::from_raw(loader.cast()) };
     
     let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) }.unwrap();
     let mut env = vm.attach_current_thread().unwrap();
     let activity = app.activity_as_ptr();
     let activity = unsafe { JObject::from_raw(activity.cast()) };
     
+    let loader = env.call_method(&activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]).unwrap().l().unwrap();
+
     let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
     let asdf = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
     let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
@@ -3578,14 +3576,14 @@ fn android_check_file(app : &mut crate::Warpainter) -> Option<(Vec<u8>, String, 
     use jni::objects::JByteArray;
     
     let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
-    let loader = unsafe { DEX_CLASS_LOADER.as_ref().unwrap().clone() };
-    let loader = unsafe { JObject::from_raw(loader.cast()) };
     
     let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) }.unwrap();
     let mut env = vm.attach_current_thread().unwrap();
     let activity = app.activity_as_ptr();
     let activity = unsafe { JObject::from_raw(activity.cast()) };
     
+    let loader = env.call_method(&activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]).unwrap().l().unwrap();
+
     let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
     let asdf = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
     let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
@@ -3629,68 +3627,6 @@ fn android_main(app : egui_winit::winit::platform::android::activity::AndroidApp
         ..Default::default()
     };
     
-    let vm = unsafe { jni::JavaVM::from_raw(app.vm_as_ptr().cast()) }.unwrap();
-    let mut env = vm.attach_current_thread().unwrap();
-    let activity = app.activity_as_ptr();
-    let activity = unsafe { JObject::from_raw(activity.cast()) };
-    
-    // set up DEX binary and override the default classloader so that Intent launches can see it
-    
-    println!("Hello, world!");
-    
-    let dex_class_loader = make_dex_loader(&mut env, "fileopenactivity.jar");
-    
-    println!("Made DEX loader");
-    
-    let dex_class_loader = dex_class_loader.clone();
-    unsafe { DEX_CLASS_LOADER = Some(dex_class_loader); }
-    let dex_class_loader = unsafe { JObject::from_raw(dex_class_loader) };
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    let class_name_j = env.new_string("moe/wareya/warpainter/FileOpenActivity").unwrap();
-    let asdf = env.call_method(&dex_class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&class_name_j.into())]).unwrap().l().unwrap();
-    let asdf = asdf.clone();
-    let asdf = unsafe { JObject::from_raw(asdf.cast()) };
-    let asdf_jc = unsafe { JClass::from_raw(asdf.as_raw() as jni::sys::jclass) };
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    println!("loaded dex class: {:?}", &asdf);
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    println!("Yay!");
-    
-    let cls = env.get_object_class(&asdf_jc).unwrap();
-    let str_obj : JString = env.call_method(&asdf, "getName", "()Ljava/lang/String;", &[]).unwrap().l().unwrap().into();
-    let string : String = env.get_string(&str_obj).unwrap().into();
-    println!("Name of loaded class is: `{}`", string);
-    
-    if env.exception_check().unwrap()
-    {
-        println!("exception description:");
-        env.exception_describe();
-        println!("(end)");
-        panic!();
-    }
-    
-    let q = env.call_static_method(&asdf_jc, "setAPKClassLoader", "(Ljava/lang/ClassLoader;Landroid/content/Context;)V", &[(&dex_class_loader).into(), (&activity).into()]);
-    
-    if env.exception_check().unwrap()
-    {
-        println!("exception description:");
-        env.exception_describe();
-        println!("(end)");
-        panic!();
-    }
-    
-    let q = q.unwrap();
-    
-    println!("Strange!");
-    
-    println!("------------ DEX stuff done");
-    
     eframe::run_native(
         "Warpainter",
         options,
@@ -3713,133 +3649,3 @@ use std::io::Write;
 use std::path::Path;
 #[cfg(target_os = "android")]
 use std::ptr::null_mut;
-
-#[cfg(target_os = "android")]
-fn make_dex_loader<'a>(env: &'a mut JNIEnv, jar_asset_path: &str) -> JObject<'a> {
-    if env.exception_check().unwrap() { panic!(); }
-    
-    let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
-
-    let activity = app.activity_as_ptr();
-    let activity = unsafe { JObject::from_raw(activity.cast()) };
-
-    if env.exception_check().unwrap() { panic!(); }
-    // Get the AssetManager from the context
-    let asset_manager = env.call_method(activity, "getAssets", "()Landroid/content/res/AssetManager;", &[]).unwrap();
-
-    // Get the AssetManager instance
-    let asset_manager_obj = asset_manager.l().unwrap();
-    if env.exception_check().unwrap() { panic!(); }
-    
-    println!("point A");
-    
-    // Open the JAR file in assets
-    let jar_path = env.new_string(jar_asset_path).unwrap();
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    let input_stream = env.call_method(
-        asset_manager_obj, 
-        "open", 
-        "(Ljava/lang/String;)Ljava/io/InputStream;", 
-        &[JValue::Object(&jar_path.into())]
-    );
-    
-    if env.exception_check().unwrap() {
-        let message = env.exception_describe();
-        panic!("Exception occurred: {:?}", message);
-    }
-    
-    println!("point B");
-    
-    let input_stream = input_stream.unwrap();
-    
-    if env.exception_check().unwrap() { panic!(); }
-    let input_stream_obj = input_stream.l().unwrap();
-
-    if env.exception_check().unwrap() { panic!(); }
-    fn get_temp_file_path(env: &mut JNIEnv) -> String {
-        let app : egui_winit::winit::platform::android::activity::AndroidApp = unsafe { APP_CONTEXT.as_ref().unwrap().clone() };
-        
-        let activity = app.activity_as_ptr();
-        let activity = unsafe { JObject::from_raw(activity.cast()) };
-
-        let files_dir = env.call_method(activity, "getFilesDir", "()Ljava/io/File;", &[]).unwrap();
-        let files_dir_obj = files_dir.l().unwrap();
-        let path_obj = env.call_method(files_dir_obj, "getAbsolutePath", "()Ljava/lang/String;", &[]).unwrap().l().unwrap();
-        env.get_string(&JString::from(path_obj)).unwrap().into()
-    }
-    
-    println!("point C");
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    fn save_input_stream_to_file<'a>(env: &'a mut JNIEnv, input_stream_obj: JObject<'a>, temp_path: &Path) {
-        let mut file = File::create(temp_path).unwrap();
-        
-        loop {
-            let len = 4096;
-            let byte_array = env.new_byte_array(len as i32).unwrap();
-            let read_len : jni::sys::jint =
-                env.call_method(&input_stream_obj, "read", "([B)I", &[(&byte_array).into()])
-                .unwrap().i().unwrap();
-            
-            if read_len == -1
-            {
-                break;
-            }
-            
-            let buffer = env.convert_byte_array(byte_array).unwrap();
-            file.write_all(&buffer[0..read_len as usize]).unwrap();
-            
-            if env.exception_check().unwrap() { }
-        }
-    }
-    if env.exception_check().unwrap() { panic!(); }
-    
-    // Save the JAR file to a temporary location
-    let temp_path = Path::new(&get_temp_file_path(env)).join("temp.jar");
-    
-    println!("point D");
-    unsafe {
-        let s = std::ffi::CString::new(temp_path.to_string_lossy().as_bytes()).unwrap();
-        let result = libc::remove(s.as_ptr());
-        //libc::chmod(s.as_ptr(), 0o777);
-        //if libc::chmod(s.as_ptr(), 0o777) == -1 {
-        //    panic!("Failed to change file permissions");
-        //}
-    }
-    
-    save_input_stream_to_file(env, input_stream_obj, &temp_path);
-    
-    if env.exception_check().unwrap() { panic!(); }
-    println!("point E");
-    
-    unsafe {
-        let s = std::ffi::CString::new(temp_path.to_string_lossy().as_bytes()).unwrap();
-        if libc::chmod(s.as_ptr(), 0o555) == -1 {
-            panic!("Failed to change file permissions");
-        }
-    }
-    
-    let dex_class_loader = env.new_object(
-        //dex_class_loader_class,
-        //"<init>",
-        "dalvik/system/DexClassLoader",
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/ClassLoader;)V",
-        &[JValue::Object(&JObject::from(env.new_string(&temp_path.to_string_lossy().to_string()).unwrap())),
-            JValue::Object(&JObject::null()),
-            JValue::Object(&JObject::null()),
-            JValue::Object(&JObject::null())],
-    ).unwrap();
-    println!("point F");
-    
-    let thread_class = env.find_class("java/lang/Thread").unwrap();
-    let current_thread : JObject = env.call_static_method(thread_class, "currentThread", "()Ljava/lang/Thread;", &[]).unwrap().l().unwrap();
-    env.call_method(current_thread, "setContextClassLoader", "(Ljava/lang/ClassLoader;)V", &[(&dex_class_loader).into()]).unwrap();
-    
-    if env.exception_check().unwrap() { panic!(); }
-    
-    println!("point G");
-    dex_class_loader
-}

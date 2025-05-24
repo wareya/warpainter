@@ -6,5 +6,9 @@ dist/
 .trash/*
 .trash2/*
 .trash3/*
+.trash4
 android/*/
 src/data/classes.dex
+.pom_cache/
+.androidbuild/
+__pycache__/

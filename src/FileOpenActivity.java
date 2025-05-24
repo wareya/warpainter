@@ -101,46 +101,4 @@ public class FileOpenActivity extends ComponentActivity {
     static public void printDebugStatic() {
         Log.d("FileOpenActivity", "FileOpenActivity printDebugStatic called successfully.");
     }
-    
-    static public void setAPKClassLoader(ClassLoader classLoader, Context context)
-    {
-        try {
-            // https://gist.github.com/marshall/839003
-            // https://gist.github.com/ndahlquist/19867c60ca4a6e7c1ca1/revisions
-            Field mMainThread = getField(Activity.class, "mMainThread");
-            Object mainThread = mMainThread.get(context);
-            Class threadClass = mainThread.getClass();
-            Field mPackages = getField(threadClass, "mPackages");
-
-            Map<String,?> map = (Map<String,?>) mPackages.get(mainThread);
-            WeakReference<?> ref = (WeakReference<?>) map.get(context.getPackageName());
-            Object apk = ref.get();
-            Class apkClass = apk.getClass();
-            Field mClassLoader = getField(apkClass, "mClassLoader");
-
-            mClassLoader.set(apk, classLoader);
-            Log.d("setAPKClassLoader", "setAPKClassLoader succeeded");
-        } catch (IllegalArgumentException e) {
-            Log.d("setAPKClassLoader", "setAPKClassLoader failed (illegal argument)");
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            Log.d("setAPKClassLoader", "setAPKClassLoader failed (illegal access)");
-            e.printStackTrace();
-        }
-    }
-    
-    static private Field getField(Class<?> cls, String name)
-    {
-        for (Field field: cls.getDeclaredFields())
-        {
-            if (!field.isAccessible()) {
-                field.setAccessible(true);
-            }
-            if (field.getName().equals(name)) {
-                return field;
-            }
-        }
-        return null;
-    }
-    
 }

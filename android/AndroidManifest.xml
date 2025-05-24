@@ -18,7 +18,7 @@
     <application
         android:largeHeap="true"
         android:label="Warpainter"
-        android:hasCode="false"
+        android:hasCode="true"
         android:debuggable="true"
         android:icon="@mipmap/ic_launcher">
 
